@@ -9,10 +9,11 @@ pub const AUTH_LOGIN_CSRF_KEY: &str = "auth:login:csrf";
 pub struct AuthLoginCsrf(pub String);
 
 impl AuthLoginCsrf {
-    pub async fn get(session: &Session) -> Result<Option<String>, Error> {
-        let csrf = session.get(AUTH_LOGIN_CSRF_KEY).await?;
-
-        Ok(csrf)
+    pub async fn get(session: &Session) -> Result<String, Error> {
+        match session.get(AUTH_LOGIN_CSRF_KEY).await? {
+            Some(csrf) => Ok(csrf),
+            None => Err(Error::AuthCsrfEmptySession),
+        }
     }
 
     pub async fn insert(session: &Session, state: String) -> Result<(), Error> {
