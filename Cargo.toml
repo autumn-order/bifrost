@@ -1,0 +1,38 @@
+[package]
+name = "bifrost"
+description = "Authentication platform for EVE Online corporations, alliances, and coalitions"
+version = "0.1.0"
+authors = ["Hyziri <hyziri@protonmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# === Web ===
+dioxus = { version = "0.6.3", features = ["router", "fullstack"] }
+dioxus-logger = "0.6.2"
+
+# === Server ===
+# Use older version until Dioxus 0.7 release
+dioxus-cli-config = { version = "0.6.3", optional = true }
+tokio = { version = "1.47.1", features = ["macros"], optional = true }
+axum = { version = "0.7.9", optional = true }
+
+[features]
+default = ["web"]
+web = ["dioxus/web"]
+server = ["dioxus/server", "dioxus-cli-config", "tokio", "axum"]
+desktop = ["dioxus/desktop"]
+mobile = ["dioxus/mobile"]
+
+[profile]
+
+[profile.wasm-dev]
+inherits = "dev"
+opt-level = 1
+
+[profile.server-dev]
+inherits = "dev"
+
+[profile.android-dev]
+inherits = "dev"
