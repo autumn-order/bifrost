@@ -60,13 +60,13 @@ async fn main() {
     info!("Starting server");
 
     let state = AppState {
-        session: session_layer,
         esi_client: esi_client,
     };
 
     let router = server::router::routes()
         .serve_dioxus_application(ServeConfigBuilder::default(), client::App)
-        .with_state(state);
+        .with_state(state)
+        .layer(session_layer);
 
     let router = router.into_make_service();
     let address = dioxus_cli_config::fullstack_address_or_localhost();
