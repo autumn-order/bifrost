@@ -4,6 +4,7 @@ description = "Authentication platform for EVE Online corporations, alliances, a
 version = "0.1.0"
 authors = ["Hyziri <hyziri@protonmail.com>"]
 edition = "2021"
+repository = "https://github.com/autumn-order/bifrost"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,15 +14,18 @@ dioxus = { version = "0.6.3", features = ["router", "fullstack"] }
 dioxus-logger = "0.6.2"
 
 # === Server ===
-# Use older version until Dioxus 0.7 release
 dioxus-cli-config = { version = "0.6.3", optional = true }
 tokio = { version = "1.47.1", features = ["macros"], optional = true }
+# Use older axum version until Dioxus 0.7 release
 axum = { version = "0.7.9", optional = true }
+
+dotenvy = { version = "0.15.7", optional = true }
+eve_esi = { version = "0.4.5", optional = true }
 
 [features]
 default = ["web"]
 web = ["dioxus/web"]
-server = ["dioxus/server", "dioxus-cli-config", "tokio", "axum"]
+server = ["dioxus/server", "dioxus-cli-config", "tokio", "axum", "dotenvy", "eve_esi"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
 
