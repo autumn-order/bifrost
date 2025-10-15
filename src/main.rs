@@ -14,11 +14,12 @@ fn main() {
 #[cfg(feature = "server")]
 #[tokio::main]
 async fn main() {
-    use axum::Router;
     use dioxus::prelude::*;
     use dioxus_logger::tracing::{info, Level};
+    use time::Duration;
+    use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
 
-    use crate::server::router::AppState;
+    use crate::server::model::app::AppState;
 
     dotenvy::dotenv().ok();
 
@@ -45,14 +46,25 @@ async fn main() {
         .build()
         .expect("Failed to build ESI client");
 
+    // Set secure based on build mode: in development (debug) use false, otherwise true.
+    let development_mode = cfg!(debug_assertions);
+    let secure_cookies = !development_mode;
+
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(secure_cookies)
+        .with_same_site(SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(120)));
+
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("Starting server");
 
     let state = AppState {
+        session: session_layer,
         esi_client: esi_client,
     };
 
-    let router = Router::new()
+    let router = server::router::routes()
         .serve_dioxus_application(ServeConfigBuilder::default(), client::App)
         .with_state(state);
 

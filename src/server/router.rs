@@ -1,4 +1,9 @@
-#[derive(Clone)]
-pub struct AppState {
-    pub esi_client: eve_esi::Client,
+use axum::Router;
+
+use crate::server::model::app::AppState;
+
+pub fn routes() -> Router<AppState> {
+    let routes = Router::new();
+
+    routes
 }
