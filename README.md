@@ -45,3 +45,11 @@ dx serve
 ```
 
 The application can now be found at `http://localhost:8080`
+
+## Testing
+
+Run tests with:
+
+```bash
+cargo test --features server
+```

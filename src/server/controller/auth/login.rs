@@ -18,7 +18,7 @@ pub async fn login(
 
     let login = login_service(&state.esi_client, scopes)?;
 
-    AuthLoginCsrf::insert(&session, login.state).await?;
+    AuthLoginCsrf::insert(&session, &login.state).await?;
 
     Ok(Redirect::temporary(&login.login_url))
 }
