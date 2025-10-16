@@ -11,7 +11,7 @@ static ESI_CLIENT_SECRET: &str = "esi_client_secret";
 static CALLBACK_URL: &str = "http://localhost:8080/auth/callback";
 
 pub struct TestSetup {
-    pub mock_server: ServerGuard,
+    pub server: ServerGuard,
     pub state: AppState,
     pub session: Session,
 }
@@ -23,8 +23,11 @@ pub async fn test_setup() -> TestSetup {
 
     let esi_config = eve_esi::Config::builder()
         .esi_url(&mock_server_url)
+        .token_url(&format!("{}/v2/oauth/token", mock_server.url()))
+        .jwk_url(&format!("{}/oauth/jwks", mock_server_url))
         .build()
         .expect("Failed to build ESI client config");
+
     let esi_client = eve_esi::Client::builder()
         .config(esi_config)
         .user_agent(USER_AGENT)
@@ -42,7 +45,7 @@ pub async fn test_setup() -> TestSetup {
     };
 
     TestSetup {
-        mock_server,
+        server: mock_server,
         state,
         session,
     }
