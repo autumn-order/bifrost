@@ -15,24 +15,19 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
 
 #[cfg(test)]
 pub mod tests {
-    use std::sync::Arc;
-
     use axum::{http::StatusCode, response::IntoResponse};
-    use tower_sessions::{MemoryStore, Session};
 
-    use crate::server::{controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf};
-
-    fn setup() -> Session {
-        let store = Arc::new(MemoryStore::default());
-        Session::new(None, store, None)
-    }
+    use crate::server::{
+        controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf,
+        util::test::session_test_setup,
+    };
 
     #[tokio::test]
     /// Tests successful validation of CSRF state
     ///
     /// 200 success
     async fn test_validate_csrf_success() {
-        let session = setup();
+        let session = session_test_setup();
         let state = "state";
 
         let insert_result = AuthLoginCsrf::insert(&session, state).await;
@@ -47,7 +42,7 @@ pub mod tests {
     ///
     /// 400 bad request
     async fn test_validate_csrf_mismatch() {
-        let session = setup();
+        let session = session_test_setup();
         let state = "state";
 
         let insert_result = AuthLoginCsrf::insert(&session, "different_state").await;
@@ -65,7 +60,7 @@ pub mod tests {
     ///
     /// 500 internal server error
     async fn test_validate_csrf_session_error() {
-        let session = setup();
+        let session = session_test_setup();
         let state = "state";
 
         // Attempt to validate result despite no state being inserted into sesison

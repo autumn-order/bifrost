@@ -45,21 +45,12 @@ impl AuthLoginCsrf {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use tower_sessions::{MemoryStore, Session};
-
-    use crate::server::model::session::AuthLoginCsrf;
-
-    fn setup() -> Session {
-        let store = Arc::new(MemoryStore::default());
-        Session::new(None, store, None)
-    }
+    use crate::server::{model::session::AuthLoginCsrf, util::test::session_test_setup};
 
     #[tokio::test]
     /// Test successful insertion of CSRF state
     async fn test_insert() {
-        let session = setup();
+        let session = session_test_setup();
 
         let result = AuthLoginCsrf::insert(&session, "string").await;
 
@@ -69,7 +60,7 @@ mod tests {
     #[tokio::test]
     /// Test successful retrieval of CSRF state
     async fn test_get() {
-        let session = setup();
+        let session = session_test_setup();
         let state = "string";
 
         let insert_result = AuthLoginCsrf::insert(&session, state).await;
@@ -86,7 +77,7 @@ mod tests {
     #[tokio::test]
     /// Test successful removal of CSRF state
     async fn test_remove() {
-        let session = setup();
+        let session = session_test_setup();
 
         let insert_result = AuthLoginCsrf::insert(&session, "state").await;
         let get_result = AuthLoginCsrf::get(&session).await;
@@ -106,7 +97,7 @@ mod tests {
     #[tokio::test]
     /// Test successful consumption of CSRF state
     async fn test_consume() {
-        let session = setup();
+        let session = session_test_setup();
         let state = "string";
 
         let insert_result = AuthLoginCsrf::insert(&session, state).await;
