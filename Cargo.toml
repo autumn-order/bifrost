@@ -29,6 +29,9 @@ eve_esi = { version = "0.4.5", optional = true }
 oauth2 = { version = "5.0.0", optional = true }
 time = { version = "0.3.43", optional = true }
 
+[dev-dependencies]
+mockito = "1.7.0"
+
 [features]
 default = ["web"]
 web = ["dioxus/web"]

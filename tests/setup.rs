@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use bifrost::server::model::app::AppState;
+use mockito::{Server, ServerGuard};
 use tower_sessions::{MemoryStore, Session};
 
 pub static USER_AGENT: &str =
@@ -9,9 +10,23 @@ static ESI_CLIENT_ID: &str = "esi_client_id";
 static ESI_CLIENT_SECRET: &str = "esi_client_secret";
 static CALLBACK_URL: &str = "http://localhost:8080/auth/callback";
 
+pub struct TestSetup {
+    pub mock_server: ServerGuard,
+    pub state: AppState,
+    pub session: Session,
+}
+
 // Returns a tuple with [`AppState`] & [`Session`] used across integration tests
-pub fn setup() -> (AppState, Session) {
+pub async fn test_setup() -> TestSetup {
+    let mock_server = Server::new_async().await;
+    let mock_server_url = mock_server.url();
+
+    let esi_config = eve_esi::Config::builder()
+        .esi_url(&mock_server_url)
+        .build()
+        .expect("Failed to build ESI client config");
     let esi_client = eve_esi::Client::builder()
+        .config(esi_config)
         .user_agent(USER_AGENT)
         .client_id(ESI_CLIENT_ID)
         .client_secret(ESI_CLIENT_SECRET)
@@ -26,5 +41,9 @@ pub fn setup() -> (AppState, Session) {
         esi_client: esi_client,
     };
 
-    (state, session)
+    TestSetup {
+        mock_server,
+        state,
+        session,
+    }
 }
