@@ -19,7 +19,7 @@ pub mod tests {
 
     use crate::server::{
         controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf,
-        util::test::session_test_setup,
+        util::test::test_setup,
     };
 
     #[tokio::test]
@@ -27,11 +27,11 @@ pub mod tests {
     ///
     /// 200 success
     async fn test_validate_csrf_success() {
-        let session = session_test_setup();
+        let test = test_setup().await;
         let state = "state";
 
-        let insert_result = AuthLoginCsrf::insert(&session, state).await;
-        let validate_result = validate_csrf(&session, state).await;
+        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
+        let validate_result = validate_csrf(&test.session, state).await;
 
         assert!(insert_result.is_ok());
         assert!(validate_result.is_ok())
@@ -42,11 +42,11 @@ pub mod tests {
     ///
     /// 400 bad request
     async fn test_validate_csrf_mismatch() {
-        let session = session_test_setup();
+        let test = test_setup().await;
         let state = "state";
 
-        let insert_result = AuthLoginCsrf::insert(&session, "different_state").await;
-        let validate_result = validate_csrf(&session, state).await;
+        let insert_result = AuthLoginCsrf::insert(&test.session, "different_state").await;
+        let validate_result = validate_csrf(&test.session, state).await;
 
         assert!(insert_result.is_ok());
         assert!(validate_result.is_err());
@@ -60,11 +60,11 @@ pub mod tests {
     ///
     /// 500 internal server error
     async fn test_validate_csrf_session_error() {
-        let session = session_test_setup();
+        let test = test_setup().await;
         let state = "state";
 
         // Attempt to validate result despite no state being inserted into sesison
-        let validate_result = validate_csrf(&session, state).await;
+        let validate_result = validate_csrf(&test.session, state).await;
 
         assert!(validate_result.is_err());
 

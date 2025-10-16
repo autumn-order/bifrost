@@ -45,14 +45,14 @@ impl AuthLoginCsrf {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::{model::session::AuthLoginCsrf, util::test::session_test_setup};
+    use crate::server::{model::session::AuthLoginCsrf, util::test::test_setup};
 
     #[tokio::test]
     /// Test successful insertion of CSRF state
     async fn test_insert() {
-        let session = session_test_setup();
+        let test = test_setup().await;
 
-        let result = AuthLoginCsrf::insert(&session, "string").await;
+        let result = AuthLoginCsrf::insert(&test.session, "string").await;
 
         assert!(result.is_ok())
     }
@@ -60,11 +60,11 @@ mod tests {
     #[tokio::test]
     /// Test successful retrieval of CSRF state
     async fn test_get() {
-        let session = session_test_setup();
+        let test = test_setup().await;
         let state = "string";
 
-        let insert_result = AuthLoginCsrf::insert(&session, state).await;
-        let get_result = AuthLoginCsrf::get(&session).await;
+        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
+        let get_result = AuthLoginCsrf::get(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(get_result.is_ok());
@@ -77,16 +77,16 @@ mod tests {
     #[tokio::test]
     /// Test successful removal of CSRF state
     async fn test_remove() {
-        let session = session_test_setup();
+        let test = test_setup().await;
 
-        let insert_result = AuthLoginCsrf::insert(&session, "state").await;
-        let get_result = AuthLoginCsrf::get(&session).await;
+        let insert_result = AuthLoginCsrf::insert(&test.session, "state").await;
+        let get_result = AuthLoginCsrf::get(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(get_result.is_ok());
 
-        let remove_result = AuthLoginCsrf::remove(&session).await;
-        let get_result = AuthLoginCsrf::get(&session).await;
+        let remove_result = AuthLoginCsrf::remove(&test.session).await;
+        let get_result = AuthLoginCsrf::get(&test.session).await;
 
         assert!(remove_result.is_ok());
 
@@ -97,11 +97,11 @@ mod tests {
     #[tokio::test]
     /// Test successful consumption of CSRF state
     async fn test_consume() {
-        let session = session_test_setup();
+        let test = test_setup().await;
         let state = "string";
 
-        let insert_result = AuthLoginCsrf::insert(&session, state).await;
-        let consume_result = AuthLoginCsrf::consume(&session).await;
+        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
+        let consume_result = AuthLoginCsrf::consume(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(consume_result.is_ok());
@@ -110,7 +110,7 @@ mod tests {
 
         assert_eq!(result_state, state.to_string());
 
-        let get_result = AuthLoginCsrf::get(&session).await;
+        let get_result = AuthLoginCsrf::get(&test.session).await;
 
         // Should error due to state being removed from session
         assert!(get_result.is_err())
