@@ -70,7 +70,6 @@ mod tests {
     /// Test successful retrieval of CSRF state
     async fn test_get() {
         let session = setup();
-
         let state = "string";
 
         let insert_result = AuthLoginCsrf::insert(&session, state).await;
@@ -108,7 +107,6 @@ mod tests {
     /// Test successful consumption of CSRF state
     async fn test_consume() {
         let session = setup();
-
         let state = "string";
 
         let insert_result = AuthLoginCsrf::insert(&session, state).await;

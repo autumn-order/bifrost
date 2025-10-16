@@ -12,3 +12,68 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use std::sync::Arc;
+
+    use axum::{http::StatusCode, response::IntoResponse};
+    use tower_sessions::{MemoryStore, Session};
+
+    use crate::server::{controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf};
+
+    fn setup() -> Session {
+        let store = Arc::new(MemoryStore::default());
+        Session::new(None, store, None)
+    }
+
+    #[tokio::test]
+    /// Tests successful validation of CSRF state
+    ///
+    /// 200 success
+    async fn test_validate_csrf_success() {
+        let session = setup();
+        let state = "state";
+
+        let insert_result = AuthLoginCsrf::insert(&session, state).await;
+        let validate_result = validate_csrf(&session, state).await;
+
+        assert!(insert_result.is_ok());
+        assert!(validate_result.is_ok())
+    }
+
+    #[tokio::test]
+    /// Tests failed validation of CSRF state due to mismatch
+    ///
+    /// 400 bad request
+    async fn test_validate_csrf_mismatch() {
+        let session = setup();
+        let state = "state";
+
+        let insert_result = AuthLoginCsrf::insert(&session, "different_state").await;
+        let validate_result = validate_csrf(&session, state).await;
+
+        assert!(insert_result.is_ok());
+        assert!(validate_result.is_err());
+
+        let resp = validate_result.unwrap_err().into_response();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    /// Tests failed validation of CSRF state due to session error
+    ///
+    /// 500 internal server error
+    async fn test_validate_csrf_session_error() {
+        let session = setup();
+        let state = "state";
+
+        // Attempt to validate result despite no state being inserted into sesison
+        let validate_result = validate_csrf(&session, state).await;
+
+        assert!(validate_result.is_err());
+
+        let resp = validate_result.unwrap_err().into_response();
+        assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+}
