@@ -2,6 +2,20 @@ use eve_esi::model::oauth2::AuthenticationData;
 
 use crate::server::error::Error;
 
+/// Login service to generate URL for login with EVE Online
+///
+/// Generates a login URL requesting the provided scopes to begin the login process with EVE Online for
+/// the user.
+///
+/// # Arguments
+/// - `esi_client` ([`eve_esi::Client`]): ESI Client used to generate the login URL
+/// - `scopes` (`Vec<String>`): Scopes to request during login
+///
+/// # Returns
+/// Returns a result containing either:
+/// - [`AuthenticationData`]: Login URL to rediret the user to & a CSRF state string for validation in the
+///   callback route
+/// - [`Error`]: An error if the ESI client is not properly configured for OAuth2
 pub fn login_service(
     esi_client: &eve_esi::Client,
     scopes: Vec<String>,

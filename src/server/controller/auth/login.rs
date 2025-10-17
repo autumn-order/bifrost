@@ -10,6 +10,13 @@ use crate::server::{
     service::auth::login::login_service,
 };
 
+/// Login route to initiate login with EVE Online
+///
+/// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
+///
+/// # Responses
+/// - 307 (Redirect Temporary): Redirects user to a temporary URL to start the EVE Online login process
+/// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
 pub async fn login(
     State(state): State<AppState>,
     session: Session,

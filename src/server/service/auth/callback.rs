@@ -2,6 +2,19 @@ use oauth2::TokenResponse;
 
 use crate::server::{error::Error, model::auth::Character};
 
+/// Callback service which fetches & validates JWT token after successful login
+///
+/// Uses an authorization code to fetch a JWT token which provides the user's character name,
+/// ID, as well as an access & refresh token used for fetching data related to the requested scopes.
+///
+/// # Arguments
+/// - `esi_client` ([`eve_esi::Client`]): ESI Client used to fetch and validate JWT token
+/// - `code` (`&str`): Authorization code used to fetch JWT token
+///
+/// # Returns
+/// Returns a result containing either:
+/// - [`Character`]: Character name & ID for the user
+/// - [`Error`]: An error if JWT token fetching or validation fails
 pub async fn callback_service(
     esi_client: &eve_esi::Client,
     code: &str,
