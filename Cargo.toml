@@ -1,59 +1,76 @@
 [package]
 name = "bifrost"
-description = "Authentication platform for EVE Online corporations, alliances, and coalitions"
 version = "0.1.0"
-authors = ["Hyziri <hyziri@protonmail.com>"]
 edition = "2021"
+description = "Authentication platform for EVE Online corporations, alliances, and coalitions"
 repository = "https://github.com/autumn-order/bifrost"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[workspace]
+members = [".", "entity", "migration"]
 
 [dependencies]
-# === Web ===
-dioxus = { version = "0.6.3", features = ["router", "fullstack"] }
-dioxus-logger = "0.6.2"
-
-serde = { version = "1.0.227", features = ["derive"] }
-
-# === Server ===
-dioxus-cli-config = { version = "0.6.3", optional = true }
-tokio = { version = "1.47.1", features = ["macros"], optional = true }
 # Use older axum version until Dioxus 0.7 release
 axum = { version = "0.7.9", optional = true }
+dioxus = { version = "0.6.3", features = ["fullstack", "router"] }
+dioxus-cli-config = { version = "0.6.3", optional = true }
+dioxus-logger = "0.6.2"
+dotenvy = { version = "0.15.7", optional = true }
+entity = { path = "entity", optional = true }
+eve_esi = { version = "0.4.6", optional = true }
+migration = { path = "migration", optional = true }
+oauth2 = { version = "5.0.0", optional = true }
+sea-orm = { version = "2.0.0-rc.11", features = [
+  "runtime-tokio-rustls",
+  "sqlx-postgres",
+  "with-chrono"
+], optional = true }
+serde = { version = "1.0.228", features = ["derive"] }
+thiserror = { version = "2.0.17", optional = true }
+time = { version = "0.3.44", optional = true }
+tokio = { version = "1.48.0", features = ["macros"], optional = true }
 # Use older tower-sessions version until Dioxus 0.7 release
 tower-sessions = { version = "0.13.0", optional = true }
 
-dotenvy = { version = "0.15.7", optional = true }
-thiserror = { version = "2.0.12", optional = true }
-eve_esi = { version = "0.4.5", optional = true }
-oauth2 = { version = "5.0.0", optional = true }
-time = { version = "0.3.43", optional = true }
-
 [dev-dependencies]
-mockito = "1.7.0"
-
-# Auth tests
 base64 = "0.22.1"
 jsonwebtoken = "9.3.1"
-openssl = "0.10.74"
+mockito = "1.7.0"
 oauth2 = "5.0.0"
+openssl = "0.10.74"
+sea-orm = { version = "2.0.0-rc.11", features = [
+  "runtime-tokio-rustls",
+  "sqlx-sqlite",
+  "with-chrono"
+] }
 serde_json = "1.0.145"
 
 [features]
 default = ["web"]
-web = ["dioxus/web"]
-server = ["dioxus/server", "dioxus-cli-config", "tokio", "axum", "tower-sessions", "dotenvy", "thiserror", "eve_esi", "oauth2", "time"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
+server = [
+  "axum",
+  "dioxus-cli-config",
+  "dioxus/server",
+  "dotenvy",
+  "entity",
+  "eve_esi",
+  "migration",
+  "oauth2",
+  "sea-orm",
+  "thiserror",
+  "time",
+  "tokio",
+  "tower-sessions"
+]
+web = ["dioxus/web"]
 
-[profile]
-
-[profile.wasm-dev]
+[profile.android-dev]
 inherits = "dev"
-opt-level = 1
 
 [profile.server-dev]
 inherits = "dev"
 
-[profile.android-dev]
+[profile.wasm-dev]
 inherits = "dev"
+opt-level = 1
