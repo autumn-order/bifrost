@@ -16,6 +16,8 @@ fn main() {
 async fn main() {
     use dioxus::prelude::*;
     use dioxus_logger::tracing::{info, Level};
+    use migration::{Migrator, MigratorTrait};
+    use sea_orm::{ConnectOptions, Database};
     use time::Duration;
     use tower_sessions::{cookie::SameSite, Expiry, MemoryStore, SessionManagerLayer};
 
@@ -29,6 +31,7 @@ async fn main() {
         std::env::var("ESI_CLIENT_SECRET").expect("ESI_CLIENT_SECRET is not set in .env");
     let esi_callback_url =
         std::env::var("ESI_CALLBACK_URL").expect("ESI_CALLBACK_URL is not set in .env");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env");
 
     let user_agent = format!(
         "{}/{} ({}; +{})",
@@ -56,10 +59,22 @@ async fn main() {
         .with_same_site(SameSite::Lax)
         .with_expiry(Expiry::OnInactivity(Duration::seconds(120)));
 
+    let mut opt = ConnectOptions::new(database_url);
+    opt.sqlx_logging(false);
+
+    let db = Database::connect(opt)
+        .await
+        .expect("Failed to connect to database");
+
+    Migrator::up(&db, None)
+        .await
+        .expect("Failed to run database migrations.");
+
     dioxus_logger::init(Level::INFO).expect("failed to init logger");
     info!("Starting server");
 
     let state = AppState {
+        db,
         esi_client: esi_client,
     };
 

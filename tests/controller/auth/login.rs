@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use bifrost::server::{controller::auth::login::login, model::app::AppState};
+use bifrost::server::controller::auth::login::login;
 
 use crate::setup::{test_setup, TEST_USER_AGENT};
 
@@ -20,15 +20,13 @@ async fn test_login_success() {
 #[tokio::test]
 // Test the return of a 500 internal server error response for failed login
 async fn test_login_server_error() {
-    let test = test_setup().await;
+    let mut test = test_setup().await;
 
     // Build an ESI client not configured for OAuth2 to trigger internal server error
     let esi_client = eve_esi::Client::new(TEST_USER_AGENT).unwrap();
-    let state = AppState {
-        esi_client: esi_client,
-    };
+    test.state.esi_client = esi_client;
 
-    let result = login(State(state), test.session).await;
+    let result = login(State(test.state), test.session).await;
 
     assert!(result.is_err());
 

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use mockito::{Server, ServerGuard};
+use sea_orm::Database;
 use tower_sessions::{MemoryStore, Session};
 
 use crate::server::model::app::AppState;
@@ -41,7 +42,10 @@ pub async fn test_setup() -> TestSetup {
     let store = Arc::new(MemoryStore::default());
     let session = Session::new(None, store, None);
 
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+
     let state = AppState {
+        db,
         esi_client: esi_client,
     };
 
