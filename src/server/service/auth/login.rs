@@ -16,7 +16,7 @@ pub mod tests {
     use crate::server::{
         error::Error,
         service::auth::login::login_service,
-        util::test::{test_setup, USER_AGENT},
+        util::test::setup::{test_setup, TEST_USER_AGENT},
     };
 
     /// Test successful login
@@ -33,7 +33,7 @@ pub mod tests {
     /// Test server error when OAuth2 for ESI client is not configured
     #[test]
     fn test_login_server_error() {
-        let esi_client = eve_esi::Client::new(USER_AGENT).expect("Failed to build ESI client");
+        let esi_client = eve_esi::Client::new(TEST_USER_AGENT).expect("Failed to build ESI client");
 
         let scopes = vec![];
         let result = login_service(&esi_client, scopes);

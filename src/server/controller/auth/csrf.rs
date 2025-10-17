@@ -19,7 +19,7 @@ pub mod tests {
 
     use crate::server::{
         controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf,
-        util::test::test_setup,
+        util::test::setup::test_setup,
     };
 
     #[tokio::test]

@@ -24,7 +24,7 @@ pub async fn callback(
 ) -> Result<impl IntoResponse, Error> {
     validate_csrf(&session, &params.0.state).await?;
 
-    let character = callback_service(&state.esi_client, params.0.code).await?;
+    let character = callback_service(&state.esi_client, &params.0.code).await?;
 
     Ok((axum::http::StatusCode::OK, Json(character)))
 }

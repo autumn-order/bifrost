@@ -45,7 +45,7 @@ impl AuthLoginCsrf {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::{model::session::AuthLoginCsrf, util::test::test_setup};
+    use crate::server::{model::session::AuthLoginCsrf, util::test::setup::test_setup};
 
     #[tokio::test]
     /// Test successful insertion of CSRF state

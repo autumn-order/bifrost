@@ -62,7 +62,6 @@ fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
 // Test the return of a 200 success response for callback
 async fn test_callback_success() {
     let (mut test, params) = setup().await;
-
     let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
 
     let result = callback(State(test.state), test.session, Query(params)).await;
@@ -71,7 +70,7 @@ async fn test_callback_success() {
     mock_jwt_key_endpoint.assert();
     mock_jwt_token_endpoint.assert();
 
-    assert!(result.is_ok(), "Error: {:?}", result.err());
+    assert!(result.is_ok());
 
     let resp = result.unwrap().into_response();
 
@@ -100,7 +99,7 @@ async fn test_callback_bad_request() {
 async fn test_callback_server_error() {
     let (test, params) = setup().await;
 
-    // Add no endpoints for JWT key or token which will trigger an internal server error
+    // Don't create any mock JWT token or key endpoints so that token validation fails
 
     let result = callback(State(test.state), test.session, Query(params)).await;
 
