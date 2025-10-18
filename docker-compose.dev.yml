@@ -9,5 +9,10 @@ services:
     ports:
       - 5432:5432
 
+  valkey:
+    image: valkey/valkey:8.1.4-alpine
+    ports:
+      - "6379:6379"
+
 volumes:
   postgres_data_dev:
