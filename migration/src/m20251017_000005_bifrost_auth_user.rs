@@ -9,27 +9,29 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(Post::Table)
+                    .table(BifrostAuthUser::Table)
                     .if_not_exists()
-                    .col(pk_auto(Post::Id))
-                    .col(string(Post::Title))
-                    .col(string(Post::Text))
+                    .col(pk_auto(BifrostAuthUser::Id))
+                    .col(timestamp(BifrostAuthUser::CreatedAt))
                     .to_owned(),
             )
-            .await
+            .await?;
+
+        Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(Post::Table).to_owned())
-            .await
+            .drop_table(Table::drop().table(BifrostAuthUser::Table).to_owned())
+            .await?;
+
+        Ok(())
     }
 }
 
 #[derive(DeriveIden)]
-enum Post {
+pub enum BifrostAuthUser {
     Table,
     Id,
-    Title,
-    Text,
+    CreatedAt,
 }
