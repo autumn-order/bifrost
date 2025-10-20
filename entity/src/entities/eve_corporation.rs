@@ -2,7 +2,7 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "eve_corporation")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -11,19 +11,20 @@ pub struct Model {
     pub corporation_id: i64,
     pub alliance_id: Option<i32>,
     pub faction_id: Option<i32>,
-    pub ceo_id: i32,
-    pub creator_id: i32,
+    pub ceo_id: i64,
+    pub creator_id: i64,
     pub date_founded: Option<DateTime>,
     #[sea_orm(column_type = "Text", nullable)]
     pub description: Option<String>,
-    pub home_station_id: i64,
-    pub member_count: i32,
+    pub home_station_id: Option<i64>,
+    pub member_count: i64,
     pub name: String,
     pub shares: Option<i64>,
-    pub tax_rate: i32,
+    #[sea_orm(column_type = "Double")]
+    pub tax_rate: f64,
     pub ticker: String,
     pub url: Option<String>,
-    pub war_eligible: bool,
+    pub war_eligible: Option<bool>,
     pub created_at: DateTime,
     pub updated_at: DateTime,
 }
@@ -38,22 +39,8 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     EveAlliance,
-    #[sea_orm(
-        belongs_to = "super::eve_character::Entity",
-        from = "Column::CeoId",
-        to = "super::eve_character::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCharacter2,
-    #[sea_orm(
-        belongs_to = "super::eve_character::Entity",
-        from = "Column::CreatorId",
-        to = "super::eve_character::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCharacter1,
+    #[sea_orm(has_many = "super::eve_character::Entity")]
+    EveCharacter,
     #[sea_orm(
         belongs_to = "super::eve_faction::Entity",
         from = "Column::FactionId",
@@ -67,6 +54,12 @@ pub enum Relation {
 impl Related<super::eve_alliance::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::EveAlliance.def()
+    }
+}
+
+impl Related<super::eve_character::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::EveCharacter.def()
     }
 }
 

@@ -2,20 +2,21 @@
 
 use sea_orm::entity::prelude::*;
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq)]
+#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
 #[sea_orm(table_name = "eve_faction")]
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
     #[sea_orm(unique)]
     pub faction_id: i64,
-    pub corporation_id: Option<i32>,
-    pub militia_corporation_id: Option<i32>,
+    pub corporation_id: Option<i64>,
+    pub militia_corporation_id: Option<i64>,
     #[sea_orm(column_type = "Text")]
     pub description: String,
     pub is_unique: bool,
     pub name: String,
-    pub size_factor: i32,
+    #[sea_orm(column_type = "Double")]
+    pub size_factor: f64,
     pub solar_system_id: Option<i64>,
     pub station_count: i64,
     pub station_system_count: i64,
@@ -29,22 +30,8 @@ pub enum Relation {
     EveAlliance,
     #[sea_orm(has_many = "super::eve_character::Entity")]
     EveCharacter,
-    #[sea_orm(
-        belongs_to = "super::eve_corporation::Entity",
-        from = "Column::CorporationId",
-        to = "super::eve_corporation::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCorporation2,
-    #[sea_orm(
-        belongs_to = "super::eve_corporation::Entity",
-        from = "Column::MilitiaCorporationId",
-        to = "super::eve_corporation::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCorporation1,
+    #[sea_orm(has_many = "super::eve_corporation::Entity")]
+    EveCorporation,
 }
 
 impl Related<super::eve_alliance::Entity> for Entity {
@@ -56,6 +43,12 @@ impl Related<super::eve_alliance::Entity> for Entity {
 impl Related<super::eve_character::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::EveCharacter.def()
+    }
+}
+
+impl Related<super::eve_corporation::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::EveCorporation.def()
     }
 }
 

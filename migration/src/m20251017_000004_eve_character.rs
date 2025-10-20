@@ -1,17 +1,13 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
-    m20251017_000001_eve_faction::EveFaction, m20251017_000002_eve_alliance::EveAlliance,
-    m20251017_000003_eve_corporation::EveCorporation,
+    m20251017_000001_eve_faction::EveFaction, m20251017_000003_eve_corporation::EveCorporation,
 };
 
 static IDX_EVE_CHARACTER_CORPORATION_ID: &str = "idx-eve_character-corporation_id";
 static IDX_EVE_CHARACTER_FACTION_ID: &str = "idx-eve_character-faction_id";
 static FK_EVE_CHARACTER_CORPORATION_ID: &str = "fk-eve_character-corporation_id";
 static FK_EVE_CHARACTER_FACTION_ID: &str = "fk-eve_character-faction_id";
-static FK_EVE_ALLIANCE_CREATOR_ID: &str = "fk-eve_alliance-creator_id";
-static FK_EVE_CORPORATION_CREATOR_ID: &str = "fk-eve_corporation-creator_id";
-static FK_EVE_CORPORATION_CEO_ID: &str = "fk-eve_corporation-ceo_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -26,8 +22,8 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(EveCharacter::Id))
                     .col(big_integer_uniq(EveCharacter::CharacterId))
-                    .col(big_integer(EveCharacter::CorporationId))
-                    .col(big_integer_null(EveCharacter::FactionId))
+                    .col(integer(EveCharacter::CorporationId))
+                    .col(integer_null(EveCharacter::FactionId))
                     .col(date_time(EveCharacter::Birthday))
                     .col(big_integer(EveCharacter::BloodlineId))
                     .col(text_null(EveCharacter::Description))
@@ -86,73 +82,10 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name(FK_EVE_ALLIANCE_CREATOR_ID)
-                    .from_tbl(EveAlliance::Table)
-                    .from_col(EveAlliance::CreatorId)
-                    .to_tbl(EveCharacter::Table)
-                    .to_col(EveCharacter::Id)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name(FK_EVE_CORPORATION_CREATOR_ID)
-                    .from_tbl(EveCorporation::Table)
-                    .from_col(EveCorporation::CreatorId)
-                    .to_tbl(EveCharacter::Table)
-                    .to_col(EveCharacter::Id)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .create_foreign_key(
-                ForeignKey::create()
-                    .name(FK_EVE_CORPORATION_CEO_ID)
-                    .from_tbl(EveCorporation::Table)
-                    .from_col(EveCorporation::CeoId)
-                    .to_tbl(EveCharacter::Table)
-                    .to_col(EveCharacter::Id)
-                    .to_owned(),
-            )
-            .await?;
-
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .name(FK_EVE_CORPORATION_CEO_ID)
-                    .table(EveCorporation::Table)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .name(FK_EVE_CORPORATION_CREATOR_ID)
-                    .table(EveCorporation::Table)
-                    .to_owned(),
-            )
-            .await?;
-
-        manager
-            .drop_foreign_key(
-                ForeignKey::drop()
-                    .name(FK_EVE_ALLIANCE_CREATOR_ID)
-                    .table(EveAlliance::Table)
-                    .to_owned(),
-            )
-            .await?;
-
         manager
             .drop_foreign_key(
                 ForeignKey::drop()

@@ -9,8 +9,8 @@ pub struct Model {
     pub id: i32,
     #[sea_orm(unique)]
     pub character_id: i64,
-    pub corporation_id: i64,
-    pub faction_id: Option<i64>,
+    pub corporation_id: i32,
+    pub faction_id: Option<i32>,
     pub birthday: DateTime,
     pub bloodline_id: i64,
     #[sea_orm(column_type = "Text", nullable)]
@@ -31,8 +31,6 @@ pub enum Relation {
     BifrostAuthUserCharacter,
     #[sea_orm(has_many = "super::bifrost_auth_user_character_history::Entity")]
     BifrostAuthUserCharacterHistory,
-    #[sea_orm(has_many = "super::eve_alliance::Entity")]
-    EveAlliance,
     #[sea_orm(
         belongs_to = "super::eve_corporation::Entity",
         from = "Column::CorporationId",
@@ -60,12 +58,6 @@ impl Related<super::bifrost_auth_user_character::Entity> for Entity {
 impl Related<super::bifrost_auth_user_character_history::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::BifrostAuthUserCharacterHistory.def()
-    }
-}
-
-impl Related<super::eve_alliance::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::EveAlliance.def()
     }
 }
 

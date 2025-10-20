@@ -10,9 +10,9 @@ pub struct Model {
     #[sea_orm(unique)]
     pub alliance_id: i64,
     pub faction_id: Option<i32>,
-    pub creator_corporation_id: i32,
-    pub executor_corporation_id: i32,
-    pub creator_id: i32,
+    pub creator_corporation_id: i64,
+    pub executor_corporation_id: Option<i64>,
+    pub creator_id: i64,
     pub date_founded: DateTime,
     pub name: String,
     pub ticker: String,
@@ -22,30 +22,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::eve_character::Entity",
-        from = "Column::CreatorId",
-        to = "super::eve_character::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCharacter,
-    #[sea_orm(
-        belongs_to = "super::eve_corporation::Entity",
-        from = "Column::CreatorCorporationId",
-        to = "super::eve_corporation::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCorporation2,
-    #[sea_orm(
-        belongs_to = "super::eve_corporation::Entity",
-        from = "Column::ExecutorCorporationId",
-        to = "super::eve_corporation::Column::Id",
-        on_update = "NoAction",
-        on_delete = "NoAction"
-    )]
-    EveCorporation1,
+    #[sea_orm(has_many = "super::eve_corporation::Entity")]
+    EveCorporation,
     #[sea_orm(
         belongs_to = "super::eve_faction::Entity",
         from = "Column::FactionId",
@@ -56,9 +34,9 @@ pub enum Relation {
     EveFaction,
 }
 
-impl Related<super::eve_character::Entity> for Entity {
+impl Related<super::eve_corporation::Entity> for Entity {
     fn to() -> RelationDef {
-        Relation::EveCharacter.def()
+        Relation::EveCorporation.def()
     }
 }
 
