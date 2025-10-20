@@ -18,6 +18,8 @@ pub enum Error {
     #[error(transparent)]
     EsiError(#[from] eve_esi::Error),
     #[error(transparent)]
+    DbErr(#[from] sea_orm::DbErr),
+    #[error(transparent)]
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
     SessionRedisError(#[from] RedisError),
@@ -52,6 +54,11 @@ impl IntoResponse for Error {
             }
             Error::EsiError(err) => {
                 error!("ESI-related internal server error: {}", err);
+
+                internal_server_error.into_response()
+            }
+            Error::DbErr(err) => {
+                error!("Database-related internal server error: {}", err);
 
                 internal_server_error.into_response()
             }
