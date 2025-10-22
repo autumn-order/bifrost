@@ -59,7 +59,7 @@ impl<'a> CharacterRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
+    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, RuntimeErr, Schema};
 
     use crate::server::{
         data::eve::{
@@ -132,6 +132,7 @@ mod tests {
         (corporation, faction)
     }
 
+    /// Should succeed when inserting character into table with faction ID
     #[tokio::test]
     async fn create_character() {
         let db = setup().await.unwrap();
@@ -159,5 +160,69 @@ mod tests {
             "corporation_id mismatch"
         );
         assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+    }
+
+    /// Should succeed when inserting character into table without faction ID
+    #[tokio::test]
+    async fn create_character_no_faction() {
+        let db = setup().await.unwrap();
+
+        let alliance_repo = AllianceRepository::new(&db);
+        let corporation_repo = CorporationRepository::new(&db);
+
+        let alliance_id = 1;
+        let alliance = mock_alliance(None);
+        let corporation_id = 1;
+        let corporation = mock_corporation(Some(alliance_id), None);
+
+        let alliance = alliance_repo
+            .create(alliance_id, alliance, None)
+            .await
+            .unwrap();
+
+        let corporation = corporation_repo
+            .create(corporation_id, corporation, Some(alliance.id), None)
+            .await
+            .unwrap();
+
+        let character_repo = CharacterRepository::new(&db);
+
+        let character_id = 1;
+        let character = mock_character();
+        let result = character_repo
+            .create(character_id, character, corporation.id, None)
+            .await;
+
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        assert_eq!(created.faction_id, None, "faction_id mismatch");
+    }
+
+    /// Should error when inserting character into table without a valid corporation
+    #[tokio::test]
+    async fn create_character_no_corporation_error() {
+        let db = setup().await.unwrap();
+
+        let character_repo = CharacterRepository::new(&db);
+
+        // Create a character using corporation ID that does not exist in database
+        let non_existant_corporation_id = 1;
+        let character_id = 1;
+        let character = mock_character();
+        let result = character_repo
+            .create(character_id, character, non_existant_corporation_id, None)
+            .await;
+
+        assert!(result.is_err(), "Expected error, instead got: {:?}", result);
+
+        // Assert error code is 787 indicating a foreign key constraint failure
+        let code = result.err().and_then(|e| match e {
+            DbErr::Query(RuntimeErr::SqlxError(se)) => se
+                .as_database_error()
+                .and_then(|d| d.code().map(|c| c.to_string())),
+            _ => None,
+        });
+        assert_eq!(code.as_deref(), Some("787"));
     }
 }

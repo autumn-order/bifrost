@@ -84,6 +84,7 @@ mod tests {
         faction
     }
 
+    /// Should succeed when inserting alliance into table with a faction ID
     #[tokio::test]
     async fn create_alliance() {
         let db = setup().await.unwrap();
@@ -107,5 +108,22 @@ mod tests {
         assert_eq!(created.alliance_id, alliance_id, "alliance_id mismatch");
         assert_eq!(created.name, alliance.name, "name mismatch");
         assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+    }
+
+    /// Should succeed when inserting alliance into table without a faction ID
+    #[tokio::test]
+    async fn create_alliance_no_faction() {
+        let db = setup().await.unwrap();
+
+        let alliance_repo = AllianceRepository::new(&db);
+
+        let alliance_id = 1;
+        let alliance = mock_alliance(None);
+        let result = alliance_repo.create(alliance_id, alliance, None).await;
+
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        assert_eq!(created.faction_id, None);
     }
 }

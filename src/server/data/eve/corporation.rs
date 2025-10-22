@@ -109,6 +109,7 @@ mod tests {
         (alliance, faction)
     }
 
+    // Should succeed when inserting a corporation with both an alliance & faction ID
     #[tokio::test]
     async fn create_corporation() {
         let db = setup().await.unwrap();
@@ -145,5 +146,57 @@ mod tests {
             "alliance_id mismatch"
         );
         assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+    }
+
+    /// Should succeed when inserting corporation into table without an alliance ID
+    #[tokio::test]
+    async fn create_corporation_no_alliance() {
+        let db = setup().await.unwrap();
+
+        let faction_repo = FactionRepository::new(&db);
+
+        let faction = mock_faction();
+
+        let faction = faction_repo
+            .create(vec![faction])
+            .await
+            .unwrap()
+            .first()
+            .unwrap()
+            .to_owned();
+
+        let corporation_repo = CorporationRepository::new(&db);
+
+        let corporation_id = 1;
+        let corporation = mock_corporation(None, Some(faction.faction_id));
+        let result = corporation_repo
+            .create(corporation_id, corporation, None, Some(faction.id))
+            .await;
+
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        assert_eq!(created.alliance_id, None);
+        assert_eq!(created.faction_id, Some(faction.id))
+    }
+
+    /// Should succeed when inserting corporation into table without a faction or alliance ID
+    #[tokio::test]
+    async fn create_corporation_no_alliance_no_faction() {
+        let db = setup().await.unwrap();
+
+        let corporation_repo = CorporationRepository::new(&db);
+
+        let corporation_id = 1;
+        let corporation = mock_corporation(None, None);
+        let result = corporation_repo
+            .create(corporation_id, corporation, None, None)
+            .await;
+
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        assert_eq!(created.alliance_id, None);
+        assert_eq!(created.faction_id, None)
     }
 }
