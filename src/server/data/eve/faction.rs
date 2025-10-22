@@ -41,7 +41,6 @@ impl<'a> FactionRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use eve_esi::model::universe::Faction;
     use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
     use crate::server::{

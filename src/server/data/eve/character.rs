@@ -92,13 +92,13 @@ mod tests {
         Ok(db)
     }
 
-    #[tokio::test]
-    async fn create_character() {
-        let db = setup().await.unwrap();
+    /// Inserts a mock faction, alliance, and corporation for foreign key dependencies
+    async fn insert_foreign_key_dependencies(
+        db: &DatabaseConnection,
+    ) -> (entity::eve_corporation::Model, entity::eve_faction::Model) {
         let faction_repo = FactionRepository::new(&db);
         let alliance_repo = AllianceRepository::new(&db);
         let corporation_repo = CorporationRepository::new(&db);
-        let character_repo = CharacterRepository::new(&db);
 
         let faction = mock_faction();
         let alliance_id = 1;
@@ -106,33 +106,38 @@ mod tests {
         let corporation_id = 1;
         let corporation = mock_corporation(Some(alliance_id), Some(faction.faction_id));
 
-        let faction_result = faction_repo.create(vec![faction]).await;
+        let faction = faction_repo
+            .create(vec![faction])
+            .await
+            .unwrap()
+            .first()
+            .unwrap()
+            .to_owned();
 
-        assert!(faction_result.is_ok(), "Error: {:?}", faction_result);
-        let faction = faction_result.unwrap().first().unwrap().to_owned();
-
-        let alliance_result = alliance_repo
+        let alliance = alliance_repo
             .create(alliance_id, alliance, Some(faction.id))
-            .await;
+            .await
+            .unwrap();
 
-        assert!(alliance_result.is_ok(), "Error: {:?}", alliance_result);
-        let alliance = alliance_result.unwrap();
-
-        let corporation_result = corporation_repo
+        let corporation = corporation_repo
             .create(
                 corporation_id,
                 corporation,
                 Some(alliance.id),
                 Some(faction.id),
             )
-            .await;
+            .await
+            .unwrap();
 
-        assert!(
-            corporation_result.is_ok(),
-            "Error: {:?}",
-            corporation_result
-        );
-        let corporation = corporation_result.unwrap();
+        (corporation, faction)
+    }
+
+    #[tokio::test]
+    async fn create_character() {
+        let db = setup().await.unwrap();
+        let (corporation, faction) = insert_foreign_key_dependencies(&db).await;
+
+        let character_repo = CharacterRepository::new(&db);
 
         let character_id = 1;
         let character = mock_character();

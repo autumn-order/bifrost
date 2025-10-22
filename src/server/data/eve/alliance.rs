@@ -65,24 +65,36 @@ mod tests {
         Ok(db)
     }
 
-    #[tokio::test]
-    async fn create_alliance() {
-        let db = setup().await.unwrap();
+    /// Inserts a mock faction for foreign key dependencies
+    async fn insert_foreign_key_dependencies(
+        db: &DatabaseConnection,
+    ) -> entity::eve_faction::Model {
         let faction_repo = FactionRepository::new(&db);
-        let alliance_repo = AllianceRepository::new(&db);
 
         let faction = mock_faction();
 
-        let faction_result = faction_repo.create(vec![faction]).await;
+        let faction = faction_repo
+            .create(vec![faction])
+            .await
+            .unwrap()
+            .first()
+            .unwrap()
+            .to_owned();
 
-        assert!(faction_result.is_ok(), "Error: {:?}", faction_result);
-        let faction = faction_result.unwrap().first().unwrap().to_owned();
+        faction
+    }
+
+    #[tokio::test]
+    async fn create_alliance() {
+        let db = setup().await.unwrap();
+        let faction = insert_foreign_key_dependencies(&db).await;
+
+        let alliance_repo = AllianceRepository::new(&db);
 
         let alliance_id = 1;
         let alliance = mock_alliance(Some(faction.faction_id));
-        let faction_id = faction.id;
         let result = alliance_repo
-            .create(alliance_id, alliance, Some(faction_id))
+            .create(alliance_id, alliance, Some(faction.id))
             .await;
 
         assert!(result.is_ok(), "Error: {:?}", result)
