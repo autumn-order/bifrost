@@ -127,6 +127,23 @@ mod tests {
             )
             .await;
 
-        assert!(result.is_ok(), "Error: {:?}", result)
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        // Need to create mock corporation again as eve_esi::model::corporation::Corporation does not implement Clone
+        // - An issue will need to be made on the eve_esi repo about this
+        let corporation = mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
+
+        assert_eq!(
+            created.corporation_id, corporation_id,
+            "corporation_id mismatch"
+        );
+        assert_eq!(created.name, corporation.name, "name mismatch");
+        assert_eq!(
+            created.alliance_id,
+            Some(alliance.id),
+            "alliance_id mismatch"
+        );
+        assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
     }
 }

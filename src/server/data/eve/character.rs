@@ -145,6 +145,19 @@ mod tests {
             .create(character_id, character, corporation.id, Some(faction.id))
             .await;
 
-        assert!(result.is_ok(), "Error: {:?}", result)
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap();
+
+        // Need to create mock character again as eve_esi::model::character::Character does not implement Clone
+        // - An issue will need to be made on the eve_esi repo about this
+        let character = mock_character();
+
+        assert_eq!(created.character_id, character_id, "character_id mismatch");
+        assert_eq!(created.name, character.name, "name mismatch");
+        assert_eq!(
+            created.corporation_id, corporation.id,
+            "corporation_id mismatch"
+        );
+        assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
     }
 }

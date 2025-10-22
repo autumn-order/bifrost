@@ -71,6 +71,25 @@ mod tests {
         let faction = mock_faction();
         let result = repo.create(vec![faction]).await;
 
-        assert!(result.is_ok(), "Error: {:?}", result)
+        assert!(result.is_ok(), "Error: {:?}", result);
+        let created = result.unwrap().first().unwrap().to_owned();
+
+        // Need to create mock alliance again as eve_esi::model::alliance::Alliance does not implement Clone
+        // - An issue will need to be made on the eve_esi repo about this
+        let faction = mock_faction();
+
+        assert_eq!(
+            created.faction_id, faction.faction_id,
+            "faction_id mismatch"
+        );
+        assert_eq!(created.name, faction.name, "name mismatch");
+        assert_eq!(
+            created.corporation_id, faction.corporation_d,
+            "corporation_id mismatch"
+        );
+        assert_eq!(
+            created.militia_corporation_id, faction.militia_corporation_id,
+            "militia_corporation_id mismatch"
+        );
     }
 }
