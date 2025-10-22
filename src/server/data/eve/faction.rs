@@ -1,6 +1,6 @@
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
-use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait};
+use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait, Order, QueryOrder};
 
 pub struct FactionRepository<'a> {
     db: &'a DatabaseConnection,
@@ -35,6 +35,14 @@ impl<'a> FactionRepository<'a> {
 
         entity::prelude::EveFaction::insert_many(factions)
             .exec_with_returning(self.db)
+            .await
+    }
+
+    /// Get the latest faction entry
+    pub async fn get_latest(&self) -> Result<Option<entity::eve_faction::Model>, DbErr> {
+        entity::prelude::EveFaction::find()
+            .order_by(entity::eve_faction::Column::UpdatedAt, Order::Desc)
+            .one(self.db)
             .await
     }
 }
