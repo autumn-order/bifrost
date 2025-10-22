@@ -1,5 +1,6 @@
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
+use migration::OnConflict;
 use sea_orm::{ActiveValue, DatabaseConnection, DbErr, EntityTrait, Order, QueryOrder};
 
 pub struct FactionRepository<'a> {
@@ -11,7 +12,7 @@ impl<'a> FactionRepository<'a> {
         Self { db }
     }
 
-    pub async fn create(
+    pub async fn upsert_many(
         &self,
         factions: Vec<Faction>,
     ) -> Result<Vec<entity::eve_faction::Model>, DbErr> {
@@ -34,6 +35,22 @@ impl<'a> FactionRepository<'a> {
             });
 
         entity::prelude::EveFaction::insert_many(factions)
+            .on_conflict(
+                OnConflict::column(entity::eve_faction::Column::FactionId)
+                    .update_columns([
+                        entity::eve_faction::Column::CorporationId,
+                        entity::eve_faction::Column::MilitiaCorporationId,
+                        entity::eve_faction::Column::Description,
+                        entity::eve_faction::Column::IsUnique,
+                        entity::eve_faction::Column::Name,
+                        entity::eve_faction::Column::SizeFactor,
+                        entity::eve_faction::Column::SolarSystemId,
+                        entity::eve_faction::Column::StationCount,
+                        entity::eve_faction::Column::StationSystemCount,
+                        entity::eve_faction::Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
             .exec_with_returning(self.db)
             .await
     }
@@ -72,12 +89,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_faction() {
+    async fn upsert_faction() {
         let db = setup().await.unwrap();
         let repo = FactionRepository::new(&db);
 
         let faction = mock_faction();
-        let result = repo.create(vec![faction]).await;
+        let result = repo.upsert_many(vec![faction]).await;
 
         assert!(result.is_ok(), "Error: {:?}", result);
         let created = result.unwrap().first().unwrap().to_owned();
@@ -99,5 +116,33 @@ mod tests {
             created.militia_corporation_id, faction.militia_corporation_id,
             "militia_corporation_id mismatch"
         );
+    }
+
+    // Ensure duplicate faction entries are updated properly
+    #[tokio::test]
+    async fn upsert_duplicate_faction() -> Result<(), DbErr> {
+        let db = setup().await?;
+        let repo = FactionRepository::new(&db);
+
+        let initial = repo.upsert_many(vec![mock_faction()]).await?;
+        let initial_entry = initial.into_iter().next().expect("no entry returned");
+
+        let initial_created_at = initial_entry.created_at;
+        let initial_updated_at = initial_entry.updated_at;
+
+        let latest = repo.upsert_many(vec![mock_faction()]).await?;
+        let latest_entry = latest.into_iter().next().expect("no entry returned");
+
+        // created_at should not change and updated_at should increase
+        assert_eq!(
+            latest_entry.created_at, initial_created_at,
+            "created_at changed on upsert"
+        );
+        assert!(
+            latest_entry.updated_at > initial_updated_at,
+            "updated_at was not advanced"
+        );
+
+        Ok(())
     }
 }

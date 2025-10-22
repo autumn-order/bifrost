@@ -94,7 +94,7 @@ mod tests {
         let alliance = mock_alliance(Some(faction.faction_id));
 
         let faction = faction_repo
-            .create(vec![faction])
+            .upsert_many(vec![faction])
             .await
             .unwrap()
             .first()
@@ -155,10 +155,8 @@ mod tests {
 
         let faction_repo = FactionRepository::new(&db);
 
-        let faction = mock_faction();
-
         let faction = faction_repo
-            .create(vec![faction])
+            .upsert_many(vec![mock_faction()])
             .await
             .unwrap()
             .first()

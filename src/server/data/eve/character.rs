@@ -107,7 +107,7 @@ mod tests {
         let corporation = mock_corporation(Some(alliance_id), Some(faction.faction_id));
 
         let faction = faction_repo
-            .create(vec![faction])
+            .upsert_many(vec![faction])
             .await
             .unwrap()
             .first()

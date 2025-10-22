@@ -71,10 +71,8 @@ mod tests {
     ) -> entity::eve_faction::Model {
         let faction_repo = FactionRepository::new(&db);
 
-        let faction = mock_faction();
-
         let faction = faction_repo
-            .create(vec![faction])
+            .upsert_many(vec![mock_faction()])
             .await
             .unwrap()
             .first()
