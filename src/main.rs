@@ -1,18 +1,17 @@
 #![allow(non_snake_case)]
 
+mod client;
+mod model;
+
 #[cfg(feature = "server")]
 use tower_sessions::SessionManagerLayer;
 #[cfg(feature = "server")]
 use tower_sessions_redis_store::{fred::prelude::RedisPool, RedisStore};
 
 #[cfg(feature = "server")]
-use crate::server::error::Error;
-
-mod client;
-mod model;
-
+use bifrost::server;
 #[cfg(feature = "server")]
-mod server;
+use server::error::Error;
 
 #[cfg(not(feature = "server"))]
 fn main() {

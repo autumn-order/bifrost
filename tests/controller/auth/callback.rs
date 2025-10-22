@@ -10,9 +10,9 @@ use bifrost::server::{
 use eve_esi::model::oauth2::EveJwtClaims;
 use mockito::{Mock, ServerGuard};
 
-use crate::{
+use crate::util::{
+    auth::jwt::{create_mock_jwt_keys, create_mock_jwt_token},
     setup::{test_setup, TestSetup},
-    util::auth::jwt::{create_mock_jwt_keys, create_mock_jwt_token},
 };
 
 async fn setup() -> (TestSetup, CallbackParams) {

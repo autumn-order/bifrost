@@ -1,7 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use bifrost::server::controller::auth::login::login;
 
-use crate::setup::{test_setup, TEST_USER_AGENT};
+use crate::util::setup::{test_setup, TEST_USER_AGENT};
 
 #[tokio::test]
 // Test the return of a 307 temporary redirect response for login
