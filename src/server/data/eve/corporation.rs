@@ -47,3 +47,75 @@ impl<'a> CorporationRepository<'a> {
         corporation.insert(self.db).await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
+
+    use crate::server::{
+        data::eve::{
+            alliance::AllianceRepository, corporation::CorporationRepository,
+            faction::FactionRepository,
+        },
+        util::test::{
+            eve::mock::{mock_alliance, mock_corporation, mock_faction},
+            setup::test_setup,
+        },
+    };
+
+    async fn setup() -> Result<DatabaseConnection, DbErr> {
+        let test = test_setup().await;
+
+        let db = test.state.db;
+        let schema = Schema::new(DbBackend::Sqlite);
+
+        let stmts = vec![
+            schema.create_table_from_entity(entity::prelude::EveFaction),
+            schema.create_table_from_entity(entity::prelude::EveAlliance),
+            schema.create_table_from_entity(entity::prelude::EveCorporation),
+        ];
+
+        for stmt in stmts {
+            db.execute(&stmt).await?;
+        }
+
+        Ok(db)
+    }
+
+    #[tokio::test]
+    async fn create_corporation() {
+        let db = setup().await.unwrap();
+        let faction_repo = FactionRepository::new(&db);
+        let alliance_repo = AllianceRepository::new(&db);
+        let corporation_repo = CorporationRepository::new(&db);
+
+        let faction = mock_faction();
+        let alliance_id = 1;
+        let alliance = mock_alliance(Some(faction.faction_id));
+
+        let faction_result = faction_repo.create(vec![faction]).await;
+
+        assert!(faction_result.is_ok(), "Error: {:?}", faction_result);
+        let faction = faction_result.unwrap().first().unwrap().to_owned();
+
+        let alliance_result = alliance_repo
+            .create(alliance_id, alliance, Some(faction.id))
+            .await;
+
+        assert!(alliance_result.is_ok(), "Error: {:?}", alliance_result);
+        let alliance = alliance_result.unwrap();
+
+        let corporation_id = 1;
+        let corporation = mock_corporation(Some(alliance_id), Some(faction.faction_id));
+        let result = corporation_repo
+            .create(
+                corporation_id,
+                corporation,
+                Some(alliance.id),
+                Some(faction.id),
+            )
+            .await;
+
+        assert!(result.is_ok(), "Error: {:?}", result)
+    }
+}

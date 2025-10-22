@@ -38,3 +38,40 @@ impl<'a> FactionRepository<'a> {
             .await
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use eve_esi::model::universe::Faction;
+    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
+
+    use crate::server::{
+        data::eve::faction::FactionRepository,
+        util::test::{eve::mock::mock_faction, setup::test_setup},
+    };
+
+    async fn setup() -> Result<DatabaseConnection, DbErr> {
+        let test = test_setup().await;
+
+        let db = test.state.db;
+        let schema = Schema::new(DbBackend::Sqlite);
+
+        let stmts = vec![schema.create_table_from_entity(entity::prelude::EveFaction)];
+
+        for stmt in stmts {
+            db.execute(&stmt).await?;
+        }
+
+        Ok(db)
+    }
+
+    #[tokio::test]
+    async fn create_faction() {
+        let db = setup().await.unwrap();
+        let repo = FactionRepository::new(&db);
+
+        let faction = mock_faction();
+        let result = repo.create(vec![faction]).await;
+
+        assert!(result.is_ok(), "Error: {:?}", result)
+    }
+}

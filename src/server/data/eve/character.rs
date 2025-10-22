@@ -59,11 +59,18 @@ impl<'a> CharacterRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use chrono::{DateTime, Utc};
-    use eve_esi::model::character::Character;
     use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
-    use crate::server::{data::eve::character::CharacterRepository, util::test::setup::test_setup};
+    use crate::server::{
+        data::eve::{
+            alliance::AllianceRepository, character::CharacterRepository,
+            corporation::CorporationRepository, faction::FactionRepository,
+        },
+        util::test::{
+            eve::mock::{mock_alliance, mock_character, mock_corporation, mock_faction},
+            setup::test_setup,
+        },
+    };
 
     async fn setup() -> Result<DatabaseConnection, DbErr> {
         let test = test_setup().await;
@@ -85,33 +92,53 @@ mod tests {
         Ok(db)
     }
 
-    fn mock_character() -> Character {
-        Character {
-            alliance_id: Some(99013534),
-            birthday: DateTime::parse_from_rfc3339("2018-12-20T16:11:54Z")
-                .unwrap()
-                .with_timezone(&Utc),
-            bloodline_id: 7,
-            corporation_id: 98785281,
-            description: Some("description".to_string()),
-            faction_id: None,
-            gender: "male".to_string(),
-            name: "Hyziri".to_string(),
-            race_id: 8,
-            security_status: Some(-0.100373643),
-            title: Some("Title".to_string()),
-        }
-    }
-
     #[tokio::test]
     async fn create_character() {
         let db = setup().await.unwrap();
-        let repo = CharacterRepository::new(&db);
+        let faction_repo = FactionRepository::new(&db);
+        let alliance_repo = AllianceRepository::new(&db);
+        let corporation_repo = CorporationRepository::new(&db);
+        let character_repo = CharacterRepository::new(&db);
+
+        let faction = mock_faction();
+        let alliance_id = 1;
+        let alliance = mock_alliance(Some(faction.faction_id));
+        let corporation_id = 1;
+        let corporation = mock_corporation(Some(alliance_id), Some(faction.faction_id));
+
+        let faction_result = faction_repo.create(vec![faction]).await;
+
+        assert!(faction_result.is_ok(), "Error: {:?}", faction_result);
+        let faction = faction_result.unwrap().first().unwrap().to_owned();
+
+        let alliance_result = alliance_repo
+            .create(alliance_id, alliance, Some(faction.id))
+            .await;
+
+        assert!(alliance_result.is_ok(), "Error: {:?}", alliance_result);
+        let alliance = alliance_result.unwrap();
+
+        let corporation_result = corporation_repo
+            .create(
+                corporation_id,
+                corporation,
+                Some(alliance.id),
+                Some(faction.id),
+            )
+            .await;
+
+        assert!(
+            corporation_result.is_ok(),
+            "Error: {:?}",
+            corporation_result
+        );
+        let corporation = corporation_result.unwrap();
 
         let character_id = 1;
         let character = mock_character();
-
-        let result = repo.create(character_id, character).await;
+        let result = character_repo
+            .create(character_id, character, corporation.id, Some(faction.id))
+            .await;
 
         assert!(result.is_ok(), "Error: {:?}", result)
     }

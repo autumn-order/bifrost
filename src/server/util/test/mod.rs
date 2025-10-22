@@ -1,2 +1,3 @@
-pub mod setup;
 pub mod auth;
+pub mod eve;
+pub mod setup;
