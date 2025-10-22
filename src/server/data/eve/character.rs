@@ -17,11 +17,13 @@ impl<'a> CharacterRepository<'a> {
         &self,
         character_id: i64,
         character: Character,
+        corporation_id: i32,
+        faction_id: Option<i32>,
     ) -> Result<entity::eve_character::Model, DbErr> {
         let character = entity::eve_character::ActiveModel {
             character_id: ActiveValue::Set(character_id),
-            corporation_id: ActiveValue::Set(character.corporation_id),
-            faction_id: ActiveValue::Set(character.faction_id),
+            corporation_id: ActiveValue::Set(corporation_id),
+            faction_id: ActiveValue::Set(faction_id),
             birthday: ActiveValue::Set(character.birthday.naive_utc()),
             bloodline_id: ActiveValue::Set(character.bloodline_id),
             description: ActiveValue::Set(character.description),
