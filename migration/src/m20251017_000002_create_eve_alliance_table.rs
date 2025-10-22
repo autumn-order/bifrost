@@ -1,9 +1,9 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
-use crate::m20251017_000001_eve_faction::EveFaction;
+use crate::m20251017_000001_create_eve_faction_table::EveFaction;
 
-static IDX_EVE_ALLIANCE_FACTION_ID: &str = "idx-eve_alliance-faction_id";
-static FK_EVE_ALLIANCE_FACTION_ID: &str = "fk-eve_alliance-faction_id";
+static IDX_EVE_ALLIANCE_FACTION_ID: &str = "idx_eve_alliance_faction_id";
+static FK_EVE_ALLIANCE_FACTION_ID: &str = "fk_eve_alliance_faction_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

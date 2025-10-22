@@ -76,6 +76,22 @@ sea-orm-cli migrate
 sea-orm-cli generate entity -o ./entity/src/entities/ --date-time-crate chrono
 ```
 
+### Additionally Useful DB Commands
+
+Drop all tables & reapply migrations
+- Use this if you modified migrations and need a fresh start
+
+```bash
+sea-orm-cli fresh
+```
+
+Rollback all applied migrations & reapply them
+- Use this to ensure both your up & down methods of your migrations work
+
+```bash
+sea-orm-cli migrate refresh
+```
+
 ## Testing
 
 Run tests for the server with:

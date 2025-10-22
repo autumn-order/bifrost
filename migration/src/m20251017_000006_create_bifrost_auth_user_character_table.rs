@@ -1,13 +1,13 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
-    m20251017_000004_eve_character::EveCharacter,
-    m20251017_000005_bifrost_auth_user::BifrostAuthUser,
+    m20251017_000004_create_eve_character_table::EveCharacter,
+    m20251017_000005_create_bifrost_auth_user_table::BifrostAuthUser,
 };
 
-static IDX_USER_CHARACTER_USER_ID: &str = "idx-bifrost_auth_user_character-user_id";
-static FK_USER_CHARACTER_USER_ID: &str = "fk-bifrost_auth_user_character-user_id";
-static FK_USER_CHARACTER_CHARACTER_ID: &str = "fk-bifrost_auth_user_character-character_id";
+static IDX_USER_CHARACTER_USER_ID: &str = "idx_bifrost_auth_user_character_user_id";
+static FK_USER_CHARACTER_USER_ID: &str = "fk_bifrost_auth_user_character_user_id";
+static FK_USER_CHARACTER_CHARACTER_ID: &str = "fk_bifrost_auth_user_character_character_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;

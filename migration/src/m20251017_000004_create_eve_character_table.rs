@@ -1,13 +1,14 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
-    m20251017_000001_eve_faction::EveFaction, m20251017_000003_eve_corporation::EveCorporation,
+    m20251017_000001_create_eve_faction_table::EveFaction,
+    m20251017_000003_create_eve_corporation_table::EveCorporation,
 };
 
-static IDX_EVE_CHARACTER_CORPORATION_ID: &str = "idx-eve_character-corporation_id";
-static IDX_EVE_CHARACTER_FACTION_ID: &str = "idx-eve_character-faction_id";
-static FK_EVE_CHARACTER_CORPORATION_ID: &str = "fk-eve_character-corporation_id";
-static FK_EVE_CHARACTER_FACTION_ID: &str = "fk-eve_character-faction_id";
+static IDX_EVE_CHARACTER_CORPORATION_ID: &str = "idx_eve_character_corporation_id";
+static IDX_EVE_CHARACTER_FACTION_ID: &str = "idx_eve_character_faction_id";
+static FK_EVE_CHARACTER_CORPORATION_ID: &str = "fk_eve_character_corporation_id";
+static FK_EVE_CHARACTER_FACTION_ID: &str = "fk_eve_character_faction_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
