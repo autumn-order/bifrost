@@ -11,6 +11,8 @@ use crate::model::api::ErrorDto;
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("Failed to parse value: {0:?}")]
+    ParseError(String),
     #[error("Failed to login user due to CSRF state present in session store but without a value")]
     AuthCsrfEmptySession,
     #[error("Failed to login user due to CSRF state mismatch")]
@@ -35,6 +37,11 @@ impl IntoResponse for Error {
         );
 
         match self {
+            Error::ParseError(err) => {
+                error!(err);
+
+                internal_server_error.into_response()
+            }
             Error::AuthCsrfEmptySession => {
                 error!(
                     "Authentication-related internal server error: {}",

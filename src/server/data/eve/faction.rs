@@ -79,11 +79,9 @@ mod tests {
         let db = test.state.db;
         let schema = Schema::new(DbBackend::Sqlite);
 
-        let stmts = vec![schema.create_table_from_entity(entity::prelude::EveFaction)];
+        let stmt = schema.create_table_from_entity(entity::prelude::EveFaction);
 
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
+        db.execute(&stmt).await?;
 
         Ok(db)
     }
