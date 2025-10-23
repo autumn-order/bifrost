@@ -84,7 +84,6 @@ mod tests {
 
     use crate::server::{
         data::eve::faction::FactionRepository,
-        error::Error,
         util::test::{eve::mock::mock_faction, setup::test_setup},
     };
 

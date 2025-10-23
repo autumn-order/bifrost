@@ -68,7 +68,6 @@ pub async fn get_or_update_factions(
 #[cfg(test)]
 mod tests {
     use chrono::{Duration, NaiveDateTime, Utc};
-    use mockito::{Mock, ServerGuard};
     use sea_orm::{
         ActiveModelTrait, ActiveValue, ConnectionTrait, DatabaseConnection, DbBackend, DbErr,
         IntoActiveModel, Schema,
@@ -81,6 +80,7 @@ mod tests {
         util::{
             test::{
                 eve::mock::mock_faction,
+                mockito::faction::mock_faction_endpoint,
                 setup::{test_setup, TestSetup},
             },
             time::effective_faction_cache_expiry,
@@ -120,26 +120,14 @@ mod tests {
         Ok(faction)
     }
 
-    /// Mock endpoint representing the ESI faction endpoint
-    fn mock_faction_endpoint(server: &mut ServerGuard, expected_requests: usize) -> Mock {
-        let faction = mock_faction();
-
-        server
-            .mock("GET", "/universe/factions")
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(serde_json::to_string(&vec![faction]).unwrap())
-            .expect(expected_requests)
-            .create()
-    }
-
     /// Test successful faction creation when table is empty
     #[tokio::test]
     async fn test_update_factions_creation_success() {
         let mut test = setup().await.unwrap();
 
         let expected_requests = 1;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
 
@@ -169,7 +157,8 @@ mod tests {
             .await
             .unwrap();
         let expected_requests = 1;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
 
@@ -202,7 +191,8 @@ mod tests {
 
         // No requests should be made due to cache
         let expected_requests = 0;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
 
@@ -261,7 +251,8 @@ mod tests {
         let faction = create_existing_faction_entry(&test.state.db, Utc::now().naive_utc()).await?;
 
         let expected_requests = 0;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         let result =
             get_or_update_factions(&test.state.db, &test.state.esi_client, faction.faction_id)
@@ -281,7 +272,8 @@ mod tests {
         let mut test = setup().await?;
 
         let expected_requests = 1;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         // Database has no faction present, factions will be fetched & updated from endpoint
         let mock_faction = mock_faction();
@@ -318,7 +310,8 @@ mod tests {
         let mut test = test_setup().await;
 
         let expected_requests = 0;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         let result = get_or_update_factions(&test.state.db, &test.state.esi_client, 1).await;
 
@@ -355,7 +348,8 @@ mod tests {
         let mut test = setup().await?;
 
         let expected_requests = 1;
-        let faction_endpoint = mock_faction_endpoint(&mut test.server, expected_requests);
+        let faction_endpoint =
+            mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         // Try to fetch a faction id that is not provided by the endpoint, will cause a not found error
         let result = get_or_update_factions(&test.state.db, &test.state.esi_client, 1).await;
