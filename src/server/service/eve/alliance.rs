@@ -1,8 +1,7 @@
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::eve::alliance::AllianceRepository, error::Error,
-    service::eve::faction::get_or_update_factions,
+    data::eve::alliance::AllianceRepository, error::Error, service::eve::faction::FactionService,
 };
 
 pub struct AllianceService<'a> {
@@ -22,6 +21,7 @@ impl<'a> AllianceService<'a> {
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
         let alliance_repo = AllianceRepository::new(&self.db);
+        let faction_service = FactionService::new(&self.db, &self.esi_client);
 
         let alliance = self
             .esi_client
@@ -30,11 +30,7 @@ impl<'a> AllianceService<'a> {
             .await?;
 
         let faction_id = match alliance.faction_id {
-            Some(id) => Some(
-                get_or_update_factions(&self.db, &self.esi_client, id)
-                    .await?
-                    .id,
-            ),
+            Some(id) => Some(faction_service.get_or_update_factions(id).await?.id),
             None => None,
         };
 

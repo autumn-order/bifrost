@@ -5,64 +5,72 @@ use crate::server::{
     data::eve::faction::FactionRepository, error::Error, util::time::effective_faction_cache_expiry,
 };
 
-/// Fetches & stores NPC faction information from ESI so long as they aren't within cache period
-///
-/// The NPC faction cache expires at 11:05 UTC (after downtime)
-pub async fn update_factions(
-    db: &DatabaseConnection,
-    esi_client: &eve_esi::Client,
-) -> Result<Vec<entity::eve_faction::Model>, Error> {
-    let faction_repo = FactionRepository::new(&db);
-
-    let now = Utc::now();
-    let effective_expiry = effective_faction_cache_expiry(now)?;
-
-    // If the latest faction entry was updated at or after the effective expiry, skip updating.
-    if let Some(faction) = faction_repo.get_latest().await? {
-        if faction.updated_at >= effective_expiry {
-            return Ok(Vec::new());
-        }
-    }
-
-    let factions = esi_client.universe().get_factions().await?;
-
-    let factions = faction_repo.upsert_many(factions).await?;
-
-    Ok(factions)
+pub struct FactionService<'a> {
+    db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
-/// Attempt to get a faction from the database using its EVE Online faction ID, attempt to update factions if faction is not found
-///
-/// Faction updates will only occur once per 24 hour period which resets at 11:05 UTC when the EVE ESI
-/// faction cache expires.
-///
-/// For simply getting a faction without an update, use [`FactionRepository::get_by_faction_id`]
-pub async fn get_or_update_factions(
-    db: &DatabaseConnection,
-    esi_client: &eve_esi::Client,
-    faction_id: i64,
-) -> Result<entity::eve_faction::Model, Error> {
-    let faction_repo = FactionRepository::new(&db);
-
-    let result = faction_repo.get_by_faction_id(faction_id).await?;
-
-    if let Some(faction) = result {
-        return Ok(faction);
-    };
-
-    // If the faction is not found, then a new patch may have come out adding
-    // a new faction. Attempt to update factions if they haven't already been
-    // updated since downtime.
-    let updated_factions = update_factions(&db, &esi_client).await?;
-
-    if let Some(faction) = updated_factions
-        .into_iter()
-        .find(|f| f.faction_id == faction_id)
-    {
-        return Ok(faction);
+impl<'a> FactionService<'a> {
+    /// Creates a new instance of [`FactionService`]
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+        Self { db, esi_client }
     }
 
-    Err(Error::EveFactionNotFound(faction_id))
+    /// Fetches & stores NPC faction information from ESI so long as they aren't within cache period
+    ///
+    /// The NPC faction cache expires at 11:05 UTC (after downtime)
+    pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
+        let faction_repo = FactionRepository::new(self.db);
+
+        let now = Utc::now();
+        let effective_expiry = effective_faction_cache_expiry(now)?;
+
+        // If the latest faction entry was updated at or after the effective expiry, skip updating.
+        if let Some(faction) = faction_repo.get_latest().await? {
+            if faction.updated_at >= effective_expiry {
+                return Ok(Vec::new());
+            }
+        }
+
+        let factions = self.esi_client.universe().get_factions().await?;
+
+        let factions = faction_repo.upsert_many(factions).await?;
+
+        Ok(factions)
+    }
+
+    /// Attempt to get a faction from the database using its EVE Online faction ID, attempt to update factions if faction is not found
+    ///
+    /// Faction updates will only occur once per 24 hour period which resets at 11:05 UTC when the EVE ESI
+    /// faction cache expires.
+    ///
+    /// For simply getting a faction without an update, use [`FactionRepository::get_by_faction_id`]
+    pub async fn get_or_update_factions(
+        &self,
+        faction_id: i64,
+    ) -> Result<entity::eve_faction::Model, Error> {
+        let faction_repo = FactionRepository::new(self.db);
+
+        let result = faction_repo.get_by_faction_id(faction_id).await?;
+
+        if let Some(faction) = result {
+            return Ok(faction);
+        };
+
+        // If the faction is not found, then a new patch may have come out adding
+        // a new faction. Attempt to update factions if they haven't already been
+        // updated since downtime.
+        let updated_factions = self.update_factions().await?;
+
+        if let Some(faction) = updated_factions
+            .into_iter()
+            .find(|f| f.faction_id == faction_id)
+        {
+            return Ok(faction);
+        }
+
+        Err(Error::EveFactionNotFound(faction_id))
+    }
 }
 
 #[cfg(test)]
@@ -76,7 +84,7 @@ mod tests {
     use crate::server::{
         data::eve::faction::FactionRepository,
         error::Error,
-        service::eve::faction::{get_or_update_factions, update_factions},
+        service::eve::faction::FactionService,
         util::{
             test::{
                 eve::mock::mock_faction,
@@ -124,12 +132,13 @@ mod tests {
     #[tokio::test]
     async fn test_update_factions_creation_success() {
         let mut test = setup().await.unwrap();
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let expected_requests = 1;
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
-        let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
+        let update_result = faction_service.update_factions().await;
 
         // Assert a request was made to mock endpoint
         faction_endpoint.assert();
@@ -144,6 +153,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_factions_existing_entries_success() {
         let mut test = setup().await.unwrap();
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let now = Utc::now();
         let effective_expiry = effective_faction_cache_expiry(now).unwrap();
@@ -160,7 +170,7 @@ mod tests {
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
-        let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
+        let update_result = faction_service.update_factions().await;
 
         // Assert a request was made to mock endpoint
         faction_endpoint.assert();
@@ -176,6 +186,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_factions_cached() {
         let mut test = setup().await.unwrap();
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let now = Utc::now();
         let effective_expiry = effective_faction_cache_expiry(now).unwrap();
@@ -194,7 +205,7 @@ mod tests {
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
-        let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
+        let update_result = faction_service.update_factions().await;
 
         // Assert no request was made to mock endpoint
         faction_endpoint.assert();
@@ -210,8 +221,9 @@ mod tests {
     #[tokio::test]
     async fn test_update_factions_esi_error() {
         let test = setup().await.unwrap();
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
-        let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
+        let update_result = faction_service.update_factions().await;
 
         assert!(
             update_result.is_err(),
@@ -229,10 +241,11 @@ mod tests {
     #[tokio::test]
     async fn test_update_factions_database_error() {
         let test = test_setup().await;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         // Function should error when attempting to get the latest faction entry from DB
         // due to the table not being created
-        let update_result = update_factions(&test.state.db, &test.state.esi_client).await;
+        let update_result = faction_service.update_factions().await;
 
         assert!(
             update_result.is_err(),
@@ -247,6 +260,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_or_update_factions_found() -> Result<(), DbErr> {
         let mut test = setup().await?;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let faction = create_existing_faction_entry(&test.state.db, Utc::now().naive_utc()).await?;
 
@@ -254,9 +268,9 @@ mod tests {
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
-        let result =
-            get_or_update_factions(&test.state.db, &test.state.esi_client, faction.faction_id)
-                .await;
+        let result = faction_service
+            .get_or_update_factions(faction.faction_id)
+            .await;
 
         // Assert no requests were made to faction endpoint
         faction_endpoint.assert();
@@ -270,6 +284,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_or_update_factions_update() -> Result<(), DbErr> {
         let mut test = setup().await?;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let expected_requests = 1;
         let faction_endpoint =
@@ -277,22 +292,16 @@ mod tests {
 
         // Database has no faction present, factions will be fetched & updated from endpoint
         let mock_faction = mock_faction();
-        let update_result = get_or_update_factions(
-            &test.state.db,
-            &test.state.esi_client,
-            mock_faction.faction_id,
-        )
-        .await;
+        let update_result = faction_service
+            .get_or_update_factions(mock_faction.faction_id)
+            .await;
 
         assert!(update_result.is_ok());
 
         // Call method again, no additional endpoint requests should be made as it should be retrieved from DB
-        let get_result = get_or_update_factions(
-            &test.state.db,
-            &test.state.esi_client,
-            mock_faction.faction_id,
-        )
-        .await;
+        let get_result = faction_service
+            .get_or_update_factions(mock_faction.faction_id)
+            .await;
 
         assert!(get_result.is_ok());
 
@@ -308,12 +317,14 @@ mod tests {
         // Use shared test_setup util instead of specific setup() method for these tests
         // No table will be made for factions which will cause a database error
         let mut test = test_setup().await;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let expected_requests = 0;
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
-        let result = get_or_update_factions(&test.state.db, &test.state.esi_client, 1).await;
+        let faction_id = 1;
+        let result = faction_service.get_or_update_factions(faction_id).await;
 
         // Assert no requests were made to faction endpoint
         faction_endpoint.assert();
@@ -329,11 +340,13 @@ mod tests {
     #[tokio::test]
     async fn test_get_or_update_factions_esi_error() -> Result<(), DbErr> {
         let test = setup().await?;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         // Don't create a mock faction endpoint, this will cause an ESI error when trying to
         // fetch faction
 
-        let result = get_or_update_factions(&test.state.db, &test.state.esi_client, 1).await;
+        let faction_id = 1;
+        let result = faction_service.get_or_update_factions(faction_id).await;
 
         assert!(result.is_err());
 
@@ -346,13 +359,15 @@ mod tests {
     #[tokio::test]
     async fn test_get_or_update_factions_update_error() -> Result<(), DbErr> {
         let mut test = setup().await?;
+        let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
 
         let expected_requests = 1;
         let faction_endpoint =
             mock_faction_endpoint(&mut test.server, vec![mock_faction()], expected_requests);
 
         // Try to fetch a faction id that is not provided by the endpoint, will cause a not found error
-        let result = get_or_update_factions(&test.state.db, &test.state.esi_client, 1).await;
+        let faction_id = 1;
+        let result = faction_service.get_or_update_factions(faction_id).await;
 
         // Assert 1 request was made to faction endpoint
         faction_endpoint.assert();
