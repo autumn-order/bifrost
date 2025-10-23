@@ -1,7 +1,9 @@
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
-use crate::server::{data::eve::faction::FactionRepository, error::Error};
+use crate::server::{
+    data::eve::faction::FactionRepository, error::Error, util::time::effective_faction_cache_expiry,
+};
 
 /// Fetches & stores NPC faction information from ESI so long as they aren't within cache period
 ///
@@ -13,37 +15,7 @@ pub async fn update_factions(
     let faction_repo = FactionRepository::new(&db);
 
     let now = Utc::now();
-    let today = now.date_naive();
-    let yesterday = today.checked_sub_signed(Duration::days(1)).ok_or_else(|| {
-        Error::ParseError(
-            "Failed to calculate yesterday's ESI NPC faction cache expiry timestamp".to_string(),
-        )
-    })?;
-
-    let today_expiry = today
-        .and_hms_opt(11, 5, 0)
-        .ok_or_else(|| {
-            Error::ParseError(
-                "Failed to parse hours, minutes, and seconds used to represent ESI NPC faction cache expiry timestamp.".to_string()
-            )
-        })?;
-    let yesterday_expiry = yesterday
-        .and_hms_opt(11, 5, 0)
-        .ok_or_else(|| {
-            Error::ParseError(
-                "Failed to parse hours, minutes, and seconds used to represent ESI NPC faction cache expiry timestamp.".to_string()
-            )
-        })?;
-
-    // Determine which expiry to compare against:
-    // - if we're before today's expiry, the cache window started yesterday at 11:05
-    // - otherwise, the window starts today at 11:05 (and you should only skip if updated since today_expiry)
-    let now_naive = now.naive_utc();
-    let effective_expiry = if now_naive < today_expiry {
-        yesterday_expiry
-    } else {
-        today_expiry
-    };
+    let effective_expiry = effective_faction_cache_expiry(now)?;
 
     // If the latest faction entry was updated at or after the effective expiry, skip updating.
     if let Some(faction) = faction_repo.get_latest().await? {
@@ -72,9 +44,12 @@ mod tests {
         data::eve::faction::FactionRepository,
         error::Error,
         service::eve::faction::update_factions,
-        util::test::{
-            eve::mock::mock_faction,
-            setup::{test_setup, TestSetup},
+        util::{
+            test::{
+                eve::mock::mock_faction,
+                setup::{test_setup, TestSetup},
+            },
+            time::effective_faction_cache_expiry,
         },
     };
 
@@ -143,17 +118,8 @@ mod tests {
     async fn test_update_factions_existing_entries_success() {
         let mut test = setup().await.unwrap();
 
-        // Compute effective expiry the same way as the production code
         let now = Utc::now();
-        let today = now.date_naive();
-        let yesterday = today.checked_sub_signed(Duration::days(1)).unwrap();
-        let today_expiry = today.and_hms_opt(11, 5, 0).unwrap();
-        let yesterday_expiry = yesterday.and_hms_opt(11, 5, 0).unwrap();
-        let effective_expiry = if now.naive_utc() < today_expiry {
-            yesterday_expiry
-        } else {
-            today_expiry
-        };
+        let effective_expiry = effective_faction_cache_expiry(now).unwrap();
 
         // Set updated_at to *before* the effective expiry so an update should be performed.
         let updated_at = effective_expiry
@@ -182,17 +148,8 @@ mod tests {
     async fn test_update_factions_cached() {
         let mut test = setup().await.unwrap();
 
-        // Compute effective expiry the same way as the production code
         let now = Utc::now();
-        let today = now.date_naive();
-        let yesterday = today.checked_sub_signed(Duration::days(1)).unwrap();
-        let today_expiry = today.and_hms_opt(11, 5, 0).unwrap();
-        let yesterday_expiry = yesterday.and_hms_opt(11, 5, 0).unwrap();
-        let effective_expiry = if now.naive_utc() < today_expiry {
-            yesterday_expiry
-        } else {
-            today_expiry
-        };
+        let effective_expiry = effective_faction_cache_expiry(now).unwrap();
 
         // Set updated_at to just after the effective expiry so it should be considered cached.
         let updated_at = effective_expiry
