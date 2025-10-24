@@ -1,5 +1,7 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel,
+};
 
 pub struct UserCharacterRepository<'a> {
     db: &'a DatabaseConnection,
@@ -30,6 +32,40 @@ impl<'a> UserCharacterRepository<'a> {
         };
 
         user_character.insert(self.db).await
+    }
+
+    /// Update a user character entry with a new user id
+    ///
+    /// # Arguments
+    /// - `user_character_entry_id`: The ID of the user character entry to update
+    /// - `new_user_id`: The ID of the user to change the entry to
+    ///
+    /// # Returns
+    /// Returns a result containing:
+    /// - `Option<`[`entity::bifrost_user_character::Model`]`>`: Some if update is successful
+    ///   or None if entry not found
+    /// - [`DbErr`]: If a database-related error occurs
+    pub async fn update(
+        &self,
+        user_character_entry_id: i32,
+        new_user_id: i32,
+    ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
+        let user_character =
+            match entity::prelude::BifrostUserCharacter::find_by_id(user_character_entry_id)
+                .one(self.db)
+                .await?
+            {
+                Some(user_character) => user_character,
+                None => return Ok(None),
+            };
+
+        let mut user_character_am = user_character.into_active_model();
+        user_character_am.user_id = ActiveValue::Set(new_user_id);
+        user_character_am.updated_at = ActiveValue::Set(Utc::now().naive_utc());
+
+        let user_character = user_character_am.update(self.db).await?;
+
+        Ok(Some(user_character))
     }
 }
 
@@ -146,6 +182,94 @@ mod tests {
             let user = user_repository.create().await?;
             let result = user_character_repository
                 .create(user.id, character_id + 1)
+                .await;
+
+            assert!(result.is_err());
+
+            // Assert error code is 787 indicating a foreign key constraint error
+            assert!(matches!(
+                result,
+                Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
+                    .as_database_error()
+                    .and_then(|d| d.code().map(|c| c == "787"))
+                    .unwrap_or(false)
+            ));
+
+            Ok(())
+        }
+    }
+
+    mod update_tests {
+        use sea_orm::{DbErr, RuntimeErr};
+
+        use crate::server::data::user::{
+            user::UserRepository,
+            user_character::{tests::setup, UserCharacterRepository},
+        };
+
+        /// Expect Some when user character update is successful
+        #[tokio::test]
+        async fn test_update_user_character_some() -> Result<(), DbErr> {
+            let (db, character_id) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let old_user = user_repository.create().await?;
+            let user_character_entry = user_character_repository
+                .create(old_user.id, character_id)
+                .await?;
+
+            let new_user = user_repository.create().await?;
+            let result = user_character_repository
+                .update(user_character_entry.id, new_user.id)
+                .await;
+
+            assert!(result.is_ok());
+            let result_option = result.unwrap();
+
+            assert!(result_option.is_some());
+
+            Ok(())
+        }
+
+        /// Expect None when user character entry is not found
+        #[tokio::test]
+        async fn test_update_user_character_none() -> Result<(), DbErr> {
+            let (db, _) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            // Try to update entry ID that doesn't exist
+            let user_character_entry_id = 1;
+            let new_user = user_repository.create().await?;
+            let result = user_character_repository
+                .update(user_character_entry_id, new_user.id)
+                .await;
+
+            assert!(result.is_ok());
+            let result_option = result.unwrap();
+
+            assert!(result_option.is_none());
+
+            Ok(())
+        }
+
+        /// Expect Error when updating user character entry to user that doesn't exist
+        #[tokio::test]
+        async fn test_update_user_character_error() -> Result<(), DbErr> {
+            let (db, character_id) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let old_user = user_repository.create().await?;
+            let user_character_entry = user_character_repository
+                .create(old_user.id, character_id)
+                .await?;
+
+            // Try to update entry to new_user_id that doesn't exist
+            let new_user_id = old_user.id + 1;
+            let result = user_character_repository
+                .update(user_character_entry.id, new_user_id)
                 .await;
 
             assert!(result.is_err());
