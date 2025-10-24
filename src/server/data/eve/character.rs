@@ -124,10 +124,10 @@ mod tests {
                 .create(character_id, character, corporation.id, None)
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
-            assert_eq!(created.faction_id, None, "faction_id mismatch");
+            assert_eq!(created.faction_id, None);
         }
 
         /// Expect success when creating character with a faction ID set
@@ -167,15 +167,12 @@ mod tests {
                 )
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
-            assert_eq!(created.character_id, character_id, "character_id mismatch");
-            assert_eq!(
-                created.corporation_id, corporation.id,
-                "corporation_id mismatch"
-            );
-            assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+            assert_eq!(created.character_id, character_id);
+            assert_eq!(created.corporation_id, corporation.id);
+            assert_eq!(created.faction_id, Some(faction.id));
 
             Ok(())
         }
@@ -195,7 +192,7 @@ mod tests {
                 .create(character_id, character, non_existant_corporation_id, None)
                 .await;
 
-            assert!(result.is_err(), "Expected error, instead got: {:?}", result);
+            assert!(result.is_err());
 
             // Assert error code is 787 indicating a foreign key constraint error
             let code = result.err().and_then(|e| match e {
