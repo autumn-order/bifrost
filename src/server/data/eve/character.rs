@@ -40,12 +40,6 @@ impl<'a> CharacterRepository<'a> {
         character.insert(self.db).await
     }
 
-    pub async fn get_by_id(&self, id: i32) -> Result<Option<entity::eve_character::Model>, DbErr> {
-        entity::prelude::EveCharacter::find_by_id(id)
-            .one(self.db)
-            .await
-    }
-
     pub async fn get_by_character_id(
         &self,
         character_id: i64,
