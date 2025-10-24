@@ -7,7 +7,10 @@ use crate::server::util::test::auth::jwt::{create_mock_jwt_keys, create_mock_jwt
 pub fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
     let mock_keys = create_mock_jwt_keys();
 
-    let claims = EveJwtClaims::mock();
+    let mut claims = EveJwtClaims::mock();
+    // Set character ID to 1 which is the default used for mock_character used across tests
+    claims.sub = "CHARACTER:EVE:1".to_string();
+
     let mock_token = create_mock_jwt_token(claims);
 
     let mock_jwt_key_endpoint = server
