@@ -159,17 +159,10 @@ mod tests {
             let corporation =
                 mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
 
-            assert_eq!(
-                created.corporation_id, corporation_id,
-                "corporation_id mismatch"
-            );
-            assert_eq!(created.name, corporation.name, "name mismatch");
-            assert_eq!(
-                created.alliance_id,
-                Some(alliance.id),
-                "alliance_id mismatch"
-            );
-            assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+            assert_eq!(created.corporation_id, corporation_id,);
+            assert_eq!(created.name, corporation.name);
+            assert_eq!(created.alliance_id, Some(alliance.id),);
+            assert_eq!(created.faction_id, Some(faction.id));
         }
 
         /// Should succeed when inserting corporation into table without an alliance ID
@@ -195,7 +188,7 @@ mod tests {
                 .create(corporation_id, corporation, None, Some(faction.id))
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
             assert_eq!(created.alliance_id, None);
@@ -215,7 +208,7 @@ mod tests {
                 .create(corporation_id, corporation, None, None)
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
             assert_eq!(created.alliance_id, None);

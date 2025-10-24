@@ -116,16 +116,16 @@ mod tests {
                 .create(alliance_id, alliance, Some(faction.id))
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
             // Need to create mock alliance again as eve_esi::model::alliance::Alliance does not implement Clone
             // - An issue will need to be made on the eve_esi repo about this
             let alliance = mock_alliance(Some(faction.faction_id));
 
-            assert_eq!(created.alliance_id, alliance_id, "alliance_id mismatch");
-            assert_eq!(created.name, alliance.name, "name mismatch");
-            assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+            assert_eq!(created.alliance_id, alliance_id);
+            assert_eq!(created.name, alliance.name);
+            assert_eq!(created.faction_id, Some(faction.id));
         }
 
         /// Should succeed when inserting alliance into table without a faction ID
@@ -139,7 +139,7 @@ mod tests {
             let alliance = mock_alliance(None);
             let result = alliance_repo.create(alliance_id, alliance, None).await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
+            assert!(result.is_ok());
             let created = result.unwrap();
 
             assert_eq!(created.faction_id, None);

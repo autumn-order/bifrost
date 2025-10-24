@@ -115,18 +115,12 @@ mod tests {
         // - An issue will need to be made on the eve_esi repo about this
         let faction = mock_faction();
 
+        assert_eq!(created.faction_id, faction.faction_id);
+        assert_eq!(created.name, faction.name);
+        assert_eq!(created.corporation_id, faction.corporation_d);
         assert_eq!(
-            created.faction_id, faction.faction_id,
-            "faction_id mismatch"
-        );
-        assert_eq!(created.name, faction.name, "name mismatch");
-        assert_eq!(
-            created.corporation_id, faction.corporation_d,
-            "corporation_id mismatch"
-        );
-        assert_eq!(
-            created.militia_corporation_id, faction.militia_corporation_id,
-            "militia_corporation_id mismatch"
+            created.militia_corporation_id,
+            faction.militia_corporation_id
         );
     }
 
@@ -146,14 +140,8 @@ mod tests {
         let latest_entry = latest.into_iter().next().expect("no entry returned");
 
         // created_at should not change and updated_at should increase
-        assert_eq!(
-            latest_entry.created_at, initial_created_at,
-            "created_at changed on upsert"
-        );
-        assert!(
-            latest_entry.updated_at > initial_updated_at,
-            "updated_at was not advanced"
-        );
+        assert_eq!(latest_entry.created_at, initial_created_at);
+        assert!(latest_entry.updated_at > initial_updated_at);
 
         Ok(())
     }
