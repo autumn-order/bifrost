@@ -57,7 +57,7 @@ mod tests {
         use sea_orm::DbErr;
 
         use crate::server::{
-            data::user::user::{UserRepository, tests::setup},
+            data::user::user::{tests::setup, UserRepository},
             util::test::setup::test_setup,
         };
 
@@ -92,8 +92,12 @@ mod tests {
     mod delete_tests {
         use sea_orm::{DbErr, EntityTrait};
 
-        use crate::server::data::user::user::{UserRepository, tests::setup};
+        use crate::server::{
+            data::user::user::{tests::setup, UserRepository},
+            util::test::setup::test_setup,
+        };
 
+        /// Expect success when deleting user
         #[tokio::test]
         async fn test_delete_user_success() -> Result<(), DbErr> {
             let db = setup().await?;
@@ -118,19 +122,34 @@ mod tests {
             Ok(())
         }
 
+        /// Expect no rows to be affected when deleting user that does not exist
         #[tokio::test]
-        async fn test_delete_user_error() -> Result<(), DbErr> {
+        async fn test_delete_user_none() -> Result<(), DbErr> {
             let db = setup().await?;
             let user_repository = UserRepository::new(&db);
 
-            let user_id = 1;
-            let result = user_repository.delete(user_id).await;
+            let user = user_repository.create().await?;
 
-            // Returns Ok regardless of user existing, check rows_affected to confirm result
+            let result = user_repository.delete(user.id + 1).await;
+
             assert!(result.is_ok());
             let delete_result = result.unwrap();
 
             assert_eq!(delete_result.rows_affected, 0);
+
+            Ok(())
+        }
+
+        /// Expect Error when database tables required don't exist
+        #[tokio::test]
+        async fn test_delete_user_error() -> Result<(), DbErr> {
+            // Use test setup that doesn't create required tables, causing an error
+            let test = test_setup().await;
+            let user_repository = UserRepository::new(&test.state.db);
+
+            let result = user_repository.delete(1).await;
+
+            assert!(result.is_err());
 
             Ok(())
         }
