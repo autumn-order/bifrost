@@ -1,6 +1,9 @@
 use oauth2::TokenResponse;
+use sea_orm::DatabaseConnection;
 
-use crate::server::{error::Error, model::auth::Character};
+use crate::server::{
+    error::Error, model::auth::Character, service::eve::character::CharacterService,
+};
 
 /// Callback service which fetches & validates JWT token after successful login
 ///
@@ -16,9 +19,12 @@ use crate::server::{error::Error, model::auth::Character};
 /// - [`Character`]: Character name & ID for the user
 /// - [`Error`]: An error if JWT token fetching or validation fails
 pub async fn callback_service(
+    db: &DatabaseConnection,
     esi_client: &eve_esi::Client,
     code: &str,
 ) -> Result<Character, Error> {
+    let character_service = CharacterService::new(&db, &esi_client);
+
     let token = esi_client.oauth2().get_token(code).await?;
 
     let claims = esi_client
@@ -28,10 +34,13 @@ pub async fn callback_service(
 
     let character_id = claims.character_id()?;
 
-    let character_name = claims.name;
+    let character = character_service
+        .get_or_create_character(character_id)
+        .await?;
+
     let character = Character {
-        character_id,
-        character_name,
+        character_id: character.character_id,
+        character_name: character.name,
     };
 
     Ok(character)
@@ -39,26 +48,82 @@ pub async fn callback_service(
 
 #[cfg(test)]
 mod tests {
+    use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
+
     use crate::server::{
         error::Error,
         service::auth::callback::callback_service,
-        util::test::{auth::jwt_mockito::mock_jwt_endpoints, setup::test_setup},
+        util::test::{
+            auth::jwt_mockito::mock_jwt_endpoints,
+            eve::mock::{mock_character, mock_corporation},
+            mockito::{character::mock_character_endpoint, corporation::mock_corporation_endpoint},
+            setup::{test_setup, TestSetup},
+        },
     };
+
+    async fn setup() -> Result<TestSetup, DbErr> {
+        let test = test_setup().await;
+
+        let db = &test.state.db;
+        let schema = Schema::new(DbBackend::Sqlite);
+
+        let stmts = vec![
+            schema.create_table_from_entity(entity::prelude::EveFaction),
+            schema.create_table_from_entity(entity::prelude::EveAlliance),
+            schema.create_table_from_entity(entity::prelude::EveCorporation),
+            schema.create_table_from_entity(entity::prelude::EveCharacter),
+        ];
+
+        for stmt in stmts {
+            db.execute(&stmt).await?;
+        }
+
+        Ok(test)
+    }
 
     /// Test successful callback
     #[tokio::test]
-    async fn test_callback_success() {
-        let mut test = test_setup().await;
+    async fn test_callback_success() -> Result<(), DbErr> {
+        let mut test = setup().await?;
         let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
 
-        let code = "code";
-        let result = callback_service(&test.state.esi_client, &code).await;
+        // Create the mock character & corporation that will be fetched during callback
+        let alliance_id = None;
+        let faction_id = None;
+        let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+        let corporation_id = 1;
+        let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+        let expected_requests = 1;
+        let corporation_endpoint = mock_corporation_endpoint(
+            &mut test.server,
+            "/corporations/1",
+            mock_corporation,
+            expected_requests,
+        );
+        let character_endpoint = mock_character_endpoint(
+            &mut test.server,
+            "/characters/1",
+            mock_character,
+            expected_requests,
+        );
+
+        let authorization_code = "test_code";
+        let result =
+            callback_service(&test.state.db, &test.state.esi_client, &authorization_code).await;
+
+        assert!(result.is_ok());
 
         // Assert JWT keys & token were fetched during callback
         mock_jwt_key_endpoint.assert();
         mock_jwt_token_endpoint.assert();
 
-        assert!(result.is_ok());
+        // Assert character endpoints were fetched during callback when creating character entry
+        character_endpoint.assert();
+        corporation_endpoint.assert();
+
+        Ok(())
     }
 
     /// Test server error when validation fails
@@ -69,7 +134,7 @@ mod tests {
         // Don't create any mock JWT token or key endpoints so that token validation fails
 
         let code = "string";
-        let result = callback_service(&test.state.esi_client, code).await;
+        let result = callback_service(&test.state.db, &test.state.esi_client, code).await;
 
         assert!(result.is_err());
 
