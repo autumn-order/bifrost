@@ -48,6 +48,22 @@ impl<'a> CharacterService<'a> {
 
         Ok(character)
     }
+
+    /// Get character from database or create an entry for it from ESI
+    pub async fn get_or_create_character(
+        &self,
+        character_id: i64,
+    ) -> Result<entity::eve_character::Model, Error> {
+        let character_repo = CharacterRepository::new(&self.db);
+
+        if let Some(character) = character_repo.get_by_character_id(character_id).await? {
+            return Ok(character);
+        }
+
+        let character = self.create_character(character_id).await?;
+
+        Ok(character)
+    }
 }
 
 #[cfg(test)]
@@ -221,6 +237,139 @@ mod tests {
 
             // Assert 1 request was made to mock endpoint prior to database error
             character_endpoint.assert();
+
+            Ok(())
+        }
+    }
+
+    mod get_or_create_character_tests {
+        use sea_orm::DbErr;
+
+        use crate::server::{
+            data::eve::{character::CharacterRepository, corporation::CorporationRepository},
+            error::Error,
+            service::eve::character::{tests::setup, CharacterService},
+            util::test::{
+                eve::mock::{mock_character, mock_corporation},
+                mockito::{
+                    character::mock_character_endpoint, corporation::mock_corporation_endpoint,
+                },
+                setup::test_setup,
+            },
+        };
+
+        /// Expect success when getting character already in database
+        #[tokio::test]
+        async fn test_get_or_create_character_found() -> Result<(), DbErr> {
+            let test = setup().await?;
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+
+            // Create no endpoints as they shouldn't be fetched when character is found
+
+            // Insert existing corporation & character into database
+            let corporation_id = 1;
+            let alliance_id = None;
+            let faction_id = None;
+            let mock_corporation = mock_corporation(alliance_id, faction_id);
+            let created_corporation = corporation_repo
+                .create(corporation_id, mock_corporation, None, None)
+                .await?;
+
+            let character_id = 1;
+            let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+            character_repo
+                .create(character_id, mock_character, created_corporation.id, None)
+                .await?;
+
+            let result = character_service
+                .get_or_create_character(character_id)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect success when creating a new character entry
+        #[tokio::test]
+        async fn test_get_or_create_character_created() -> Result<(), DbErr> {
+            let mut test = setup().await?;
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+
+            let corporation_id = 1;
+            let alliance_id = None;
+            let faction_id = None;
+            let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+            let character_id = 1;
+            let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+            let expected_requests = 1;
+            let mock_corporation_endpoint = mock_corporation_endpoint(
+                &mut test.server,
+                "/corporations/1",
+                mock_corporation,
+                expected_requests,
+            );
+            let mock_character_endpoint = mock_character_endpoint(
+                &mut test.server,
+                "/characters/1",
+                mock_character,
+                expected_requests,
+            );
+
+            let result = character_service
+                .get_or_create_character(character_id)
+                .await;
+
+            assert!(result.is_ok());
+
+            // Assert 1 request was made to each mock endpoint
+            mock_corporation_endpoint.assert();
+            mock_character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Error when attempting to use database tables that haven't been created
+        #[tokio::test]
+        async fn test_get_or_create_character_database_error() -> Result<(), DbErr> {
+            // Use test setup function that doesn't create the required tables, causing a databse error
+            let test = test_setup().await;
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+
+            // No endpoints needed as database error will be returned before any fetch attempts
+
+            let character_id = 1;
+
+            let result = character_service
+                .get_or_create_character(character_id)
+                .await;
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::DbErr(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error when attempting to fetch from ESI endpoint that doesn't exist
+        #[tokio::test]
+        async fn test_get_or_create_character_esi_error() -> Result<(), DbErr> {
+            let test = setup().await?;
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+
+            // Create no mock endpoints which will cause an ESI error when attempting to create a character
+
+            let character_id = 1;
+
+            let result = character_service
+                .get_or_create_character(character_id)
+                .await;
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
         }
