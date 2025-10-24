@@ -1,6 +1,8 @@
 use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+};
 
 pub struct CorporationRepository<'a> {
     db: &'a DatabaseConnection,
@@ -46,6 +48,17 @@ impl<'a> CorporationRepository<'a> {
 
         corporation.insert(self.db).await
     }
+
+    /// Get a corporation from database using EVE Online corporation ID
+    pub async fn get_by_corporation_id(
+        &self,
+        corporation_id: i64,
+    ) -> Result<Option<entity::eve_corporation::Model>, DbErr> {
+        entity::prelude::EveCorporation::find()
+            .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
+            .one(self.db)
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -53,12 +66,9 @@ mod tests {
     use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
     use crate::server::{
-        data::eve::{
-            alliance::AllianceRepository, corporation::CorporationRepository,
-            faction::FactionRepository,
-        },
+        data::eve::{alliance::AllianceRepository, faction::FactionRepository},
         util::test::{
-            eve::mock::{mock_alliance, mock_corporation, mock_faction},
+            eve::mock::{mock_alliance, mock_faction},
             setup::test_setup,
         },
     };
@@ -109,92 +119,171 @@ mod tests {
         (alliance, faction)
     }
 
-    // Should succeed when inserting a corporation with both an alliance & faction ID
-    #[tokio::test]
-    async fn create_corporation() {
-        let db = setup().await.unwrap();
-        let (alliance, faction) = insert_foreign_key_dependencies(&db).await;
+    mod create_corporation_tests {
+        use crate::server::{
+            data::eve::{
+                corporation::{
+                    tests::{insert_foreign_key_dependencies, setup},
+                    CorporationRepository,
+                },
+                faction::FactionRepository,
+            },
+            util::test::eve::mock::{mock_corporation, mock_faction},
+        };
 
-        let corporation_repo = CorporationRepository::new(&db);
+        // Should succeed when inserting a corporation with both an alliance & faction ID
+        #[tokio::test]
+        async fn create_corporation() {
+            let db = setup().await.unwrap();
+            let (alliance, faction) = insert_foreign_key_dependencies(&db).await;
 
-        let corporation_id = 1;
-        let corporation = mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
-        let result = corporation_repo
-            .create(
-                corporation_id,
-                corporation,
+            let corporation_repo = CorporationRepository::new(&db);
+
+            let corporation_id = 1;
+            let corporation =
+                mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
+            let result = corporation_repo
+                .create(
+                    corporation_id,
+                    corporation,
+                    Some(alliance.id),
+                    Some(faction.id),
+                )
+                .await;
+
+            assert!(result.is_ok(), "Error: {:?}", result);
+            let created = result.unwrap();
+
+            // Need to create mock corporation again as eve_esi::model::corporation::Corporation does not implement Clone
+            // - An issue will need to be made on the eve_esi repo about this
+            let corporation =
+                mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
+
+            assert_eq!(
+                created.corporation_id, corporation_id,
+                "corporation_id mismatch"
+            );
+            assert_eq!(created.name, corporation.name, "name mismatch");
+            assert_eq!(
+                created.alliance_id,
                 Some(alliance.id),
-                Some(faction.id),
-            )
-            .await;
+                "alliance_id mismatch"
+            );
+            assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+        }
 
-        assert!(result.is_ok(), "Error: {:?}", result);
-        let created = result.unwrap();
+        /// Should succeed when inserting corporation into table without an alliance ID
+        #[tokio::test]
+        async fn create_corporation_no_alliance() {
+            let db = setup().await.unwrap();
 
-        // Need to create mock corporation again as eve_esi::model::corporation::Corporation does not implement Clone
-        // - An issue will need to be made on the eve_esi repo about this
-        let corporation = mock_corporation(Some(alliance.alliance_id), Some(faction.faction_id));
+            let faction_repo = FactionRepository::new(&db);
 
-        assert_eq!(
-            created.corporation_id, corporation_id,
-            "corporation_id mismatch"
-        );
-        assert_eq!(created.name, corporation.name, "name mismatch");
-        assert_eq!(
-            created.alliance_id,
-            Some(alliance.id),
-            "alliance_id mismatch"
-        );
-        assert_eq!(created.faction_id, Some(faction.id), "faction_id mismatch");
+            let faction = faction_repo
+                .upsert_many(vec![mock_faction()])
+                .await
+                .unwrap()
+                .first()
+                .unwrap()
+                .to_owned();
+
+            let corporation_repo = CorporationRepository::new(&db);
+
+            let corporation_id = 1;
+            let corporation = mock_corporation(None, Some(faction.faction_id));
+            let result = corporation_repo
+                .create(corporation_id, corporation, None, Some(faction.id))
+                .await;
+
+            assert!(result.is_ok(), "Error: {:?}", result);
+            let created = result.unwrap();
+
+            assert_eq!(created.alliance_id, None);
+            assert_eq!(created.faction_id, Some(faction.id))
+        }
+
+        /// Should succeed when inserting corporation into table without a faction or alliance ID
+        #[tokio::test]
+        async fn create_corporation_no_alliance_no_faction() {
+            let db = setup().await.unwrap();
+
+            let corporation_repo = CorporationRepository::new(&db);
+
+            let corporation_id = 1;
+            let corporation = mock_corporation(None, None);
+            let result = corporation_repo
+                .create(corporation_id, corporation, None, None)
+                .await;
+
+            assert!(result.is_ok(), "Error: {:?}", result);
+            let created = result.unwrap();
+
+            assert_eq!(created.alliance_id, None);
+            assert_eq!(created.faction_id, None)
+        }
     }
 
-    /// Should succeed when inserting corporation into table without an alliance ID
-    #[tokio::test]
-    async fn create_corporation_no_alliance() {
-        let db = setup().await.unwrap();
+    mod get_by_corporation_id_tests {
+        use sea_orm::DbErr;
 
-        let faction_repo = FactionRepository::new(&db);
+        use crate::server::{
+            data::eve::corporation::{tests::setup, CorporationRepository},
+            util::test::{eve::mock::mock_corporation, setup::test_setup},
+        };
 
-        let faction = faction_repo
-            .upsert_many(vec![mock_faction()])
-            .await
-            .unwrap()
-            .first()
-            .unwrap()
-            .to_owned();
+        /// Expect Some when getting corporation present in table
+        #[tokio::test]
+        async fn test_get_by_corporation_id_some() -> Result<(), DbErr> {
+            let db = setup().await?;
+            let corporation_repo = CorporationRepository::new(&db);
 
-        let corporation_repo = CorporationRepository::new(&db);
+            let corporation_id = 1;
+            let alliance_id = None;
+            let faction_id = None;
+            let corporation = mock_corporation(alliance_id, faction_id);
+            corporation_repo
+                .create(corporation_id, corporation, None, None)
+                .await?;
 
-        let corporation_id = 1;
-        let corporation = mock_corporation(None, Some(faction.faction_id));
-        let result = corporation_repo
-            .create(corporation_id, corporation, None, Some(faction.id))
-            .await;
+            let result = corporation_repo.get_by_corporation_id(corporation_id).await;
 
-        assert!(result.is_ok(), "Error: {:?}", result);
-        let created = result.unwrap();
+            assert!(result.is_ok());
+            let corporation_option = result.unwrap();
 
-        assert_eq!(created.alliance_id, None);
-        assert_eq!(created.faction_id, Some(faction.id))
-    }
+            assert!(corporation_option.is_some());
 
-    /// Should succeed when inserting corporation into table without a faction or alliance ID
-    #[tokio::test]
-    async fn create_corporation_no_alliance_no_faction() {
-        let db = setup().await.unwrap();
+            Ok(())
+        }
 
-        let corporation_repo = CorporationRepository::new(&db);
+        /// Expect None when getting corporation not present in table
+        #[tokio::test]
+        async fn test_get_by_corporation_id_none() -> Result<(), DbErr> {
+            let db = setup().await?;
+            let corporation_repo = CorporationRepository::new(&db);
 
-        let corporation_id = 1;
-        let corporation = mock_corporation(None, None);
-        let result = corporation_repo
-            .create(corporation_id, corporation, None, None)
-            .await;
+            let corporation_id = 1;
+            let result = corporation_repo.get_by_corporation_id(corporation_id).await;
 
-        assert!(result.is_ok(), "Error: {:?}", result);
-        let created = result.unwrap();
+            assert!(result.is_ok());
+            let corporation_option = result.unwrap();
 
-        assert_eq!(created.alliance_id, None);
-        assert_eq!(created.faction_id, None)
+            assert!(corporation_option.is_none());
+
+            Ok(())
+        }
+
+        /// Expect Error when required tables haven't been created
+        #[tokio::test]
+        async fn test_get_by_corporation_id_error() -> Result<(), DbErr> {
+            let test = test_setup().await;
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+
+            let corporation_id = 1;
+            let result = corporation_repo.get_by_corporation_id(corporation_id).await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
     }
 }
