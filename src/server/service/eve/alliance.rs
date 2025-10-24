@@ -120,7 +120,7 @@ mod tests {
 
             assert!(result.is_ok());
 
-            // Assert 1 request was made each mock endpoint
+            // Assert 1 request was made to each mock endpoint
             faction_endpoint.assert();
             alliance_endpoint.assert();
 
