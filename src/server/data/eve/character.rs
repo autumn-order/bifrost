@@ -204,4 +204,87 @@ mod tests {
             assert_eq!(code.as_deref(), Some("787"));
         }
     }
+
+    mod get_by_character_id_tests {
+        use sea_orm::DbErr;
+
+        use crate::server::{
+            data::eve::{
+                character::{
+                    tests::{mock_character, setup},
+                    CharacterRepository,
+                },
+                corporation::CorporationRepository,
+            },
+            util::test::{eve::mock::mock_corporation, setup::test_setup},
+        };
+
+        // Expect Some when character entry is present
+        #[tokio::test]
+        async fn test_get_by_character_id_some() -> Result<(), DbErr> {
+            let db = setup().await.unwrap();
+            let character_repo = CharacterRepository::new(&db);
+            let corporation_repo = CorporationRepository::new(&db);
+
+            let corporation_id = 1;
+            let alliance_id = None;
+            let corporation = mock_corporation(alliance_id, None);
+
+            let character_id = 1;
+            let character = mock_character();
+
+            // Create required corporation & character entry
+            let corporation = corporation_repo
+                .create(corporation_id, corporation, None, None)
+                .await
+                .unwrap();
+
+            let character = character_repo
+                .create(character_id, character, corporation.id, None)
+                .await?;
+
+            let result = character_repo
+                .get_by_character_id(character.character_id)
+                .await;
+
+            assert!(result.is_ok());
+            let character_option = result.unwrap();
+
+            assert!(character_option.is_some());
+
+            Ok(())
+        }
+
+        // Expect None when no character entry is present
+        #[tokio::test]
+        async fn test_get_by_character_id_none() -> Result<(), DbErr> {
+            let db = setup().await.unwrap();
+            let character_repo = CharacterRepository::new(&db);
+
+            let character_id = 1;
+            let result = character_repo.get_by_character_id(character_id).await;
+
+            assert!(result.is_ok());
+            let character_option = result.unwrap();
+
+            assert!(character_option.is_none());
+
+            Ok(())
+        }
+
+        // Expect Error when required database tables have not been created
+        #[tokio::test]
+        async fn test_get_by_character_id_error() -> Result<(), DbErr> {
+            // Use setup function that doesn't create required tables, causing a database error
+            let test = test_setup().await;
+            let character_repo = CharacterRepository::new(&test.state.db);
+
+            let character_id = 1;
+            let result = character_repo.get_by_character_id(character_id).await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
 }
