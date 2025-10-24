@@ -1,5 +1,7 @@
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr};
+use sea_orm::{
+    ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, DeleteResult, EntityTrait,
+};
 
 pub struct UserRepository<'a> {
     db: &'a DatabaseConnection,
@@ -19,6 +21,16 @@ impl<'a> UserRepository<'a> {
         };
 
         user.insert(self.db).await
+    }
+
+    /// Deletes a user
+    ///
+    /// Returns OK regardless of user existing, to confirm the deletion result
+    /// check the [`DeleteResult::rows_affected`] field.
+    pub async fn delete(&self, user_id: i32) -> Result<DeleteResult, DbErr> {
+        entity::prelude::BifrostUser::delete_by_id(user_id)
+            .exec(self.db)
+            .await
     }
 }
 
@@ -45,7 +57,7 @@ mod tests {
         use sea_orm::DbErr;
 
         use crate::server::{
-            data::user::user::{tests::setup, UserRepository},
+            data::user::user::{UserRepository, tests::setup},
             util::test::setup::test_setup,
         };
 
@@ -72,6 +84,53 @@ mod tests {
             let result = user_repository.create().await;
 
             assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod delete_tests {
+        use sea_orm::{DbErr, EntityTrait};
+
+        use crate::server::data::user::user::{UserRepository, tests::setup};
+
+        #[tokio::test]
+        async fn test_delete_user_success() -> Result<(), DbErr> {
+            let db = setup().await?;
+            let user_repository = UserRepository::new(&db);
+
+            let user = user_repository.create().await?;
+
+            let result = user_repository.delete(user.id).await;
+
+            assert!(result.is_ok());
+            let delete_result = result.unwrap();
+
+            assert_eq!(delete_result.rows_affected, 1);
+
+            // Ensure user has actually been deleted
+            let user_exists = entity::prelude::BifrostUser::find_by_id(user.id)
+                .one(&db)
+                .await?;
+
+            assert!(user_exists.is_none());
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_delete_user_error() -> Result<(), DbErr> {
+            let db = setup().await?;
+            let user_repository = UserRepository::new(&db);
+
+            let user_id = 1;
+            let result = user_repository.delete(user_id).await;
+
+            // Returns Ok regardless of user existing, check rows_affected to confirm result
+            assert!(result.is_ok());
+            let delete_result = result.unwrap();
+
+            assert_eq!(delete_result.rows_affected, 0);
 
             Ok(())
         }
