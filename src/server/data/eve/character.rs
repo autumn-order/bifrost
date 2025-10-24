@@ -67,7 +67,7 @@ mod tests {
             corporation::CorporationRepository, faction::FactionRepository,
         },
         util::test::{
-            eve::mock::{mock_alliance, mock_character, mock_corporation, mock_faction},
+            eve::mock::{mock_alliance, mock_corporation, mock_faction},
             setup::test_setup,
         },
     };
@@ -130,6 +130,16 @@ mod tests {
             .unwrap();
 
         (corporation, faction)
+    }
+
+    fn mock_character() -> eve_esi::model::character::Character {
+        use crate::server::util::test::eve::mock::mock_character;
+
+        let corporation_id = 1;
+        let alliance_id = None;
+        let faction_id = None;
+
+        mock_character(corporation_id, alliance_id, faction_id)
     }
 
     /// Should succeed when inserting character into table with faction ID

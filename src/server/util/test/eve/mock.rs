@@ -55,16 +55,20 @@ pub fn mock_corporation(alliance_id: Option<i64>, faction_id: Option<i64>) -> Co
     }
 }
 
-pub fn mock_character() -> Character {
+pub fn mock_character(
+    corporation_id: i64,
+    alliance_id: Option<i64>,
+    faction_id: Option<i64>,
+) -> Character {
     Character {
-        alliance_id: Some(99013534),
+        alliance_id: alliance_id,
         birthday: DateTime::parse_from_rfc3339("2018-12-20T16:11:54Z")
             .unwrap()
             .with_timezone(&Utc),
         bloodline_id: 7,
-        corporation_id: 98785281,
+        corporation_id: corporation_id,
         description: Some("description".to_string()),
-        faction_id: None,
+        faction_id: faction_id,
         gender: "male".to_string(),
         name: "Hyziri".to_string(),
         race_id: 8,
