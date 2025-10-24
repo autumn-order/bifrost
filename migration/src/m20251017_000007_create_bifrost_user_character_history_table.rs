@@ -2,17 +2,17 @@ use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
     m20251017_000004_create_eve_character_table::EveCharacter,
-    m20251017_000005_create_bifrost_auth_user_table::BifrostAuthUser,
+    m20251017_000005_create_bifrost_user_table::BifrostUser,
 };
 
 static IDX_USER_CHARACTER_HISTORY_CHARACTER_ID: &str =
-    "idx_bifrost_auth_user_character_history_character_id";
+    "idx_bifrost_user_character_history_character_id";
 static FK_USER_CHARACTER_HISTORY_CHARACTER_ID: &str =
-    "fk_bifrost_auth_user_character_history_character_id";
+    "fk_bifrost_user_character_history_character_id";
 static FK_USER_CHARACTER_HISTORY_NEW_USER_ID: &str =
-    "fk_bifrost_auth_user_character_history_new_user_id";
+    "fk_bifrost_user_character_history_new_user_id";
 static FK_USER_CHARACTER_HISTORY_OLD_USER_ID: &str =
-    "fk_bifrost_auth_user_character_history_old_user_id";
+    "fk_bifrost_user_character_history_old_user_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -23,13 +23,13 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(BifrostAuthUserCharacterHistory::Table)
+                    .table(BifrostUserCharacterHistory::Table)
                     .if_not_exists()
-                    .col(pk_auto(BifrostAuthUserCharacterHistory::Id))
-                    .col(integer(BifrostAuthUserCharacterHistory::CharacterId))
-                    .col(integer(BifrostAuthUserCharacterHistory::NewUserId))
-                    .col(integer(BifrostAuthUserCharacterHistory::PreviousUserId))
-                    .col(timestamp(BifrostAuthUserCharacterHistory::DateTime))
+                    .col(pk_auto(BifrostUserCharacterHistory::Id))
+                    .col(integer(BifrostUserCharacterHistory::CharacterId))
+                    .col(integer(BifrostUserCharacterHistory::NewUserId))
+                    .col(integer(BifrostUserCharacterHistory::PreviousUserId))
+                    .col(timestamp(BifrostUserCharacterHistory::DateTime))
                     .to_owned(),
             )
             .await?;
@@ -38,8 +38,8 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .name(IDX_USER_CHARACTER_HISTORY_CHARACTER_ID)
-                    .table(BifrostAuthUserCharacterHistory::Table)
-                    .col(BifrostAuthUserCharacterHistory::CharacterId)
+                    .table(BifrostUserCharacterHistory::Table)
+                    .col(BifrostUserCharacterHistory::CharacterId)
                     .to_owned(),
             )
             .await?;
@@ -48,8 +48,8 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_USER_CHARACTER_HISTORY_CHARACTER_ID)
-                    .from_tbl(BifrostAuthUserCharacterHistory::Table)
-                    .from_col(BifrostAuthUserCharacterHistory::CharacterId)
+                    .from_tbl(BifrostUserCharacterHistory::Table)
+                    .from_col(BifrostUserCharacterHistory::CharacterId)
                     .to_tbl(EveCharacter::Table)
                     .to_col(EveCharacter::Id)
                     .to_owned(),
@@ -60,10 +60,10 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_USER_CHARACTER_HISTORY_NEW_USER_ID)
-                    .from_tbl(BifrostAuthUserCharacterHistory::Table)
-                    .from_col(BifrostAuthUserCharacterHistory::NewUserId)
-                    .to_tbl(BifrostAuthUser::Table)
-                    .to_col(BifrostAuthUser::Id)
+                    .from_tbl(BifrostUserCharacterHistory::Table)
+                    .from_col(BifrostUserCharacterHistory::NewUserId)
+                    .to_tbl(BifrostUser::Table)
+                    .to_col(BifrostUser::Id)
                     .to_owned(),
             )
             .await?;
@@ -72,10 +72,10 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_USER_CHARACTER_HISTORY_OLD_USER_ID)
-                    .from_tbl(BifrostAuthUserCharacterHistory::Table)
-                    .from_col(BifrostAuthUserCharacterHistory::PreviousUserId)
-                    .to_tbl(BifrostAuthUser::Table)
-                    .to_col(BifrostAuthUser::Id)
+                    .from_tbl(BifrostUserCharacterHistory::Table)
+                    .from_col(BifrostUserCharacterHistory::PreviousUserId)
+                    .to_tbl(BifrostUser::Table)
+                    .to_col(BifrostUser::Id)
                     .to_owned(),
             )
             .await?;
@@ -88,7 +88,7 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_USER_CHARACTER_HISTORY_OLD_USER_ID)
-                    .table(BifrostAuthUserCharacterHistory::Table)
+                    .table(BifrostUserCharacterHistory::Table)
                     .to_owned(),
             )
             .await?;
@@ -97,7 +97,7 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_USER_CHARACTER_HISTORY_NEW_USER_ID)
-                    .table(BifrostAuthUserCharacterHistory::Table)
+                    .table(BifrostUserCharacterHistory::Table)
                     .to_owned(),
             )
             .await?;
@@ -106,7 +106,7 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_USER_CHARACTER_HISTORY_CHARACTER_ID)
-                    .table(BifrostAuthUserCharacterHistory::Table)
+                    .table(BifrostUserCharacterHistory::Table)
                     .to_owned(),
             )
             .await?;
@@ -123,7 +123,7 @@ impl MigrationTrait for Migration {
         manager
             .drop_table(
                 Table::drop()
-                    .table(BifrostAuthUserCharacterHistory::Table)
+                    .table(BifrostUserCharacterHistory::Table)
                     .to_owned(),
             )
             .await?;
@@ -133,7 +133,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum BifrostAuthUserCharacterHistory {
+enum BifrostUserCharacterHistory {
     Table,
     Id,
     CharacterId,

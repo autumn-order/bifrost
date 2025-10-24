@@ -9,10 +9,10 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(BifrostAuthUser::Table)
+                    .table(BifrostUser::Table)
                     .if_not_exists()
-                    .col(pk_auto(BifrostAuthUser::Id))
-                    .col(timestamp(BifrostAuthUser::CreatedAt))
+                    .col(pk_auto(BifrostUser::Id))
+                    .col(timestamp(BifrostUser::CreatedAt))
                     .to_owned(),
             )
             .await?;
@@ -22,7 +22,7 @@ impl MigrationTrait for Migration {
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         manager
-            .drop_table(Table::drop().table(BifrostAuthUser::Table).to_owned())
+            .drop_table(Table::drop().table(BifrostUser::Table).to_owned())
             .await?;
 
         Ok(())
@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-pub enum BifrostAuthUser {
+pub enum BifrostUser {
     Table,
     Id,
     CreatedAt,
