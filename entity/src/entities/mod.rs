@@ -2,9 +2,9 @@
 
 pub mod prelude;
 
-pub mod bifrost_auth_user;
-pub mod bifrost_auth_user_character;
-pub mod bifrost_auth_user_character_history;
+pub mod bifrost_user;
+pub mod bifrost_user_character;
+pub mod bifrost_user_character_history;
 pub mod eve_alliance;
 pub mod eve_character;
 pub mod eve_corporation;

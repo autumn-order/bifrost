@@ -2,12 +2,12 @@ use sea_orm_migration::{prelude::*, schema::*};
 
 use crate::{
     m20251017_000004_create_eve_character_table::EveCharacter,
-    m20251017_000005_create_bifrost_auth_user_table::BifrostAuthUser,
+    m20251017_000005_create_bifrost_user_table::BifrostUser,
 };
 
-static IDX_USER_CHARACTER_USER_ID: &str = "idx_bifrost_auth_user_character_user_id";
-static FK_USER_CHARACTER_USER_ID: &str = "fk_bifrost_auth_user_character_user_id";
-static FK_USER_CHARACTER_CHARACTER_ID: &str = "fk_bifrost_auth_user_character_character_id";
+static IDX_USER_CHARACTER_USER_ID: &str = "idx_bifrost_user_character_user_id";
+static FK_USER_CHARACTER_USER_ID: &str = "fk_bifrost_user_character_user_id";
+static FK_USER_CHARACTER_CHARACTER_ID: &str = "fk_bifrost_user_character_character_id";
 
 #[derive(DeriveMigrationName)]
 pub struct Migration;
@@ -18,13 +18,13 @@ impl MigrationTrait for Migration {
         manager
             .create_table(
                 Table::create()
-                    .table(BifrostAuthUserCharacter::Table)
+                    .table(BifrostUserCharacter::Table)
                     .if_not_exists()
-                    .col(pk_auto(BifrostAuthUserCharacter::Id))
-                    .col(integer(BifrostAuthUserCharacter::UserId))
-                    .col(integer_uniq(BifrostAuthUserCharacter::CharacterId))
-                    .col(timestamp(BifrostAuthUserCharacter::CreatedAt))
-                    .col(timestamp(BifrostAuthUserCharacter::UpdatedAt))
+                    .col(pk_auto(BifrostUserCharacter::Id))
+                    .col(integer(BifrostUserCharacter::UserId))
+                    .col(integer_uniq(BifrostUserCharacter::CharacterId))
+                    .col(timestamp(BifrostUserCharacter::CreatedAt))
+                    .col(timestamp(BifrostUserCharacter::UpdatedAt))
                     .to_owned(),
             )
             .await?;
@@ -33,8 +33,8 @@ impl MigrationTrait for Migration {
             .create_index(
                 Index::create()
                     .name(IDX_USER_CHARACTER_USER_ID)
-                    .table(BifrostAuthUserCharacter::Table)
-                    .col(BifrostAuthUserCharacter::UserId)
+                    .table(BifrostUserCharacter::Table)
+                    .col(BifrostUserCharacter::UserId)
                     .to_owned(),
             )
             .await?;
@@ -43,10 +43,10 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_USER_CHARACTER_USER_ID)
-                    .from_tbl(BifrostAuthUserCharacter::Table)
-                    .from_col(BifrostAuthUserCharacter::UserId)
-                    .to_tbl(BifrostAuthUser::Table)
-                    .to_col(BifrostAuthUser::Id)
+                    .from_tbl(BifrostUserCharacter::Table)
+                    .from_col(BifrostUserCharacter::UserId)
+                    .to_tbl(BifrostUser::Table)
+                    .to_col(BifrostUser::Id)
                     .to_owned(),
             )
             .await?;
@@ -55,8 +55,8 @@ impl MigrationTrait for Migration {
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_USER_CHARACTER_CHARACTER_ID)
-                    .from_tbl(BifrostAuthUserCharacter::Table)
-                    .from_col(BifrostAuthUserCharacter::CharacterId)
+                    .from_tbl(BifrostUserCharacter::Table)
+                    .from_col(BifrostUserCharacter::CharacterId)
                     .to_tbl(EveCharacter::Table)
                     .to_col(EveCharacter::Id)
                     .to_owned(),
@@ -71,7 +71,7 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_USER_CHARACTER_CHARACTER_ID)
-                    .table(BifrostAuthUserCharacter::Table)
+                    .table(BifrostUserCharacter::Table)
                     .to_owned(),
             )
             .await?;
@@ -80,7 +80,7 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_USER_CHARACTER_USER_ID)
-                    .table(BifrostAuthUserCharacter::Table)
+                    .table(BifrostUserCharacter::Table)
                     .to_owned(),
             )
             .await?;
@@ -89,17 +89,13 @@ impl MigrationTrait for Migration {
             .drop_index(
                 Index::drop()
                     .name(IDX_USER_CHARACTER_USER_ID)
-                    .table(BifrostAuthUserCharacter::Table)
+                    .table(BifrostUserCharacter::Table)
                     .to_owned(),
             )
             .await?;
 
         manager
-            .drop_table(
-                Table::drop()
-                    .table(BifrostAuthUserCharacter::Table)
-                    .to_owned(),
-            )
+            .drop_table(Table::drop().table(BifrostUserCharacter::Table).to_owned())
             .await?;
 
         Ok(())
@@ -107,7 +103,7 @@ impl MigrationTrait for Migration {
 }
 
 #[derive(DeriveIden)]
-enum BifrostAuthUserCharacter {
+enum BifrostUserCharacter {
     Table,
     Id,
     UserId,

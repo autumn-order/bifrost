@@ -1,26 +1,4 @@
-# Table Naming Scheme
-
-Table enums should be named in the format of
-
-```
-MaintainerModuleTableName...
-```
-
-Maintainer can be a character, organization, corporation, etc. It is used to identify who exactly the module belongs to.
-
-## Example
-
-```
-BifrostAuthUser
-```
-
-Which would be the table
-
-```
-bifrost_auth_user
-```
-
-## Running Migrator CLI
+# Running Migrator CLI
 
 - Generate a new migration file
     ```sh
