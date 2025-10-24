@@ -195,13 +195,13 @@ mod tests {
             assert!(result.is_err());
 
             // Assert error code is 787 indicating a foreign key constraint error
-            let code = result.err().and_then(|e| match e {
-                DbErr::Query(RuntimeErr::SqlxError(se)) => se
+            assert!(matches!(
+                result,
+                Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
                     .as_database_error()
-                    .and_then(|d| d.code().map(|c| c.to_string())),
-                _ => None,
-            });
-            assert_eq!(code.as_deref(), Some("787"));
+                    .and_then(|d| d.code().map(|c| c == "787"))
+                    .unwrap_or(false)
+            ));
         }
     }
 

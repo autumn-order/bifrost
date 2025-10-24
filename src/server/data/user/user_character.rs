@@ -150,6 +150,7 @@ mod tests {
 
             assert!(result.is_err());
 
+            // Assert error code is 787 indicating a foreign key constraint error
             assert!(matches!(
                 result,
                 Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
