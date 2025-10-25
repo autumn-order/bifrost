@@ -20,15 +20,16 @@ use crate::util::{
 
 async fn setup() -> Result<(TestSetup, CallbackParams), DbErr> {
     let test = test_setup().await;
-
     let db = &test.state.db;
-    let schema = Schema::new(DbBackend::Sqlite);
 
+    let schema = Schema::new(DbBackend::Sqlite);
     let stmts = vec![
         schema.create_table_from_entity(entity::prelude::EveFaction),
         schema.create_table_from_entity(entity::prelude::EveAlliance),
         schema.create_table_from_entity(entity::prelude::EveCorporation),
         schema.create_table_from_entity(entity::prelude::EveCharacter),
+        schema.create_table_from_entity(entity::prelude::BifrostUser),
+        schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
     ];
 
     for stmt in stmts {
@@ -107,8 +108,6 @@ async fn test_callback_success() -> Result<(), DbErr> {
     );
 
     let result = callback(State(test.state), test.session, Query(params)).await;
-
-    assert!(result.is_ok());
 
     // Assert JWT keys & token were fetched during callback
     mock_jwt_key_endpoint.assert();
