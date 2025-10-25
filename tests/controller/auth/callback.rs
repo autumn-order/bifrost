@@ -5,7 +5,7 @@ use axum::{
 };
 use bifrost::server::{
     controller::auth::callback::{callback, CallbackParams},
-    model::session::auth::SessionAuthCsrf,
+    model::session::{auth::SessionAuthCsrf, user::SessionUserId},
 };
 use eve_esi::model::oauth2::EveJwtClaims;
 use mockito::{Mock, ServerGuard};
@@ -107,7 +107,7 @@ async fn test_callback_success() -> Result<(), DbErr> {
         expected_requests,
     );
 
-    let result = callback(State(test.state), test.session, Query(params)).await;
+    let result = callback(State(test.state), test.session.clone(), Query(params)).await;
 
     // Assert JWT keys & token were fetched during callback
     mock_jwt_key_endpoint.assert();
@@ -120,6 +120,18 @@ async fn test_callback_success() -> Result<(), DbErr> {
     let resp = result.unwrap().into_response();
 
     assert_eq!(resp.status(), StatusCode::OK);
+
+    // Assert user is in session
+    let result = SessionUserId::get(&test.session).await;
+
+    assert!(result.is_ok());
+    let user_id_opt = result.unwrap();
+
+    assert!(user_id_opt.is_some());
+    let user_id = user_id_opt.unwrap();
+
+    // User ID should be 1 as it would be the first user created in database
+    assert_eq!(user_id, 1);
 
     Ok(())
 }
