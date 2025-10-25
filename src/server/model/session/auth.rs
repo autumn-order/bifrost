@@ -3,16 +3,16 @@ use tower_sessions::Session;
 
 use crate::server::error::Error;
 
-pub const AUTH_LOGIN_CSRF_KEY: &str = "auth:login:csrf";
+pub const SESSION_AUTH_CSRF_KEY: &str = "auth:csrf";
 
 #[derive(Default, Deserialize, Serialize, Debug)]
-pub struct AuthLoginCsrf(pub String);
+pub struct SessionAuthCsrf(pub String);
 
-impl AuthLoginCsrf {
+impl SessionAuthCsrf {
     /// Insert CSRF state key into session
     pub async fn insert(session: &Session, state: &str) -> Result<(), Error> {
         session
-            .insert(AUTH_LOGIN_CSRF_KEY, AuthLoginCsrf(state.to_string()))
+            .insert(SESSION_AUTH_CSRF_KEY, SessionAuthCsrf(state.to_string()))
             .await?;
 
         Ok(())
@@ -20,7 +20,7 @@ impl AuthLoginCsrf {
 
     /// Get the CSRF state key from session
     pub async fn get(session: &Session) -> Result<String, Error> {
-        match session.get(AUTH_LOGIN_CSRF_KEY).await? {
+        match session.get(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
             None => Err(Error::AuthCsrfEmptySession),
         }
@@ -28,7 +28,9 @@ impl AuthLoginCsrf {
 
     /// Remove the CSRF state key from session
     pub async fn remove(session: &Session) -> Result<(), Error> {
-        session.remove::<AuthLoginCsrf>(AUTH_LOGIN_CSRF_KEY).await?;
+        session
+            .remove::<SessionAuthCsrf>(SESSION_AUTH_CSRF_KEY)
+            .await?;
 
         Ok(())
     }
@@ -45,14 +47,14 @@ impl AuthLoginCsrf {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::{model::session::AuthLoginCsrf, util::test::setup::test_setup};
+    use crate::server::{model::session::auth::SessionAuthCsrf, util::test::setup::test_setup};
 
     #[tokio::test]
     /// Test successful insertion of CSRF state
     async fn test_insert() {
         let test = test_setup().await;
 
-        let result = AuthLoginCsrf::insert(&test.session, "string").await;
+        let result = SessionAuthCsrf::insert(&test.session, "string").await;
 
         assert!(result.is_ok())
     }
@@ -63,8 +65,8 @@ mod tests {
         let test = test_setup().await;
         let state = "string";
 
-        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
-        let get_result = AuthLoginCsrf::get(&test.session).await;
+        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
+        let get_result = SessionAuthCsrf::get(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(get_result.is_ok());
@@ -79,14 +81,14 @@ mod tests {
     async fn test_remove() {
         let test = test_setup().await;
 
-        let insert_result = AuthLoginCsrf::insert(&test.session, "state").await;
-        let get_result = AuthLoginCsrf::get(&test.session).await;
+        let insert_result = SessionAuthCsrf::insert(&test.session, "state").await;
+        let get_result = SessionAuthCsrf::get(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(get_result.is_ok());
 
-        let remove_result = AuthLoginCsrf::remove(&test.session).await;
-        let get_result = AuthLoginCsrf::get(&test.session).await;
+        let remove_result = SessionAuthCsrf::remove(&test.session).await;
+        let get_result = SessionAuthCsrf::get(&test.session).await;
 
         assert!(remove_result.is_ok());
 
@@ -100,8 +102,8 @@ mod tests {
         let test = test_setup().await;
         let state = "string";
 
-        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
-        let consume_result = AuthLoginCsrf::consume(&test.session).await;
+        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
+        let consume_result = SessionAuthCsrf::consume(&test.session).await;
 
         assert!(insert_result.is_ok());
         assert!(consume_result.is_ok());
@@ -110,7 +112,7 @@ mod tests {
 
         assert_eq!(result_state, state.to_string());
 
-        let get_result = AuthLoginCsrf::get(&test.session).await;
+        let get_result = SessionAuthCsrf::get(&test.session).await;
 
         // Should error due to state being removed from session
         assert!(get_result.is_err())

@@ -1,11 +1,11 @@
 use tower_sessions::Session;
 
-use crate::server::{error::Error, model::session::AuthLoginCsrf};
+use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
 
 /// Validate that the session CSRF state exists and matches `state`.
 /// Returns `Ok(())` when valid or the appropriate `Error` otherwise.
 pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Error> {
-    let stored_state = AuthLoginCsrf::consume(session).await?;
+    let stored_state = SessionAuthCsrf::consume(session).await?;
     if stored_state != csrf_state {
         Err(Error::AuthCsrfInvalidState)
     } else {
@@ -18,7 +18,7 @@ pub mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
 
     use crate::server::{
-        controller::auth::csrf::validate_csrf, model::session::AuthLoginCsrf,
+        controller::auth::csrf::validate_csrf, model::session::auth::SessionAuthCsrf,
         util::test::setup::test_setup,
     };
 
@@ -30,7 +30,7 @@ pub mod tests {
         let test = test_setup().await;
         let state = "state";
 
-        let insert_result = AuthLoginCsrf::insert(&test.session, state).await;
+        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
         let validate_result = validate_csrf(&test.session, state).await;
 
         assert!(insert_result.is_ok());
@@ -45,7 +45,7 @@ pub mod tests {
         let test = test_setup().await;
         let state = "state";
 
-        let insert_result = AuthLoginCsrf::insert(&test.session, "different_state").await;
+        let insert_result = SessionAuthCsrf::insert(&test.session, "different_state").await;
         let validate_result = validate_csrf(&test.session, state).await;
 
         assert!(insert_result.is_ok());

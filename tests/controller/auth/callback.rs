@@ -5,7 +5,7 @@ use axum::{
 };
 use bifrost::server::{
     controller::auth::callback::{callback, CallbackParams},
-    model::session::AuthLoginCsrf,
+    model::session::auth::SessionAuthCsrf,
 };
 use eve_esi::model::oauth2::EveJwtClaims;
 use mockito::{Mock, ServerGuard};
@@ -42,7 +42,7 @@ async fn setup() -> Result<(TestSetup, CallbackParams), DbErr> {
     };
 
     // Insert CSRF state into session for CSRF validation in callback
-    AuthLoginCsrf::insert(&test.session, &params.state)
+    SessionAuthCsrf::insert(&test.session, &params.state)
         .await
         .unwrap();
 
