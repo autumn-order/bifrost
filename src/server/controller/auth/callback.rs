@@ -7,7 +7,9 @@ use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::server::{
-    controller::auth::csrf::validate_csrf, error::Error, model::app::AppState,
+    controller::auth::csrf::validate_csrf,
+    error::Error,
+    model::{app::AppState, session::user::SessionUserId},
     service::auth::callback::callback_service,
 };
 
@@ -34,6 +36,8 @@ pub async fn callback(
     validate_csrf(&session, &params.0.state).await?;
 
     let user = callback_service(&state.db, &state.esi_client, &params.0.code).await?;
+
+    SessionUserId::insert(&session, user.user_id).await?;
 
     Ok((axum::http::StatusCode::OK, Json(user)))
 }

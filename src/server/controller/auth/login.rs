@@ -6,7 +6,7 @@ use tower_sessions::Session;
 
 use crate::server::{
     error::Error,
-    model::{app::AppState, session::AuthLoginCsrf},
+    model::{app::AppState, session::auth::SessionAuthCsrf},
     service::auth::login::login_service,
 };
 
@@ -25,7 +25,7 @@ pub async fn login(
 
     let login = login_service(&state.esi_client, scopes)?;
 
-    AuthLoginCsrf::insert(&session, &login.state).await?;
+    SessionAuthCsrf::insert(&session, &login.state).await?;
 
     Ok(Redirect::temporary(&login.login_url))
 }
