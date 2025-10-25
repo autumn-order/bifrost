@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, EntityTrait, IntoActiveModel,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    IntoActiveModel, QueryFilter,
 };
 
 pub struct UserCharacterRepository<'a> {
@@ -32,6 +33,17 @@ impl<'a> UserCharacterRepository<'a> {
         };
 
         user_character.insert(self.db).await
+    }
+
+    /// Get a user character entry using their Bifrost character ID
+    pub async fn get_by_character_id(
+        &self,
+        character_id: i32,
+    ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
+        entity::prelude::BifrostUserCharacter::find()
+            .filter(entity::bifrost_user_character::Column::CharacterId.eq(character_id))
+            .one(self.db)
+            .await
     }
 
     /// Update a user character entry with a new user id
@@ -194,6 +206,77 @@ mod tests {
                     .and_then(|d| d.code().map(|c| c == "787"))
                     .unwrap_or(false)
             ));
+
+            Ok(())
+        }
+    }
+
+    mod get_by_character_id_tests {
+        use sea_orm::DbErr;
+
+        use crate::server::{
+            data::user::{
+                user::UserRepository,
+                user_character::{tests::setup, UserCharacterRepository},
+            },
+            util::test::setup::test_setup,
+        };
+
+        // Expect Some when user character entry is present
+        #[tokio::test]
+        async fn test_get_by_character_id_some() -> Result<(), DbErr> {
+            let (db, character_id) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let user = user_repository.create().await?;
+            let _ = user_character_repository
+                .create(user.id, character_id)
+                .await?;
+
+            let result = user_character_repository
+                .get_by_character_id(character_id)
+                .await;
+
+            assert!(result.is_ok());
+            let character_option = result.unwrap();
+
+            assert!(character_option.is_some());
+
+            Ok(())
+        }
+
+        // Expect None when user character entry is not found
+        #[tokio::test]
+        async fn test_get_by_character_id_none() -> Result<(), DbErr> {
+            let (db, character_id) = setup().await?;
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let result = user_character_repository
+                .get_by_character_id(character_id)
+                .await;
+
+            assert!(result.is_ok());
+            let character_option = result.unwrap();
+
+            assert!(character_option.is_none());
+
+            Ok(())
+        }
+
+        // Expect Error when required database tables are not present
+        #[tokio::test]
+        async fn test_get_by_character_id_error() -> Result<(), DbErr> {
+            // Use test setup that does not create required tables, causing a database error
+            let test = test_setup().await;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+
+            let character_id = 1;
+            let result = user_character_repository
+                .get_by_character_id(character_id)
+                .await;
+
+            assert!(result.is_err());
 
             Ok(())
         }
