@@ -26,22 +26,12 @@ impl SessionAuthCsrf {
         }
     }
 
-    /// Remove the CSRF state key from session
-    pub async fn remove(session: &Session) -> Result<(), Error> {
-        session
-            .remove::<SessionAuthCsrf>(SESSION_AUTH_CSRF_KEY)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Get & remove the CSRF state key from session
-    pub async fn consume(session: &Session) -> Result<String, Error> {
-        let csrf = Self::get(&session).await?;
-
-        Self::remove(&session).await?;
-
-        Ok(csrf)
+    /// Remove the CSRF state key from session & return it
+    pub async fn remove(session: &Session) -> Result<Option<String>, Error> {
+        match session.remove(SESSION_AUTH_CSRF_KEY).await? {
+            Some(csrf) => Ok(csrf),
+            None => Err(Error::AuthCsrfEmptySession),
+        }
     }
 }
 
@@ -50,8 +40,8 @@ mod tests {
     use crate::server::{model::session::auth::SessionAuthCsrf, util::test::setup::test_setup};
 
     #[tokio::test]
-    /// Test successful insertion of CSRF state
-    async fn test_insert() {
+    /// Expect success when inserting CSRF into session
+    async fn test_session_insert_csrf_succcess() {
         let test = test_setup().await;
 
         let result = SessionAuthCsrf::insert(&test.session, "string").await;
@@ -59,62 +49,74 @@ mod tests {
         assert!(result.is_ok())
     }
 
-    #[tokio::test]
-    /// Test successful retrieval of CSRF state
-    async fn test_get() {
-        let test = test_setup().await;
-        let state = "string";
+    mod session_csrf_get_tests {
+        use crate::server::{
+            error::Error, model::session::auth::SessionAuthCsrf, util::test::setup::test_setup,
+        };
 
-        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
-        let get_result = SessionAuthCsrf::get(&test.session).await;
+        /// Expect success when retrieving CSRF from session
+        #[tokio::test]
+        async fn test_session_get_csrf_success() -> Result<(), Error> {
+            let test = test_setup().await;
+            let state = "string";
 
-        assert!(insert_result.is_ok());
-        assert!(get_result.is_ok());
+            let _ = SessionAuthCsrf::insert(&test.session, state).await?;
+            let result = SessionAuthCsrf::get(&test.session).await;
 
-        let result_state = get_result.unwrap();
+            assert!(result.is_ok());
+            let result_state = result.unwrap();
 
-        assert_eq!(result_state, state.to_string())
+            assert_eq!(result_state, state.to_string());
+
+            Ok(())
+        }
+
+        /// Expect Error when no state is present in session
+        #[tokio::test]
+        async fn test_session_get_csrf_error() -> Result<(), Error> {
+            let test = test_setup().await;
+
+            let result = SessionAuthCsrf::get(&test.session).await;
+
+            // Should error due to state not being present in session
+            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::AuthCsrfEmptySession)));
+
+            Ok(())
+        }
     }
 
-    #[tokio::test]
-    /// Test successful removal of CSRF state
-    async fn test_remove() {
-        let test = test_setup().await;
+    mod session_csrf_remove_tests {
+        use crate::server::{
+            error::Error, model::session::auth::SessionAuthCsrf, util::test::setup::test_setup,
+        };
 
-        let insert_result = SessionAuthCsrf::insert(&test.session, "state").await;
-        let get_result = SessionAuthCsrf::get(&test.session).await;
+        /// Expect successful removal of CSRF state from session
+        #[tokio::test]
+        async fn test_remove_session_csrf_success() -> Result<(), Error> {
+            let test = test_setup().await;
 
-        assert!(insert_result.is_ok());
-        assert!(get_result.is_ok());
+            let _ = SessionAuthCsrf::insert(&test.session, "state").await?;
 
-        let remove_result = SessionAuthCsrf::remove(&test.session).await;
-        let get_result = SessionAuthCsrf::get(&test.session).await;
+            let result = SessionAuthCsrf::remove(&test.session).await;
 
-        assert!(remove_result.is_ok());
+            assert!(result.is_ok());
 
-        // Should error due to state being removed from session
-        assert!(get_result.is_err());
-    }
+            Ok(())
+        }
 
-    #[tokio::test]
-    /// Test successful consumption of CSRF state
-    async fn test_consume() {
-        let test = test_setup().await;
-        let state = "string";
+        /// Expect Error when no state is present in session
+        #[tokio::test]
+        async fn test_remove_session_csrf_error() -> Result<(), Error> {
+            let test = test_setup().await;
 
-        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
-        let consume_result = SessionAuthCsrf::consume(&test.session).await;
+            let result = SessionAuthCsrf::remove(&test.session).await;
 
-        assert!(insert_result.is_ok());
-        assert!(consume_result.is_ok());
+            // Should error due to state not being present in session
+            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::AuthCsrfEmptySession)));
 
-        let result_state = consume_result.unwrap();
-
-        assert_eq!(result_state, state.to_string());
-
-        let get_result = SessionAuthCsrf::get(&test.session).await;
-
-        // Should error due to state being removed from session
-        assert!(get_result.is_err())
+            Ok(())
+        }
     }
 }

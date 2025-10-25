@@ -5,12 +5,15 @@ use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
 /// Validate that the session CSRF state exists and matches `state`.
 /// Returns `Ok(())` when valid or the appropriate `Error` otherwise.
 pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Error> {
-    let stored_state = SessionAuthCsrf::consume(session).await?;
-    if stored_state != csrf_state {
-        Err(Error::AuthCsrfInvalidState)
-    } else {
-        Ok(())
+    let stored_state = SessionAuthCsrf::remove(session).await?;
+
+    if let Some(state) = stored_state {
+        if state == csrf_state {
+            return Ok(());
+        }
     }
+
+    Err(Error::AuthCsrfInvalidState)
 }
 
 #[cfg(test)]
