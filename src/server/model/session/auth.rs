@@ -3,13 +3,13 @@ use tower_sessions::Session;
 
 use crate::server::error::Error;
 
-pub const SESSION_AUTH_CSRF_KEY: &str = "auth:csrf";
+pub const SESSION_AUTH_CSRF_KEY: &str = "bifrost:auth:csrf";
 
 #[derive(Default, Deserialize, Serialize, Debug)]
 pub struct SessionAuthCsrf(pub String);
 
 impl SessionAuthCsrf {
-    /// Insert CSRF state key into session
+    /// Insert CSRF state into session
     pub async fn insert(session: &Session, state: &str) -> Result<(), Error> {
         session
             .insert(SESSION_AUTH_CSRF_KEY, SessionAuthCsrf(state.to_string()))
@@ -18,7 +18,7 @@ impl SessionAuthCsrf {
         Ok(())
     }
 
-    /// Get the CSRF state key from session
+    /// Get the CSRF state from session
     pub async fn get(session: &Session) -> Result<String, Error> {
         match session.get(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
