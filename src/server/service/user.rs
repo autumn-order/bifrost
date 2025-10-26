@@ -1,50 +1,48 @@
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::user::{user::UserRepository, user_character::UserCharacterRepository},
+    data::{
+        eve::character::CharacterRepository,
+        user::{user::UserRepository, user_character::UserCharacterRepository},
+    },
     error::Error,
+    service::eve::character::CharacterService,
 };
 
 pub struct UserService<'a> {
     db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> UserService<'a> {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: &'a DatabaseConnection) -> Self {
-        Self { db }
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+        Self { db, esi_client }
     }
 
-    // Get or create a user based upon the provided Bifrost character ID
-    //
-    // Will check to see if the provided Bifrost character ID is owned by any
-    // user, if not then a new user will be created and the character linked to
-    // that user.
-    //
-    // # Arguments
-    // - `character_id` (`i32`): The Bifrost character ID to find the user for
-    //
-    // # Returns
-    // Returns a Result containing:
-    // - `i32`: The ID of the user that was found or created
-    // - [`Error`]: An error if there is an issue with the database
-    pub async fn get_or_create_user(&self, character_id: i32) -> Result<i32, Error> {
-        let user_character_repository = UserCharacterRepository::new(&self.db);
-        let user_repository = UserRepository::new(&self.db);
+    pub async fn get_or_create_user(&self, character_id: i64) -> Result<i32, Error> {
+        let user_repo = UserRepository::new(&self.db);
+        let character_repo = CharacterRepository::new(&self.db);
+        let user_character_repo = UserCharacterRepository::new(&self.db);
+        let character_service = CharacterService::new(&self.db, &self.esi_client);
 
-        let user = user_character_repository
-            .get_by_character_id(character_id)
-            .await?;
+        let character = match character_repo.get_by_character_id(character_id).await? {
+            Some(character) => {
+                if let Some(character_owner) = user_character_repo
+                    .get_by_character_id(character.id)
+                    .await?
+                {
+                    return Ok(character_owner.id);
+                }
 
-        if let Some(user) = user {
-            return Ok(user.id);
-        }
+                character
+            }
+            None => character_service.create_character(character_id).await?,
+        };
 
-        let new_user = user_repository.create().await?;
-
-        // Link the character to the new user
-        let _ = user_character_repository
-            .create(new_user.id, character_id)
+        let new_user = user_repo.create().await?;
+        let _ = user_character_repo
+            .create(new_user.id, character.id)
             .await?;
 
         Ok(new_user.id)
@@ -55,20 +53,11 @@ impl<'a> UserService<'a> {
 mod tests {
     use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
 
-    use crate::server::{
-        data::eve::{character::CharacterRepository, corporation::CorporationRepository},
-        util::test::{
-            eve::mock::{mock_character, mock_corporation},
-            setup::{test_setup, TestSetup},
-        },
-    };
+    use crate::server::util::test::setup::{test_setup, TestSetup};
 
-    async fn setup() -> Result<(TestSetup, i32), DbErr> {
+    async fn setup() -> Result<TestSetup, DbErr> {
         let test = test_setup().await;
         let db = &test.state.db;
-
-        let character_repository = CharacterRepository::new(&db);
-        let corporation_repository = CorporationRepository::new(&db);
 
         let schema = Schema::new(DbBackend::Sqlite);
         let stmts = vec![
@@ -84,46 +73,83 @@ mod tests {
             db.execute(&stmt).await?;
         }
 
-        // Insert mock character & corporation required for tests
-        let faction_id = None;
-        let alliance_id = None;
-        let corporation_id = 1;
-        let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-        let character_id = 1;
-        let mock_character = mock_character(corporation_id, alliance_id, faction_id);
-
-        let corporation = corporation_repository
-            .create(corporation_id, mock_corporation, None, None)
-            .await?;
-        let character = character_repository
-            .create(character_id, mock_character, corporation.id, None)
-            .await?;
-
-        Ok((test, character.id))
+        Ok(test)
     }
 
     mod get_or_create_user_tests {
-        use sea_orm::DbErr;
-
         use crate::server::{
-            data::user::{user::UserRepository, user_character::UserCharacterRepository},
+            data::{
+                eve::{character::CharacterRepository, corporation::CorporationRepository},
+                user::{user::UserRepository, user_character::UserCharacterRepository},
+            },
             error::Error,
             service::user::{tests::setup, UserService},
-            util::test::setup::test_setup,
+            util::test::{
+                eve::mock::{mock_character, mock_corporation},
+                mockito::{
+                    character::mock_character_endpoint, corporation::mock_corporation_endpoint,
+                },
+                setup::test_setup,
+            },
         };
 
-        // Expect success when user is already present in database
+        /// Expect success when user associated with character is found
         #[tokio::test]
-        async fn test_get_or_create_user_found() -> Result<(), DbErr> {
-            let (test, character_id) = setup().await?;
+        async fn test_get_or_create_user_found_user() -> Result<(), Error> {
+            let test = setup().await?;
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let corporation_repo = CorporationRepository::new(&test.state.db);
             let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let user_service = UserService::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
-            let existing_user = user_repo.create().await?;
-            let _ = user_character_repo
-                .create(existing_user.id, character_id)
+            let faction_id = None;
+            let alliance_id = None;
+            let corporation_id = 1;
+            let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+            let character_id = 1;
+            let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+            let corporation = corporation_repo
+                .create(corporation_id, mock_corporation, None, None)
+                .await?;
+            let character = character_repo
+                .create(character_id, mock_character, corporation.id, None)
+                .await?;
+            let user = user_repo.create().await?;
+            let _ = user_character_repo.create(user.id, character.id).await?;
+
+            let result = user_service.get_or_create_user(character_id).await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect success when character is found but new user is created
+        #[tokio::test]
+        async fn test_get_or_create_user_new_user() -> Result<(), Error> {
+            let test = setup().await?;
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let faction_id = None;
+            let alliance_id = None;
+            let corporation_id = 1;
+            let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+            let character_id = 1;
+            let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+            let corporation = corporation_repo
+                .create(corporation_id, mock_corporation, None, None)
+                .await?;
+            let _ = character_repo
+                .create(character_id, mock_character, corporation.id, None)
                 .await?;
 
             let result = user_service.get_or_create_user(character_id).await;
@@ -133,31 +159,68 @@ mod tests {
             Ok(())
         }
 
-        // Expect success when a new user is created
+        /// Expect success when new character & user is created
         #[tokio::test]
-        async fn test_get_or_create_user_created() -> Result<(), DbErr> {
-            let (test, character_id) = setup().await?;
-            let user_service = UserService::new(&test.state.db);
+        async fn test_get_or_create_user_new_character() -> Result<(), Error> {
+            let mut test = setup().await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let faction_id = None;
+            let alliance_id = None;
+            let corporation_id = 1;
+            let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+            let character_id = 1;
+            let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+            let mock_corporation_endpoint =
+                mock_corporation_endpoint(&mut test.server, "/corporations/1", mock_corporation, 1);
+            let mock_character_endpoint =
+                mock_character_endpoint(&mut test.server, "/characters/1", mock_character, 1);
 
             let result = user_service.get_or_create_user(character_id).await;
 
             assert!(result.is_ok());
 
+            // Assert 1 request was made to each mock endpoint
+            mock_corporation_endpoint.assert();
+            mock_character_endpoint.assert();
+
             Ok(())
         }
 
-        // Expect error when required database tables haven't been created
+        /// Expect Error when the required database tables haven't been created
         #[tokio::test]
-        async fn test_get_or_create_user_error() -> Result<(), DbErr> {
+        async fn test_get_or_create_user_database_error() -> Result<(), Error> {
+            // Use test setup that doesn't create required tables, causing database error
             let test = test_setup().await;
-            let user_service = UserService::new(&test.state.db);
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
             let character_id = 1;
             let result = user_service.get_or_create_user(character_id).await;
 
             assert!(result.is_err());
-
             assert!(matches!(result, Err(Error::DbErr(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error when required ESI endpoints are unavailable
+        #[tokio::test]
+        async fn test_get_or_create_user_esi_error() -> Result<(), Error> {
+            let test = setup().await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            // Don't create mock ESI endpoints, causing an ESI error
+
+            let character_id = 1;
+            let result = user_service.get_or_create_user(character_id).await;
+
+            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
         }

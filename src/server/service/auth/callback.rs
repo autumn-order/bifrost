@@ -1,13 +1,7 @@
 use oauth2::TokenResponse;
 use sea_orm::DatabaseConnection;
 
-use crate::{
-    model::api::UserDto,
-    server::{
-        error::Error,
-        service::{eve::character::CharacterService, user::UserService},
-    },
-};
+use crate::server::{error::Error, service::user::UserService};
 
 /// Callback service which fetches & validates JWT token after successful login
 ///
@@ -32,9 +26,8 @@ pub async fn callback_service(
     db: &DatabaseConnection,
     esi_client: &eve_esi::Client,
     code: &str,
-) -> Result<UserDto, Error> {
-    let character_service = CharacterService::new(&db, &esi_client);
-    let user_service = UserService::new(&db);
+) -> Result<i32, Error> {
+    let user_service = UserService::new(&db, &esi_client);
 
     let token = esi_client.oauth2().get_token(code).await?;
 
@@ -45,28 +38,9 @@ pub async fn callback_service(
 
     let character_id = claims.character_id()?;
 
-    // TODO: If character needs to be created, we can skip getting user character
-    // ownership to find a user and just simply create the new user and create
-    // the ownership entry.
-    //
-    // This change would save 1 database call
-    //
-    // This is viable because the user ownership entry is linked to character via
-    // a foreign key, it is not possible to have an ownership entry if the character
-    // does not exist in the database.
-    let character = character_service
-        .get_or_create_character(character_id)
-        .await?;
+    let user_id = user_service.get_or_create_user(character_id).await?;
 
-    let user_id = user_service.get_or_create_user(character.id).await?;
-
-    let user = UserDto {
-        user_id: user_id,
-        character_id: character.character_id,
-        character_name: character.name,
-    };
-
-    Ok(user)
+    Ok(user_id)
 }
 
 #[cfg(test)]

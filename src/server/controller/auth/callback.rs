@@ -25,7 +25,7 @@ pub struct CallbackParams {
 /// the access & refresh token for fetching data related to the requested scopes.
 ///
 /// # Responses
-/// - 200 (Success): Successful callback, returns user ID, character ID, & character name
+/// - 200 (Success): Successful callback, returns user ID
 /// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
 /// - 500 (Internal Server Error): An error occurred related to JWT token validation
 pub async fn callback(
@@ -35,9 +35,9 @@ pub async fn callback(
 ) -> Result<impl IntoResponse, Error> {
     validate_csrf(&session, &params.0.state).await?;
 
-    let user = callback_service(&state.db, &state.esi_client, &params.0.code).await?;
+    let user_id = callback_service(&state.db, &state.esi_client, &params.0.code).await?;
 
-    SessionUserId::insert(&session, user.user_id).await?;
+    SessionUserId::insert(&session, user_id).await?;
 
-    Ok((axum::http::StatusCode::OK, Json(user)))
+    Ok((axum::http::StatusCode::OK, Json(user_id)))
 }
