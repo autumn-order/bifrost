@@ -47,10 +47,7 @@ impl<'a> CallbackService<'a> {
             .validate_token(token.access_token().secret().to_string())
             .await?;
 
-        let character_id = claims.character_id()?;
-        let user_id = user_service
-            .get_or_create_user(character_id, claims.owner)
-            .await?;
+        let user_id = user_service.get_or_create_user(claims).await?;
 
         Ok(user_id)
     }

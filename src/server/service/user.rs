@@ -1,3 +1,4 @@
+use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -17,15 +18,12 @@ impl<'a> UserService<'a> {
         Self { db, esi_client }
     }
 
-    pub async fn get_or_create_user(
-        &self,
-        character_id: i64,
-        owner_hash: String,
-    ) -> Result<i32, Error> {
+    pub async fn get_or_create_user(&self, claims: EveJwtClaims) -> Result<i32, Error> {
         let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
         let character_service = CharacterService::new(&self.db, &self.esi_client);
 
+        let character_id = claims.character_id()?;
         let character = match user_character_repo
             .get_by_character_id(character_id)
             .await?
@@ -42,7 +40,7 @@ impl<'a> UserService<'a> {
 
         let new_user = user_repo.create().await?;
         let _ = user_character_repo
-            .create(new_user.id, character.id, owner_hash)
+            .create(new_user.id, character.id, claims.owner)
             .await?;
 
         Ok(new_user.id)
@@ -77,6 +75,8 @@ mod tests {
     }
 
     mod get_or_create_user_tests {
+        use eve_esi::model::oauth2::EveJwtClaims;
+
         use crate::server::{
             data::{
                 eve::{character::CharacterRepository, corporation::CorporationRepository},
@@ -123,9 +123,11 @@ mod tests {
                 .create(user.id, character.id, "owner hash".to_string())
                 .await?;
 
-            let result = user_service
-                .get_or_create_user(character_id, "owner hash".to_string())
-                .await;
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
 
@@ -156,9 +158,11 @@ mod tests {
                 .create(character_id, mock_character, corporation.id, None)
                 .await?;
 
-            let result = user_service
-                .get_or_create_user(character_id, "owner hash".to_string())
-                .await;
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
 
@@ -177,7 +181,6 @@ mod tests {
             let corporation_id = 1;
             let mock_corporation = mock_corporation(alliance_id, faction_id);
 
-            let character_id = 1;
             let mock_character = mock_character(corporation_id, alliance_id, faction_id);
 
             let mock_corporation_endpoint =
@@ -185,9 +188,11 @@ mod tests {
             let mock_character_endpoint =
                 mock_character_endpoint(&mut test.server, "/characters/1", mock_character, 1);
 
-            let result = user_service
-                .get_or_create_user(character_id, "owner hash".to_string())
-                .await;
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
 
@@ -206,10 +211,11 @@ mod tests {
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
-            let character_id = 1;
-            let result = user_service
-                .get_or_create_user(character_id, "owner hash".to_string())
-                .await;
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
@@ -226,10 +232,11 @@ mod tests {
 
             // Don't create mock ESI endpoints, causing an ESI error
 
-            let character_id = 1;
-            let result = user_service
-                .get_or_create_user(character_id, "owner hash".to_string())
-                .await;
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
