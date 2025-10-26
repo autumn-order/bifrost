@@ -20,7 +20,11 @@ impl<'a> UserService<'a> {
         Self { db, esi_client }
     }
 
-    pub async fn get_or_create_user(&self, character_id: i64) -> Result<i32, Error> {
+    pub async fn get_or_create_user(
+        &self,
+        character_id: i64,
+        owner_hash: String,
+    ) -> Result<i32, Error> {
         let user_repo = UserRepository::new(&self.db);
         let character_repo = CharacterRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
@@ -42,7 +46,7 @@ impl<'a> UserService<'a> {
 
         let new_user = user_repo.create().await?;
         let _ = user_character_repo
-            .create(new_user.id, character.id)
+            .create(new_user.id, character.id, owner_hash)
             .await?;
 
         Ok(new_user.id)
@@ -119,9 +123,13 @@ mod tests {
                 .create(character_id, mock_character, corporation.id, None)
                 .await?;
             let user = user_repo.create().await?;
-            let _ = user_character_repo.create(user.id, character.id).await?;
+            let _ = user_character_repo
+                .create(user.id, character.id, "owner hash".to_string())
+                .await?;
 
-            let result = user_service.get_or_create_user(character_id).await;
+            let result = user_service
+                .get_or_create_user(character_id, "owner hash".to_string())
+                .await;
 
             assert!(result.is_ok());
 
@@ -152,7 +160,9 @@ mod tests {
                 .create(character_id, mock_character, corporation.id, None)
                 .await?;
 
-            let result = user_service.get_or_create_user(character_id).await;
+            let result = user_service
+                .get_or_create_user(character_id, "owner hash".to_string())
+                .await;
 
             assert!(result.is_ok());
 
@@ -179,7 +189,9 @@ mod tests {
             let mock_character_endpoint =
                 mock_character_endpoint(&mut test.server, "/characters/1", mock_character, 1);
 
-            let result = user_service.get_or_create_user(character_id).await;
+            let result = user_service
+                .get_or_create_user(character_id, "owner hash".to_string())
+                .await;
 
             assert!(result.is_ok());
 
@@ -199,7 +211,9 @@ mod tests {
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
             let character_id = 1;
-            let result = user_service.get_or_create_user(character_id).await;
+            let result = user_service
+                .get_or_create_user(character_id, "owner hash".to_string())
+                .await;
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
@@ -217,7 +231,9 @@ mod tests {
             // Don't create mock ESI endpoints, causing an ESI error
 
             let character_id = 1;
-            let result = user_service.get_or_create_user(character_id).await;
+            let result = user_service
+                .get_or_create_user(character_id, "owner hash".to_string())
+                .await;
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));

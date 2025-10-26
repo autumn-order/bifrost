@@ -38,7 +38,9 @@ pub async fn callback_service(
 
     let character_id = claims.character_id()?;
 
-    let user_id = user_service.get_or_create_user(character_id).await?;
+    let user_id = user_service
+        .get_or_create_user(character_id, claims.owner)
+        .await?;
 
     Ok(user_id)
 }

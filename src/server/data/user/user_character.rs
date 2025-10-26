@@ -19,14 +19,17 @@ impl<'a> UserCharacterRepository<'a> {
     /// # Arguments
     /// - `user_id` (`i32`): ID of the user entry in the database
     /// - `character_id` (`i32`): ID of the character entry in the database
+    /// - `owner_hash` (`String`): A string representing the ownership of the character
     pub async fn create(
         &self,
         user_id: i32,
         character_id: i32,
+        owner_hash: String,
     ) -> Result<entity::bifrost_user_character::Model, DbErr> {
         let user_character = entity::bifrost_user_character::ActiveModel {
             user_id: ActiveValue::Set(user_id),
             character_id: ActiveValue::Set(character_id),
+            owner_hash: ActiveValue::Set(owner_hash),
             created_at: ActiveValue::Set(Utc::now().naive_utc()),
             updated_at: ActiveValue::Set(Utc::now().naive_utc()),
             ..Default::default()
@@ -150,7 +153,7 @@ mod tests {
 
             let user = user_repository.create().await?;
             let result = user_character_repository
-                .create(user.id, character_id)
+                .create(user.id, character_id, "owner hash".to_string())
                 .await;
 
             assert!(result.is_ok());
@@ -167,7 +170,7 @@ mod tests {
             // Don't create a user first, this will cause a foreign key error
             let user_id = 1;
             let result = user_character_repository
-                .create(user_id, character_id)
+                .create(user_id, character_id, "owner hash".to_string())
                 .await;
 
             assert!(result.is_err());
@@ -193,7 +196,7 @@ mod tests {
             // Increment character ID to one that does not exist, causing a foreign key error
             let user = user_repository.create().await?;
             let result = user_character_repository
-                .create(user.id, character_id + 1)
+                .create(user.id, character_id + 1, "owner hash".to_string())
                 .await;
 
             assert!(result.is_err());
@@ -231,7 +234,7 @@ mod tests {
 
             let user = user_repository.create().await?;
             let _ = user_character_repository
-                .create(user.id, character_id)
+                .create(user.id, character_id, "owner hash".to_string())
                 .await?;
 
             let result = user_character_repository
@@ -299,7 +302,7 @@ mod tests {
 
             let old_user = user_repository.create().await?;
             let user_character_entry = user_character_repository
-                .create(old_user.id, character_id)
+                .create(old_user.id, character_id, "owner hash".to_string())
                 .await?;
 
             let new_user = user_repository.create().await?;
@@ -346,7 +349,7 @@ mod tests {
 
             let old_user = user_repository.create().await?;
             let user_character_entry = user_character_repository
-                .create(old_user.id, character_id)
+                .create(old_user.id, character_id, "owner hash".to_string())
                 .await?;
 
             // Try to update entry to new_user_id that doesn't exist

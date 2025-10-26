@@ -23,6 +23,7 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(BifrostUserCharacter::Id))
                     .col(integer(BifrostUserCharacter::UserId))
                     .col(integer_uniq(BifrostUserCharacter::CharacterId))
+                    .col(string(BifrostUserCharacter::OwnerHash))
                     .col(timestamp(BifrostUserCharacter::CreatedAt))
                     .col(timestamp(BifrostUserCharacter::UpdatedAt))
                     .to_owned(),
@@ -108,6 +109,7 @@ enum BifrostUserCharacter {
     Id,
     UserId,
     CharacterId,
+    OwnerHash,
     CreatedAt,
     UpdatedAt,
 }
