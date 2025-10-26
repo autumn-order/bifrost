@@ -10,7 +10,7 @@ use crate::server::{
     controller::auth::csrf::validate_csrf,
     error::Error,
     model::{app::AppState, session::user::SessionUserId},
-    service::auth::callback::callback_service,
+    service::auth::callback::CallbackService,
 };
 
 #[derive(Deserialize)]
@@ -33,9 +33,11 @@ pub async fn callback(
     session: Session,
     params: Query<CallbackParams>,
 ) -> Result<impl IntoResponse, Error> {
+    let callback_service = CallbackService::new(&state.db, &state.esi_client);
+
     validate_csrf(&session, &params.0.state).await?;
 
-    let user_id = callback_service(&state.db, &state.esi_client, &params.0.code).await?;
+    let user_id = callback_service.handle_callback(&params.0.code).await?;
 
     SessionUserId::insert(&session, user_id).await?;
 
