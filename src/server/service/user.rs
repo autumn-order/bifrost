@@ -1,10 +1,7 @@
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::{
-        eve::character::CharacterRepository,
-        user::{user::UserRepository, user_character::UserCharacterRepository},
-    },
+    data::user::{user::UserRepository, user_character::UserCharacterRepository},
     error::Error,
     service::eve::character::CharacterService,
 };
@@ -26,16 +23,15 @@ impl<'a> UserService<'a> {
         owner_hash: String,
     ) -> Result<i32, Error> {
         let user_repo = UserRepository::new(&self.db);
-        let character_repo = CharacterRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
         let character_service = CharacterService::new(&self.db, &self.esi_client);
 
-        let character = match character_repo.get_by_character_id(character_id).await? {
-            Some(character) => {
-                if let Some(character_owner) = user_character_repo
-                    .get_by_character_id(character.id)
-                    .await?
-                {
+        let character = match user_character_repo
+            .get_by_character_id(character_id)
+            .await?
+        {
+            Some((character, maybe_owner)) => {
+                if let Some(character_owner) = maybe_owner {
                     return Ok(character_owner.id);
                 }
 
