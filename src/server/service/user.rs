@@ -77,17 +77,19 @@ impl<'a> UserService<'a> {
         let character_id = claims.character_id()?;
 
         // If the character exists, check ownership
-        if let Some((character, maybe_owner)) = user_character_repo
+        if let Some((character, maybe_ownership)) = user_character_repo
             .get_by_character_id(character_id)
             .await?
         {
-            if let Some(owner) = maybe_owner {
-                if owner.owner_hash == claims.owner {
+            if let Some(ownership) = maybe_ownership {
+                if ownership.owner_hash == claims.owner {
                     // already linked to this owner -> nothing to do
                     return Ok(false);
                 }
 
-                // TODO: existing character linked to different owner -> transfer
+                // existing character linked to different owner -> transfer
+                self.transfer_character(ownership, user_id).await?;
+
                 return Ok(true);
             }
 
@@ -106,6 +108,50 @@ impl<'a> UserService<'a> {
             .await?;
 
         Ok(true)
+    }
+
+    /// Transfers a character from one user to another
+    ///
+    /// # Behavior
+    /// - If this character is the only remaining character for the user,
+    ///   the user will then be deleted as they have no way to login.
+    pub async fn transfer_character(
+        &self,
+        ownership_entry: entity::bifrost_user_character::Model,
+        new_user_id: i32,
+    ) -> Result<bool, Error> {
+        let user_character_repo = UserCharacterRepository::new(&self.db);
+
+        let ownership_entries = user_character_repo
+            .get_many_by_user_id(ownership_entry.user_id)
+            .await?;
+
+        user_character_repo
+            .update(ownership_entry.id, new_user_id)
+            .await?;
+
+        // If this was the last character for the user, delete them
+        if ownership_entries.len() == 1 {
+            let _ = self.delete_user(ownership_entry.user_id).await?;
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Deletes the provided user ID
+    ///
+    /// # Warning
+    /// This will error if you attempt to delete the user while they still have
+    /// connected character ownerships, you must [`Self::transfer_character`] first
+    /// to another user before deleting a user.
+    pub async fn delete_user(&self, user_id: i32) -> Result<bool, Error> {
+        let user_repo = UserRepository::new(&self.db);
+
+        let delete_result = user_repo.delete(user_id).await?;
+
+        Ok(delete_result.rows_affected == 1)
     }
 }
 
@@ -144,7 +190,7 @@ mod tests {
             service::user::{tests::test_setup_module, UserService},
             util::test::setup::{
                 test_setup, test_setup_create_character, test_setup_create_character_endpoints,
-                test_setup_create_user_with_character,
+                test_setup_create_corporation, test_setup_create_user_with_character,
             },
         };
 
@@ -152,7 +198,12 @@ mod tests {
         #[tokio::test]
         async fn test_get_or_create_user_found_user() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let character = test_setup_create_character(&test).await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character =
+                test_setup_create_character(&test, character_id, corporation.clone()).await?;
             let _ = test_setup_create_user_with_character(&test, character).await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -172,7 +223,11 @@ mod tests {
         #[tokio::test]
         async fn test_get_or_create_user_new_user() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let _ = test_setup_create_character(&test).await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let _ = test_setup_create_character(&test, character_id, corporation.clone()).await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
@@ -257,12 +312,12 @@ mod tests {
         use eve_esi::model::oauth2::EveJwtClaims;
 
         use crate::server::{
-            data::user::user::UserRepository,
+            data::user::{user::UserRepository, user_character::UserCharacterRepository},
             error::Error,
             service::user::{tests::test_setup_module, UserService},
             util::test::setup::{
                 test_setup_create_character, test_setup_create_character_endpoints,
-                test_setup_create_user_with_character,
+                test_setup_create_corporation, test_setup_create_user_with_character,
             },
         };
 
@@ -270,7 +325,11 @@ mod tests {
         #[tokio::test]
         async fn test_link_character_owned_success() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let character = test_setup_create_character(&test).await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
             let character_ownership =
                 test_setup_create_user_with_character(&test, character).await?;
 
@@ -296,25 +355,35 @@ mod tests {
         #[tokio::test]
         async fn test_link_character_owned_transfer_success() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let character = test_setup_create_character(&test).await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
             let _ = test_setup_create_user_with_character(&test, character).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = "CHARACTER:EVE:1".to_string();
 
-            let user = user_repo.create().await?;
-            let result = user_service.link_character(user.id, claims).await;
+            let new_user = user_repo.create().await?;
+            let result = user_service.link_character(new_user.id, claims).await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
 
             assert!(link_created);
 
-            // TODO: assert character has actually been transferred to the new user ID
-            // - Will be done when transfer method is implemented
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+
+            assert_eq!(character_ownership.user_id, new_user.id);
 
             Ok(())
         }
@@ -323,7 +392,10 @@ mod tests {
         #[tokio::test]
         async fn test_link_character_not_owned_success() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let _ = test_setup_create_character(&test).await?;
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let _ = test_setup_create_character(&test, character_id, corporation).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -374,7 +446,10 @@ mod tests {
         #[tokio::test]
         async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), Error> {
             let test = test_setup_module().await?;
-            let _ = test_setup_create_character(&test).await?;
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let _ = test_setup_create_character(&test, character_id, corporation).await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
@@ -405,6 +480,215 @@ mod tests {
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+    }
+
+    mod transfer_character_tests {
+        use crate::server::{
+            data::user::{user::UserRepository, user_character::UserCharacterRepository},
+            error::Error,
+            service::user::{tests::test_setup_module, UserService},
+            util::test::setup::{
+                test_setup_create_character, test_setup_create_corporation,
+                test_setup_create_user_with_character,
+            },
+        };
+
+        /// Expect Ok with user deletion when last character is transferred
+        #[tokio::test]
+        async fn test_transfer_character_with_deletion_success() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let character_ownership =
+                test_setup_create_user_with_character(&test, character).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let new_user = user_repo.create().await?;
+            let result = user_service
+                .transfer_character(character_ownership, new_user.id)
+                .await;
+
+            assert!(result.is_ok());
+            let previous_user_deleted = result.unwrap();
+
+            assert!(previous_user_deleted);
+
+            // Ensure character was actually transferred
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+
+            assert_eq!(character_ownership.user_id, new_user.id);
+
+            Ok(())
+        }
+
+        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
+        #[tokio::test]
+        async fn test_transfer_character_no_deletion_success() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character =
+                test_setup_create_character(&test, character_id, corporation.clone()).await?;
+            let character_ownership =
+                test_setup_create_user_with_character(&test, character).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            // Add an additional character to the old user so they don't get deleted
+            let second_character_id = 2;
+            let second_character =
+                test_setup_create_character(&test, second_character_id, corporation).await?;
+            let _ = user_character_repo
+                .create(
+                    character_ownership.user_id,
+                    second_character.id,
+                    "owner_hash".to_string(),
+                )
+                .await?;
+
+            let new_user = user_repo.create().await?;
+            let result = user_service
+                .transfer_character(character_ownership, new_user.id)
+                .await;
+
+            assert!(result.is_ok());
+            let previous_user_deleted = result.unwrap();
+
+            assert!(!previous_user_deleted);
+
+            // Ensure character was actually transferred
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+
+            assert_eq!(character_ownership.user_id, new_user.id);
+
+            Ok(())
+        }
+
+        /// Expect Error transferring character to user that does not exist
+        #[tokio::test]
+        async fn test_transfer_character_error() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let character_ownership =
+                test_setup_create_user_with_character(&test, character).await?;
+
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let non_existant_user_id = 2;
+            let result = user_service
+                .transfer_character(character_ownership.clone(), non_existant_user_id)
+                .await;
+
+            assert!(result.is_err());
+
+            // Ensure character was not transferred
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let latest_character_ownership = maybe_ownership.unwrap();
+
+            assert_eq!(
+                latest_character_ownership.user_id,
+                character_ownership.user_id
+            );
+
+            Ok(())
+        }
+    }
+
+    mod delete_user_tests {
+        use crate::server::{
+            data::user::user::UserRepository,
+            error::Error,
+            service::user::{tests::test_setup_module, UserService},
+            util::test::setup::{
+                test_setup_create_character, test_setup_create_corporation,
+                test_setup_create_user_with_character,
+            },
+        };
+
+        /// Expect Ok with true indicating user was deleted
+        #[tokio::test]
+        async fn test_delete_user_success() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let user_repository = UserRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let user = user_repository.create().await?;
+            let result = user_service.delete_user(user.id).await;
+
+            assert!(result.is_ok());
+            let user_deleted = result.unwrap();
+
+            assert!(user_deleted);
+
+            Ok(())
+        }
+
+        /// Expect Ok with false when trying to delete a user that does not exist
+        #[tokio::test]
+        async fn test_delete_user_does_not_exist() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let non_existant_user_id = 1;
+            let result = user_service.delete_user(non_existant_user_id).await;
+
+            assert!(result.is_ok());
+            let user_deleted = result.unwrap();
+
+            assert!(!user_deleted);
+
+            Ok(())
+        }
+
+        /// Expect Error when trying to delete user with existing character ownerships
+        /// - This is due to a foreign key violation requiring a user ID to exist for
+        ///   a character ownership entry.
+        #[tokio::test]
+        async fn test_delete_user_owned_characters_error() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let user = test_setup_create_user_with_character(&test, character).await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let result = user_service.delete_user(user.id).await;
+
+            assert!(result.is_err());
 
             Ok(())
         }

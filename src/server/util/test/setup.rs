@@ -67,24 +67,36 @@ pub async fn test_setup() -> TestSetup {
     }
 }
 
-/// Inserts mock data for an EVE Online character
-pub async fn test_setup_create_character(
+/// Inserts mock data for an EVE Online corporation
+pub async fn test_setup_create_corporation(
     test: &TestSetup,
-) -> Result<entity::eve_character::Model, Error> {
-    let character_repo = CharacterRepository::new(&test.state.db);
+    corporation_id: i64,
+) -> Result<entity::eve_corporation::Model, Error> {
     let corporation_repo = CorporationRepository::new(&test.state.db);
 
     let faction_id = None;
     let alliance_id = None;
-    let corporation_id = 1;
     let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-    let character_id = 1;
-    let mock_character = mock_character(corporation_id, alliance_id, faction_id);
 
     let corporation = corporation_repo
         .create(corporation_id, mock_corporation, None, None)
         .await?;
+
+    Ok(corporation)
+}
+
+/// Inserts mock data for an EVE Online character
+pub async fn test_setup_create_character(
+    test: &TestSetup,
+    character_id: i64,
+    corporation: entity::eve_corporation::Model,
+) -> Result<entity::eve_character::Model, Error> {
+    let character_repo = CharacterRepository::new(&test.state.db);
+
+    let faction_id = None;
+    let alliance_id = None;
+    let mock_character = mock_character(corporation.corporation_id, alliance_id, faction_id);
+
     let character = character_repo
         .create(character_id, mock_character, corporation.id, None)
         .await?;
