@@ -56,6 +56,17 @@ impl<'a> UserCharacterRepository<'a> {
             .await
     }
 
+    /// Gets all character ownership entries for the provided user ID
+    pub async fn get_many_by_user_id(
+        &self,
+        user_id: i32,
+    ) -> Result<Vec<entity::bifrost_user_character::Model>, DbErr> {
+        entity::prelude::BifrostUserCharacter::find()
+            .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
+            .all(self.db)
+            .await
+    }
+
     /// Update a user character entry with a new user id
     ///
     /// # Arguments
@@ -263,10 +274,7 @@ mod tests {
         #[tokio::test]
         async fn test_get_by_character_id_some_character() -> Result<(), DbErr> {
             let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
-
-            let _ = user_repository.create().await?;
 
             let result = user_character_repository
                 .get_by_character_id(character.character_id)
@@ -317,6 +325,115 @@ mod tests {
             let result = user_character_repository
                 .get_by_character_id(character_id)
                 .await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod get_many_by_user_id {
+        use sea_orm::DbErr;
+
+        use crate::server::{
+            data::{
+                eve::character::CharacterRepository,
+                user::{
+                    user::UserRepository,
+                    user_character::{tests::setup, UserCharacterRepository},
+                },
+            },
+            util::test::{eve::mock::mock_character, setup::test_setup},
+        };
+
+        /// Expect Ok with 2 owned character entries
+        #[tokio::test]
+        async fn test_get_many_by_user_id_multiple() -> Result<(), DbErr> {
+            let (db, character) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+            let character_repository = CharacterRepository::new(&db);
+
+            let user = user_repository.create().await?;
+            let _ = user_character_repository
+                .create(user.id, character.id, "owner hash".to_string())
+                .await?;
+
+            // Create an additional mock character
+            let character_id = 2;
+            let corporation_id = 1; // Use existing corporation from setup()
+            let alliance_id = None;
+            let faction_id = None;
+            let second_character = mock_character(corporation_id, alliance_id, faction_id);
+            let character = character_repository
+                .create(character_id, second_character, 1, None)
+                .await?;
+            let _ = user_character_repository
+                .create(user.id, character.id, "owner hash".to_string())
+                .await?;
+
+            let result = user_character_repository.get_many_by_user_id(user.id).await;
+
+            assert!(result.is_ok());
+            let ownership_entries = result.unwrap();
+
+            assert_eq!(ownership_entries.len(), 2);
+
+            Ok(())
+        }
+
+        /// Expect Ok with only 1 owned character entry
+        #[tokio::test]
+        async fn test_get_many_by_user_id_single() -> Result<(), DbErr> {
+            let (db, character) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let user = user_repository.create().await?;
+            let _ = user_character_repository
+                .create(user.id, character.id, "owner hash".to_string())
+                .await?;
+
+            let result = user_character_repository.get_many_by_user_id(user.id).await;
+
+            assert!(result.is_ok());
+            let ownership_entries = result.unwrap();
+
+            assert_eq!(ownership_entries.len(), 1);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty Vec due to no owned characters
+        #[tokio::test]
+        async fn test_get_many_by_user_id_empty() -> Result<(), DbErr> {
+            let (db, _) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let user = user_repository.create().await?;
+
+            // Assign no ownerships to character, result will be empty
+
+            let result = user_character_repository.get_many_by_user_id(user.id).await;
+
+            assert!(result.is_ok());
+            let ownership_entries = result.unwrap();
+
+            assert!(ownership_entries.is_empty());
+
+            Ok(())
+        }
+
+        /// Expect database error when required tables aren't present
+        #[tokio::test]
+        async fn test_get_many_by_user_id_error() -> Result<(), DbErr> {
+            // Use test setup that doesn't create required tables, causing an error
+            let test = test_setup().await;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+
+            let user_id = 1;
+            let result = user_character_repository.get_many_by_user_id(user_id).await;
 
             assert!(result.is_err());
 
