@@ -27,6 +27,8 @@ pub struct Model {
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
 pub enum Relation {
+    #[sea_orm(has_many = "super::bifrost_user::Entity")]
+    BifrostUser,
     #[sea_orm(has_one = "super::bifrost_user_character::Entity")]
     BifrostUserCharacter,
     #[sea_orm(
@@ -45,6 +47,12 @@ pub enum Relation {
         on_delete = "NoAction"
     )]
     EveFaction,
+}
+
+impl Related<super::bifrost_user::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::BifrostUser.def()
+    }
 }
 
 impl Related<super::bifrost_user_character::Entity> for Entity {

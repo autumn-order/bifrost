@@ -7,6 +7,7 @@ use sea_orm::entity::prelude::*;
 pub struct Model {
     #[sea_orm(primary_key)]
     pub id: i32,
+    pub main_character_id: i32,
     pub created_at: DateTime,
 }
 
@@ -14,11 +15,25 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::bifrost_user_character::Entity")]
     BifrostUserCharacter,
+    #[sea_orm(
+        belongs_to = "super::eve_character::Entity",
+        from = "Column::MainCharacterId",
+        to = "super::eve_character::Column::Id",
+        on_update = "NoAction",
+        on_delete = "NoAction"
+    )]
+    EveCharacter,
 }
 
 impl Related<super::bifrost_user_character::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::BifrostUserCharacter.def()
+    }
+}
+
+impl Related<super::eve_character::Entity> for Entity {
+    fn to() -> RelationDef {
+        Relation::EveCharacter.def()
     }
 }
 
