@@ -82,7 +82,7 @@ fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
 }
 
 #[tokio::test]
-/// Expect 200 success when logging with new character
+/// Expect 307 temprorary redirect when logging with new character
 async fn test_callback_new_user_success() -> Result<(), DbErr> {
     let (mut test, params) = setup().await?;
     let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
@@ -139,7 +139,7 @@ async fn test_callback_new_user_success() -> Result<(), DbErr> {
 }
 
 #[tokio::test]
-/// Expect 200 success when logging with existing user
+/// Expect 307 temprorary redirect when logging with existing user
 async fn test_callback_existing_user_success() -> Result<(), Error> {
     let (mut test, params) = setup().await?;
     let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
@@ -198,7 +198,7 @@ async fn test_callback_bad_request() -> Result<(), DbErr> {
 }
 
 #[tokio::test]
-// Test the return of a 500 internal server error response for callback
+/// Test the return of a 500 internal server error response for callback
 async fn test_callback_server_error() -> Result<(), DbErr> {
     let (test, params) = setup().await?;
 
