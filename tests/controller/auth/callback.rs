@@ -121,7 +121,7 @@ async fn test_callback_new_user_success() -> Result<(), DbErr> {
 
     let resp = result.unwrap().into_response();
 
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
     // Assert user is in session
     let result = SessionUserId::get(&test.session).await;
@@ -161,7 +161,7 @@ async fn test_callback_existing_user_success() -> Result<(), Error> {
 
     let resp = result.unwrap().into_response();
 
-    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
     // Assert user is in session
     let result = SessionUserId::get(&test.session).await;

@@ -3,10 +3,13 @@ pub mod user_character;
 use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
-use crate::server::{
-    data::user::{user_character::UserCharacterRepository, UserRepository},
-    error::Error,
-    service::{eve::character::CharacterService, user::user_character::UserCharacterService},
+use crate::{
+    model::user::{Character, UserDto},
+    server::{
+        data::user::{user_character::UserCharacterRepository, UserRepository},
+        error::Error,
+        service::{eve::character::CharacterService, user::user_character::UserCharacterService},
+    },
 };
 
 pub struct UserService<'a> {
@@ -62,6 +65,46 @@ impl<'a> UserService<'a> {
             .await?;
 
         Ok(new_user.id)
+    }
+
+    pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
+        let user_repo = UserRepository::new(&self.db);
+        let user_character_repo = UserCharacterRepository::new(&self.db);
+
+        match user_repo.get(user_id).await? {
+            None => return Ok(None),
+            Some((user, maybe_main_character)) => {
+                let main_character = maybe_main_character.ok_or_else(|| {
+                    // Should not occur due to foreign key constraint requiring main character to exist
+                    Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
+                        "Failed to find main character information for user ID {} with main character ID {}",
+                        user.id, user.main_character_id
+                    )))
+                })?;
+
+                let user_characters = user_character_repo
+                    .get_owned_characters_by_user_id(user_id)
+                    .await?;
+
+                let characters: Vec<Character> = user_characters
+                    .into_iter()
+                    .filter(|c| c.character_id != main_character.character_id)
+                    .map(|c| Character {
+                        id: c.character_id,
+                        name: c.name,
+                    })
+                    .collect();
+
+                Ok(Some(UserDto {
+                    id: user.id,
+                    main_character: Character {
+                        id: main_character.character_id,
+                        name: main_character.name,
+                    },
+                    characters: characters,
+                }))
+            }
+        }
     }
 
     /// Deletes the provided user ID
@@ -263,6 +306,100 @@ mod tests {
 
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+    }
+
+    mod get_user {
+        use crate::server::{
+            data::user::user_character::UserCharacterRepository,
+            error::Error,
+            service::user::{tests::test_setup_module, UserService},
+            util::test::setup::{
+                test_setup, test_setup_create_character, test_setup_create_corporation,
+                test_setup_create_user_with_character,
+            },
+        };
+
+        /// Expect Ok with Some & no additional characters for user with only a main character linked
+        #[tokio::test]
+        async fn returns_only_main_for_existing_user() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+            let corporation_model = test_setup_create_corporation(&test, 1).await?;
+            let character_model = test_setup_create_character(&test, 1, corporation_model).await?;
+            let user = test_setup_create_user_with_character(&test, character_model).await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let result = user_service.get_user(user.id).await;
+            assert!(result.is_ok());
+            let maybe_user = result.unwrap();
+            assert!(maybe_user.is_some());
+            let user_info = maybe_user.unwrap();
+
+            // Additional characters as only their main is linked should be empty
+            assert!(user_info.characters.is_empty());
+
+            Ok(())
+        }
+
+        /// Expect Ok with Some & 1 additional characters linked for user
+        #[tokio::test]
+        async fn returns_with_multiple_characters_for_existing_user() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+            let corporation_model = test_setup_create_corporation(&test, 1).await?;
+            let character_model =
+                test_setup_create_character(&test, 1, corporation_model.clone()).await?;
+            let user_model = test_setup_create_user_with_character(&test, character_model).await?;
+
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let character_two = test_setup_create_character(&test, 2, corporation_model).await?;
+            user_character_repo
+                .create(user_model.id, character_two.id, "owner_has_2".to_string())
+                .await?;
+
+            let result = user_service.get_user(user_model.id).await;
+            assert!(result.is_ok());
+            let maybe_user = result.unwrap();
+            assert!(maybe_user.is_some());
+            let user_info = maybe_user.unwrap();
+
+            // Additional characters, which does not include main, should equal 1
+            assert_eq!(user_info.characters.len(), 1);
+
+            Ok(())
+        }
+
+        /// Expect Ok with None for user ID that does not exist
+        #[tokio::test]
+        async fn returns_none_for_non_existant_user() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let non_existant_user_id = 1;
+            let result = user_service.get_user(non_existant_user_id).await;
+            assert!(result.is_ok());
+            let maybe_user = result.unwrap();
+            assert!(maybe_user.is_none());
+
+            Ok(())
+        }
+
+        /// Expect Error when required tables are not present
+        #[tokio::test]
+        async fn error_when_tables_missing() -> Result<(), Error> {
+            // Use setup function that does not create required tables, causing DB error
+            let test = test_setup().await;
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let non_existant_user_id = 1;
+            let result = user_service.get_user(non_existant_user_id).await;
+            assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
         }

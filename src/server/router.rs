@@ -8,7 +8,9 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/login", get(controller::auth::login))
         .route("/auth/callback", get(controller::auth::callback));
 
-    let routes = Router::new().merge(auth_routes);
+    let user_routes = Router::new().route("/user/:id", get(controller::user::get_user));
+
+    let routes = Router::new().merge(auth_routes).merge(user_routes);
 
     routes
 }
