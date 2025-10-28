@@ -5,6 +5,7 @@ use axum::{
 };
 use bifrost::server::{
     controller::auth::callback::{callback, CallbackParams},
+    error::Error,
     model::session::{auth::SessionAuthCsrf, user::SessionUserId},
 };
 use eve_esi::model::oauth2::EveJwtClaims;
@@ -15,7 +16,10 @@ use crate::util::{
     auth::jwt::{create_mock_jwt_keys, create_mock_jwt_token},
     mock::{mock_character, mock_corporation},
     mockito::{character::mock_character_endpoint, corporation::mock_corporation_endpoint},
-    setup::{test_setup, TestSetup},
+    setup::{
+        test_setup, test_setup_create_character, test_setup_create_corporation,
+        test_setup_create_user_with_character, TestSetup,
+    },
 };
 
 async fn setup() -> Result<(TestSetup, CallbackParams), DbErr> {
@@ -56,6 +60,7 @@ fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
     let mut claims = EveJwtClaims::mock();
     // Set character ID to 1 which is the default used for mock_character used across tests
     claims.sub = "CHARACTER:EVE:1".to_string();
+    claims.owner = "test_owner_hash".to_string();
 
     let mock_token = create_mock_jwt_token(claims);
 
@@ -77,11 +82,8 @@ fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
 }
 
 #[tokio::test]
-// TODO: This test does not yet pass, it needs to implement mock server endpoints for JWT keys and JWT tokens
-// for token validation to ensure complete testing of the callback controller.
-//
-// Test the return of a 200 success response for callback
-async fn test_callback_success() -> Result<(), DbErr> {
+/// Expect 200 success when logging with new character
+async fn test_callback_new_user_success() -> Result<(), DbErr> {
     let (mut test, params) = setup().await?;
     let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
 
@@ -125,10 +127,10 @@ async fn test_callback_success() -> Result<(), DbErr> {
     let result = SessionUserId::get(&test.session).await;
 
     assert!(result.is_ok());
-    let user_id_opt = result.unwrap();
+    let maybe_user_id = result.unwrap();
 
-    assert!(user_id_opt.is_some());
-    let user_id = user_id_opt.unwrap();
+    assert!(maybe_user_id.is_some());
+    let user_id = maybe_user_id.unwrap();
 
     // User ID should be 1 as it would be the first user created in database
     assert_eq!(user_id, 1);
@@ -137,7 +139,47 @@ async fn test_callback_success() -> Result<(), DbErr> {
 }
 
 #[tokio::test]
-// Test the return of a 400 bad request error response for callback
+/// Expect 200 success when logging with existing user
+async fn test_callback_existing_user_success() -> Result<(), Error> {
+    let (mut test, params) = setup().await?;
+    let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+
+    // Create the mock character & user in database
+    let character_id = 1;
+    let corporation_id = 1;
+    let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+    let character = test_setup_create_character(&test, character_id, corporation).await?;
+    let character_ownership = test_setup_create_user_with_character(&test, character).await?;
+
+    SessionUserId::insert(&test.session, character_ownership.user_id).await?;
+
+    let result = callback(State(test.state), test.session.clone(), Query(params)).await;
+
+    // Assert JWT keys & token were fetched during callback
+    mock_jwt_key_endpoint.assert();
+    mock_jwt_token_endpoint.assert();
+
+    let resp = result.unwrap().into_response();
+
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Assert user is in session
+    let result = SessionUserId::get(&test.session).await;
+
+    assert!(result.is_ok());
+    let maybe_user_id = result.unwrap();
+
+    assert!(maybe_user_id.is_some());
+    let user_id = maybe_user_id.unwrap();
+
+    // User ID should be 1 as it would be the first user created in database
+    assert_eq!(user_id, 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+/// Expect 400 bad request when CSRF state is modified
 async fn test_callback_bad_request() -> Result<(), DbErr> {
     let (test, mut params) = setup().await?;
 
