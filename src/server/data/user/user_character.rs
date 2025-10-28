@@ -169,7 +169,7 @@ mod tests {
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
             let result = user_character_repository
                 .create(user.id, character.id, "owner hash".to_string())
                 .await;
@@ -212,7 +212,7 @@ mod tests {
             let user_character_repository = UserCharacterRepository::new(&db);
 
             // Increment character ID to one that does not exist, causing a foreign key error
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
             let result = user_character_repository
                 .create(user.id, character.id + 1, "owner hash".to_string())
                 .await;
@@ -250,7 +250,7 @@ mod tests {
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
             let _ = user_character_repository
                 .create(user.id, character.id, "owner hash".to_string())
                 .await?;
@@ -354,7 +354,7 @@ mod tests {
             let user_character_repository = UserCharacterRepository::new(&db);
             let character_repository = CharacterRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
             let _ = user_character_repository
                 .create(user.id, character.id, "owner hash".to_string())
                 .await?;
@@ -389,7 +389,7 @@ mod tests {
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
             let _ = user_character_repository
                 .create(user.id, character.id, "owner hash".to_string())
                 .await?;
@@ -407,11 +407,11 @@ mod tests {
         /// Expect Ok with empty Vec due to no owned characters
         #[tokio::test]
         async fn test_get_many_by_user_id_empty() -> Result<(), DbErr> {
-            let (db, _) = setup().await?;
+            let (db, character) = setup().await?;
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
 
             // Assign no ownerships to character, result will be empty
 
@@ -456,12 +456,12 @@ mod tests {
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let old_user = user_repository.create().await?;
+            let old_user = user_repository.create(character.id).await?;
             let user_character_entry = user_character_repository
                 .create(old_user.id, character.id, "owner hash".to_string())
                 .await?;
 
-            let new_user = user_repository.create().await?;
+            let new_user = user_repository.create(character.id).await?;
             let result = user_character_repository
                 .update(user_character_entry.id, new_user.id)
                 .await;
@@ -477,13 +477,14 @@ mod tests {
         /// Expect None when user character entry is not found
         #[tokio::test]
         async fn test_update_user_character_none() -> Result<(), DbErr> {
-            let (db, _) = setup().await?;
+            let (db, character) = setup().await?;
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
             // Try to update entry ID that doesn't exist
+            // - Note: User has a main character set but no table doesn't actually show they own them
             let user_character_entry_id = 1;
-            let new_user = user_repository.create().await?;
+            let new_user = user_repository.create(character.id).await?;
             let result = user_character_repository
                 .update(user_character_entry_id, new_user.id)
                 .await;
@@ -503,7 +504,7 @@ mod tests {
             let user_repository = UserRepository::new(&db);
             let user_character_repository = UserCharacterRepository::new(&db);
 
-            let old_user = user_repository.create().await?;
+            let old_user = user_repository.create(character.id).await?;
             let user_character_entry = user_character_repository
                 .create(old_user.id, character.id, "owner hash".to_string())
                 .await?;

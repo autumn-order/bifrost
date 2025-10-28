@@ -14,8 +14,12 @@ impl<'a> UserRepository<'a> {
     }
 
     /// Creates a new user
-    pub async fn create(&self) -> Result<entity::bifrost_user::Model, DbErr> {
+    pub async fn create(
+        &self,
+        main_character_id: i32,
+    ) -> Result<entity::bifrost_user::Model, DbErr> {
         let user = entity::bifrost_user::ActiveModel {
+            main_character_id: ActiveValue::Set(main_character_id),
             created_at: ActiveValue::Set(Utc::now().naive_utc()),
             ..Default::default()
         };
@@ -36,52 +40,68 @@ impl<'a> UserRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
+    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Schema};
 
-    use crate::server::util::test::setup::test_setup;
+    use crate::server::{
+        error::Error,
+        util::test::setup::{
+            test_setup, test_setup_create_character, test_setup_create_corporation,
+        },
+    };
 
-    async fn setup() -> Result<DatabaseConnection, DbErr> {
+    async fn setup() -> Result<(DatabaseConnection, entity::eve_character::Model), Error> {
         let test = test_setup().await;
 
-        let db = test.state.db;
+        let db = &test.state.db;
         let schema = Schema::new(DbBackend::Sqlite);
 
-        let stmt = schema.create_table_from_entity(entity::prelude::BifrostUser);
+        let stmts = vec![
+            schema.create_table_from_entity(entity::prelude::EveFaction),
+            schema.create_table_from_entity(entity::prelude::EveAlliance),
+            schema.create_table_from_entity(entity::prelude::EveCorporation),
+            schema.create_table_from_entity(entity::prelude::EveCharacter),
+            schema.create_table_from_entity(entity::prelude::BifrostUser),
+        ];
 
-        db.execute(&stmt).await?;
+        for stmt in stmts {
+            db.execute(&stmt).await?;
+        }
 
-        Ok(db)
+        let corporation_id = 1;
+        let character_id = 1;
+        let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+        let character = test_setup_create_character(&test, character_id, corporation).await?;
+
+        Ok((test.state.db, character))
     }
 
     mod create_tests {
-        use sea_orm::DbErr;
-
         use crate::server::{
             data::user::user::{tests::setup, UserRepository},
-            util::test::setup::test_setup,
+            error::Error,
         };
 
         /// Expect success when creating a new user
         #[tokio::test]
-        async fn test_create_user_success() -> Result<(), DbErr> {
-            let db = setup().await?;
+        async fn test_create_user_success() -> Result<(), Error> {
+            let (db, character) = setup().await?;
             let user_repository = UserRepository::new(&db);
 
-            let result = user_repository.create().await;
+            let result = user_repository.create(character.id).await;
 
             assert!(result.is_ok());
 
             Ok(())
         }
 
-        /// Expect Error when creating a new user without required tables being created
+        /// Expect Error when setting user main character to character that does not exist in database
         #[tokio::test]
-        async fn test_create_user_error() -> Result<(), DbErr> {
-            // Use setup function that does not create required tables, causing database error
-            let test = test_setup().await;
-            let user_repository = UserRepository::new(&test.state.db);
+        async fn test_create_user_error() -> Result<(), Error> {
+            let (db, _) = setup().await?;
+            let user_repository = UserRepository::new(&db);
 
-            let result = user_repository.create().await;
+            let non_existant_main_character_id = 2;
+            let result = user_repository.create(non_existant_main_character_id).await;
 
             assert!(result.is_err());
 
@@ -90,20 +110,21 @@ mod tests {
     }
 
     mod delete_tests {
-        use sea_orm::{DbErr, EntityTrait};
+        use sea_orm::EntityTrait;
 
         use crate::server::{
             data::user::user::{tests::setup, UserRepository},
+            error::Error,
             util::test::setup::test_setup,
         };
 
         /// Expect success when deleting user
         #[tokio::test]
-        async fn test_delete_user_success() -> Result<(), DbErr> {
-            let db = setup().await?;
+        async fn test_delete_user_success() -> Result<(), Error> {
+            let (db, character) = setup().await?;
             let user_repository = UserRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
 
             let result = user_repository.delete(user.id).await;
 
@@ -124,11 +145,11 @@ mod tests {
 
         /// Expect no rows to be affected when deleting user that does not exist
         #[tokio::test]
-        async fn test_delete_user_none() -> Result<(), DbErr> {
-            let db = setup().await?;
+        async fn test_delete_user_none() -> Result<(), Error> {
+            let (db, character) = setup().await?;
             let user_repository = UserRepository::new(&db);
 
-            let user = user_repository.create().await?;
+            let user = user_repository.create(character.id).await?;
 
             let result = user_repository.delete(user.id + 1).await;
 
@@ -142,7 +163,7 @@ mod tests {
 
         /// Expect Error when database tables required don't exist
         #[tokio::test]
-        async fn test_delete_user_error() -> Result<(), DbErr> {
+        async fn test_delete_user_error() -> Result<(), Error> {
             // Use test setup that doesn't create required tables, causing an error
             let test = test_setup().await;
             let user_repository = UserRepository::new(&test.state.db);

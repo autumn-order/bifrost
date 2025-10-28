@@ -37,7 +37,7 @@ impl<'a> UserService<'a> {
                     }
 
                     // Character has been sold or transferred, create a new user account
-                    let new_user = user_repo.create().await?;
+                    let new_user = user_repo.create(ownership_entry.character_id).await?;
                     self.transfer_character(ownership_entry, new_user.id)
                         .await?;
 
@@ -52,7 +52,7 @@ impl<'a> UserService<'a> {
         };
 
         // Create new user and link character to user
-        let new_user = user_repo.create().await?;
+        let new_user = user_repo.create(character.id).await?;
         let _ = user_character_repo
             .create(new_user.id, character.id, claims.owner)
             .await?;
@@ -410,6 +410,7 @@ mod tests {
             let corporation_id = 1;
             let corporation = test_setup_create_corporation(&test, corporation_id).await?;
             let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let character_main_id = character.id;
             let _ = test_setup_create_user_with_character(&test, character).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -420,7 +421,7 @@ mod tests {
             claims.sub = "CHARACTER:EVE:1".to_string();
             claims.owner = "test_owner_hash".to_string();
 
-            let new_user = user_repo.create().await?;
+            let new_user = user_repo.create(character_main_id).await?;
             let result = user_service.link_character(new_user.id, claims).await;
 
             assert!(result.is_ok());
@@ -449,6 +450,7 @@ mod tests {
             let corporation_id = 1;
             let corporation = test_setup_create_corporation(&test, corporation_id).await?;
             let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let character_main_id = character.id;
             let _ = test_setup_create_user_with_character(&test, character).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -459,7 +461,7 @@ mod tests {
             claims.sub = "CHARACTER:EVE:1".to_string();
             claims.owner = "different_owner_hash".to_string();
 
-            let new_user = user_repo.create().await?;
+            let new_user = user_repo.create(character_main_id).await?;
             let result = user_service.link_character(new_user.id, claims).await;
 
             assert!(result.is_ok());
@@ -486,7 +488,7 @@ mod tests {
             let character_id = 1;
             let corporation_id = 1;
             let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let _ = test_setup_create_character(&test, character_id, corporation).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -494,7 +496,8 @@ mod tests {
             let mut claims = EveJwtClaims::mock();
             claims.sub = "CHARACTER:EVE:1".to_string();
 
-            let user = user_repo.create().await?;
+            // Note: character is set as main character for user but they aren't actually set as owned
+            let user = user_repo.create(character.id).await?;
             let result = user_service.link_character(user.id, claims).await;
 
             assert!(result.is_ok());
@@ -518,7 +521,13 @@ mod tests {
             let mut claims = EveJwtClaims::mock();
             claims.sub = "CHARACTER:EVE:1".to_string();
 
-            let user = user_repo.create().await?;
+            // Add existing character to represent user's main character
+            let character_id = 2;
+            let corporation_id = 2;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+
+            let user = user_repo.create(character.id).await?;
             let result = user_service.link_character(user.id, claims).await;
 
             assert!(result.is_ok());
@@ -596,6 +605,7 @@ mod tests {
             let corporation_id = 1;
             let corporation = test_setup_create_corporation(&test, corporation_id).await?;
             let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let character_main_id = character.id;
             let character_ownership =
                 test_setup_create_user_with_character(&test, character).await?;
 
@@ -603,7 +613,8 @@ mod tests {
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
-            let new_user = user_repo.create().await?;
+            // We'll add character as main just to satisfy the foreign key relation, doesn't matter for this test
+            let new_user = user_repo.create(character_main_id).await?;
             let result = user_service
                 .transfer_character(character_ownership, new_user.id)
                 .await;
@@ -654,7 +665,8 @@ mod tests {
                 )
                 .await?;
 
-            let new_user = user_repo.create().await?;
+            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
+            let new_user = user_repo.create(second_character.id).await?;
             let result = user_service
                 .transfer_character(character_ownership, new_user.id)
                 .await;
@@ -733,7 +745,12 @@ mod tests {
             let user_repository = UserRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
 
-            let user = user_repository.create().await?;
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+
+            let user = user_repository.create(character.id).await?;
             let result = user_service.delete_user(user.id).await;
 
             assert!(result.is_ok());

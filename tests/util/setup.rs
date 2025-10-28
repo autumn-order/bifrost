@@ -109,7 +109,7 @@ pub async fn test_setup_create_user_with_character(
     let user_repo = UserRepository::new(&test.state.db);
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
 
-    let user = user_repo.create().await?;
+    let user = user_repo.create(character.id).await?;
     let character_ownership = user_character_repo
         .create(user.id, character.id, "test_owner_hash".to_string())
         .await?;
