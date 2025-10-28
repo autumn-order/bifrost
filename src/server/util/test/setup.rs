@@ -7,7 +7,7 @@ use tower_sessions::{MemoryStore, Session};
 use crate::server::{
     data::{
         eve::{character::CharacterRepository, corporation::CorporationRepository},
-        user::{user::UserRepository, user_character::UserCharacterRepository},
+        user::{user_character::UserCharacterRepository, UserRepository},
     },
     error::Error,
     model::app::AppState,

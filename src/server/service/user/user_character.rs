@@ -2,7 +2,7 @@ use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::user::{user::UserRepository, user_character::UserCharacterRepository},
+    data::user::{user_character::UserCharacterRepository, UserRepository},
     error::Error,
     service::{eve::character::CharacterService, user::UserService},
 };
@@ -183,7 +183,7 @@ mod tests {
         use eve_esi::model::oauth2::EveJwtClaims;
 
         use crate::server::{
-            data::user::{user::UserRepository, user_character::UserCharacterRepository},
+            data::user::{user_character::UserCharacterRepository, UserRepository},
             error::Error,
             service::user::user_character::{tests::test_setup_module, UserCharacterService},
             util::test::setup::{
@@ -419,7 +419,7 @@ mod tests {
 
     mod transfer_character_tests {
         use crate::server::{
-            data::user::{user::UserRepository, user_character::UserCharacterRepository},
+            data::user::{user_character::UserCharacterRepository, UserRepository},
             error::Error,
             service::user::user_character::{tests::test_setup_module, UserCharacterService},
             util::test::setup::{

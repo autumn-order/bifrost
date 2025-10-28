@@ -158,8 +158,8 @@ mod tests {
         use sea_orm::{DbErr, RuntimeErr};
 
         use crate::server::data::user::{
-            user::UserRepository,
             user_character::{tests::setup, UserCharacterRepository},
+            UserRepository,
         };
 
         /// Expect success when creating user character linked to existing user and character
@@ -237,8 +237,8 @@ mod tests {
 
         use crate::server::{
             data::user::{
-                user::UserRepository,
                 user_character::{tests::setup, UserCharacterRepository},
+                UserRepository,
             },
             util::test::setup::test_setup,
         };
@@ -339,8 +339,8 @@ mod tests {
             data::{
                 eve::character::CharacterRepository,
                 user::{
-                    user::UserRepository,
                     user_character::{tests::setup, UserCharacterRepository},
+                    UserRepository,
                 },
             },
             util::test::{eve::mock::mock_character, setup::test_setup},
@@ -445,8 +445,8 @@ mod tests {
         use sea_orm::{DbErr, RuntimeErr};
 
         use crate::server::data::user::{
-            user::UserRepository,
             user_character::{tests::setup, UserCharacterRepository},
+            UserRepository,
         };
 
         /// Expect Some when user character update is successful
