@@ -1,7 +1,6 @@
 use axum::{
     extract::{Query, State},
     response::{IntoResponse, Redirect},
-    Json,
 };
 use serde::Deserialize;
 use tower_sessions::Session;
@@ -71,5 +70,5 @@ pub async fn callback(
         SessionUserId::insert(&session, user_id).await?;
     }
 
-    Ok((axum::http::StatusCode::OK, Json(user_id)))
+    Ok(Redirect::temporary(&format!("/user/{}", user_id)))
 }
