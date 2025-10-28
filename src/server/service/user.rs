@@ -49,9 +49,9 @@ impl<'a> UserService<'a> {
     /// Links or transfers character to provided user ID
     ///
     /// # Behavior
-    /// - If the character is already linked to the provided user (owner hash matches `claims.owner`),
-    ///   no action is taken and the method returns `Ok(false)`.
-    /// - If the character is linked to a different owner hash, the method currently returns `Ok(true)`
+    /// - If the character is already linked to the provided user (owner hash matches `claims.owner` &
+    ///   user ID matches the logged in user ID), no action is taken and the method returns `Ok(false)`.
+    /// - If the character is linked to a different owner hash or user ID, the method returns `Ok(true)`
     ///   to indicate a transfer to the provided user ID
     /// - If the character exists but has no owner, a link is created that associates the
     ///   character with the provided `user_id` and owner hash, and the method returns `Ok(true)`.
@@ -82,7 +82,7 @@ impl<'a> UserService<'a> {
             .await?
         {
             if let Some(ownership) = maybe_ownership {
-                if ownership.owner_hash == claims.owner {
+                if ownership.owner_hash == claims.owner && user_id == ownership.user_id {
                     // already linked to this owner -> nothing to do
                     return Ok(false);
                 }
@@ -351,7 +351,46 @@ mod tests {
             Ok(())
         }
 
-        /// Expect link created when an already owned character is transferred to provided user ID
+        /// Expect Ok & character transfer if ownerhash hasn't changed but user ID is different
+        #[tokio::test]
+        async fn test_link_character_owned_different_user_transfer() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let _ = test_setup_create_user_with_character(&test, character).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.owner = "test_owner_hash".to_string();
+
+            let new_user = user_repo.create().await?;
+            let result = user_service.link_character(new_user.id, claims).await;
+
+            assert!(result.is_ok());
+            let link_created = result.unwrap();
+
+            assert!(link_created);
+
+            // Ensure character was actually transferred
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+
+            assert_eq!(character_ownership.user_id, new_user.id);
+
+            Ok(())
+        }
+
+        /// Expect Ok & character transfer if ownerhash for character has changed, requiring a new user
         #[tokio::test]
         async fn test_link_character_owned_transfer_success() -> Result<(), Error> {
             let test = test_setup_module().await?;
@@ -368,6 +407,7 @@ mod tests {
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.owner = "different_owner_hash".to_string();
 
             let new_user = user_repo.create().await?;
             let result = user_service.link_character(new_user.id, claims).await;
@@ -377,6 +417,7 @@ mod tests {
 
             assert!(link_created);
 
+            // Ensure character was actually transferred
             let ownership_entry = user_character_repo
                 .get_by_character_id(character_id)
                 .await?;
