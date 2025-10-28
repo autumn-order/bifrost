@@ -1,22 +1,45 @@
 use axum::{
     extract::{Query, State},
-    response::IntoResponse,
+    response::{IntoResponse, Redirect},
     Json,
 };
 use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::server::{
-    controller::auth::csrf::validate_csrf,
+    controller::util::csrf::validate_csrf,
     error::Error,
-    model::{app::AppState, session::user::SessionUserId},
-    service::auth::callback::CallbackService,
+    model::{
+        app::AppState,
+        session::{auth::SessionAuthCsrf, user::SessionUserId},
+    },
+    service::auth::{callback::CallbackService, login::login_service},
 };
 
 #[derive(Deserialize)]
 pub struct CallbackParams {
     pub state: String,
     pub code: String,
+}
+
+/// Login route to initiate login with EVE Online
+///
+/// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
+///
+/// # Responses
+/// - 307 (Redirect Temporary): Redirects user to a temporary URL to start the EVE Online login process
+/// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
+pub async fn login(
+    State(state): State<AppState>,
+    session: Session,
+) -> Result<impl IntoResponse, Error> {
+    let scopes = eve_esi::ScopeBuilder::new().build();
+
+    let login = login_service(&state.esi_client, scopes)?;
+
+    SessionAuthCsrf::insert(&session, &login.state).await?;
+
+    Ok(Redirect::temporary(&login.login_url))
 }
 
 /// Callback route user is redirected to after successful login at EVE Online's website
@@ -27,7 +50,8 @@ pub struct CallbackParams {
 /// # Responses
 /// - 200 (Success): Successful callback, returns user ID
 /// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
-/// - 500 (Internal Server Error): An error occurred related to JWT token validation
+/// - 500 (Internal Server Error): An error occurred related to JWT token validation, an ESI request, or
+///   a database-related error
 pub async fn callback(
     State(state): State<AppState>,
     session: Session,

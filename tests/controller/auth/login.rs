@@ -1,5 +1,5 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use bifrost::server::controller::auth::login::login;
+use bifrost::server::controller::auth::login;
 
 use crate::util::setup::{test_setup, TEST_USER_AGENT};
 
