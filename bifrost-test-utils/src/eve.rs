@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use eve_esi::model::{alliance::Alliance, universe::Faction};
+use eve_esi::model::{alliance::Alliance, corporation::Corporation, universe::Faction};
 use sea_orm::{ActiveValue, EntityTrait};
 
 use crate::{error::TestError, setup::TestSetup};
@@ -37,18 +37,49 @@ impl TestSetup {
         )
     }
 
+    pub fn with_mock_corporation(
+        &self,
+        corporation_id: i64,
+        alliance_id: Option<i64>,
+        faction_id: Option<i64>,
+    ) -> (i64, Corporation) {
+        (
+            corporation_id,
+            Corporation {
+                alliance_id: alliance_id,
+                ceo_id: 2114794365,
+                creator_id: 2114794365,
+                date_founded: Some(
+                    DateTime::parse_from_rfc3339("2024-10-07T21:43:09Z")
+                        .unwrap()
+                        .with_timezone(&Utc),
+                ),
+                description: None,
+                home_station_id: Some(60003760),
+                member_count: 21,
+                name: "The Order of Autumn".to_string(),
+                shares: Some(1000),
+                tax_rate: 0.0,
+                ticker: "F4LL.".to_string(),
+                url: Some("https://autumn-order.com".to_string()),
+                war_eligible: Some(true),
+                faction_id: faction_id,
+            },
+        )
+    }
+
     pub async fn insert_mock_faction(
         &self,
-        faction: Faction,
+        faction: &Faction,
     ) -> Result<entity::eve_faction::Model, TestError> {
         Ok(
             entity::prelude::EveFaction::insert(entity::eve_faction::ActiveModel {
                 faction_id: ActiveValue::Set(faction.faction_id),
                 corporation_id: ActiveValue::Set(faction.corporation_d),
                 militia_corporation_id: ActiveValue::Set(faction.militia_corporation_id),
-                description: ActiveValue::Set(faction.description),
+                description: ActiveValue::Set(faction.description.to_string()),
                 is_unique: ActiveValue::Set(faction.is_unique),
-                name: ActiveValue::Set(faction.name),
+                name: ActiveValue::Set(faction.name.to_string()),
                 size_factor: ActiveValue::Set(faction.size_factor),
                 solar_system_id: ActiveValue::Set(faction.solar_system_id),
                 station_count: ActiveValue::Set(faction.faction_id),
@@ -78,6 +109,44 @@ impl TestSetup {
                 date_founded: ActiveValue::Set(alliance.date_founded.naive_utc()),
                 name: ActiveValue::Set(alliance.name),
                 ticker: ActiveValue::Set(alliance.ticker),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                ..Default::default()
+            })
+            .exec_with_returning(&self.state.db)
+            .await?,
+        )
+    }
+
+    pub async fn insert_mock_corporation(
+        &self,
+        corporation_id: i64,
+        corporation: Corporation,
+        alliance_id: Option<i32>,
+        faction_id: Option<i32>,
+    ) -> Result<entity::eve_corporation::Model, TestError> {
+        let date_founded = match corporation.date_founded {
+            Some(date) => Some(date.naive_utc()),
+            None => None,
+        };
+
+        Ok(
+            entity::prelude::EveCorporation::insert(entity::eve_corporation::ActiveModel {
+                corporation_id: ActiveValue::Set(corporation_id),
+                alliance_id: ActiveValue::Set(alliance_id),
+                faction_id: ActiveValue::Set(faction_id),
+                ceo_id: ActiveValue::Set(corporation.ceo_id),
+                creator_id: ActiveValue::Set(corporation.creator_id),
+                date_founded: ActiveValue::Set(date_founded),
+                description: ActiveValue::Set(corporation.description),
+                home_station_id: ActiveValue::Set(corporation.home_station_id),
+                member_count: ActiveValue::Set(corporation.member_count),
+                name: ActiveValue::Set(corporation.name),
+                shares: ActiveValue::Set(corporation.shares),
+                tax_rate: ActiveValue::Set(corporation.tax_rate),
+                ticker: ActiveValue::Set(corporation.ticker),
+                url: ActiveValue::Set(corporation.url),
+                war_eligible: ActiveValue::Set(corporation.war_eligible),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
