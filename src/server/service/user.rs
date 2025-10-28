@@ -134,7 +134,19 @@ impl<'a> UserService<'a> {
         ownership_entry: entity::bifrost_user_character::Model,
         new_user_id: i32,
     ) -> Result<bool, Error> {
+        let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
+
+        let (old_user, _) = match user_repo.get(ownership_entry.user_id).await? {
+            Some(user) => user,
+            None => {
+                // This shouldn't occur due to DB foreign key constraints requiring a valid user ID
+                return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
+                    "User not found for user character ownership entry ID {}",
+                    ownership_entry.user_id
+                ))));
+            }
+        };
 
         let ownership_entries = user_character_repo
             .get_many_by_user_id(ownership_entry.user_id)
@@ -147,11 +159,37 @@ impl<'a> UserService<'a> {
         // If this was the last character for the user, delete them
         if ownership_entries.len() == 1 {
             let _ = self.delete_user(ownership_entry.user_id).await?;
-
-            Ok(true)
-        } else {
-            Ok(false)
+            return Ok(true);
         }
+
+        // If the user's main character was transferred, change main to oldest linked character
+        if ownership_entry.character_id == old_user.main_character_id {
+            if let Some(character) = ownership_entries
+                .iter()
+                .filter(|e| e.character_id != old_user.main_character_id)
+                .min_by_key(|e| e.created_at)
+            {
+                if user_repo
+                    .update(old_user.id, character.character_id)
+                    .await?
+                    .is_none()
+                {
+                    // This shouldn't occur unless the user were to be deleted while we are trying to update them
+                    return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
+                        "User with ID not found {}",
+                        old_user.id
+                    ))));
+                }
+            } else {
+                // This shouldn't occur as we delete the user if there is no alternative characters
+                return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
+                    "No alternative character for user {} after removing main character ID {}",
+                    old_user.id, old_user.main_character_id
+                ))));
+            }
+        }
+
+        Ok(false)
     }
 
     /// Deletes the provided user ID
@@ -638,7 +676,7 @@ mod tests {
 
         /// Expect Ok with no user deletion when character is transferred from user with multiple characters
         #[tokio::test]
-        async fn test_transfer_character_no_deletion_success() -> Result<(), Error> {
+        async fn transfer_character_without_deletion() -> Result<(), Error> {
             let test = test_setup_module().await?;
 
             let character_id = 1;
@@ -652,6 +690,9 @@ mod tests {
             let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            // Get old user for later main character transfer check
+            let (old_user, _) = user_repo.get(character_ownership.user_id).await?.unwrap();
 
             // Add an additional character to the old user so they don't get deleted
             let second_character_id = 2;
@@ -684,6 +725,122 @@ mod tests {
             let character_ownership = maybe_ownership.unwrap();
 
             assert_eq!(character_ownership.user_id, new_user.id);
+
+            // Ensure main character was changed since it was transferred
+            let (updated_old_user, _) = user_repo.get(character_ownership.user_id).await?.unwrap();
+            assert_ne!(
+                old_user.main_character_id,
+                updated_old_user.main_character_id
+            );
+
+            Ok(())
+        }
+
+        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
+        #[tokio::test]
+        async fn transfer_character_with_change_main() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let main_character =
+                test_setup_create_character(&test, character_id, corporation.clone()).await?;
+            let main_character_ownership =
+                test_setup_create_user_with_character(&test, main_character).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            // Get old user for later main character transfer check
+            let (old_user, _) = user_repo
+                .get(main_character_ownership.user_id)
+                .await?
+                .unwrap();
+
+            // Add an additional character to the old user so they don't get deleted
+            let second_character_id = 2;
+            let second_character =
+                test_setup_create_character(&test, second_character_id, corporation).await?;
+            let second_character_ownership = user_character_repo
+                .create(
+                    main_character_ownership.user_id,
+                    second_character.id,
+                    "owner_hash".to_string(),
+                )
+                .await?;
+
+            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
+            let new_user = user_repo.create(second_character.id).await?;
+            let _ = user_service
+                .transfer_character(main_character_ownership, new_user.id)
+                .await?;
+
+            // Ensure main character was changed since it was transferred
+            let (updated_old_user, _) = user_repo
+                .get(second_character_ownership.user_id)
+                .await?
+                .unwrap();
+
+            assert_ne!(
+                old_user.main_character_id,
+                updated_old_user.main_character_id
+            );
+
+            Ok(())
+        }
+
+        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
+        #[tokio::test]
+        async fn transfer_character_without_change_main() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let main_character =
+                test_setup_create_character(&test, character_id, corporation.clone()).await?;
+            let main_character_ownership =
+                test_setup_create_user_with_character(&test, main_character).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            // Get old user for later main character transfer check
+            let (old_user, _) = user_repo
+                .get(main_character_ownership.user_id)
+                .await?
+                .unwrap();
+
+            // Add an additional character to the old user so they don't get deleted
+            let second_character_id = 2;
+            let second_character =
+                test_setup_create_character(&test, second_character_id, corporation).await?;
+            let second_character_ownership = user_character_repo
+                .create(
+                    main_character_ownership.user_id,
+                    second_character.id,
+                    "owner_hash".to_string(),
+                )
+                .await?;
+
+            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
+            let new_user = user_repo.create(second_character.id).await?;
+            let _ = user_service
+                .transfer_character(second_character_ownership, new_user.id)
+                .await?;
+
+            // Ensure main character was not changed since the main itself wasn't transferred
+            let (updated_old_user, _) = user_repo
+                .get(main_character_ownership.user_id)
+                .await?
+                .unwrap();
+            assert_eq!(
+                old_user.main_character_id,
+                updated_old_user.main_character_id
+            );
 
             Ok(())
         }
