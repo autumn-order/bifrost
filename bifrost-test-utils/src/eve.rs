@@ -1,5 +1,7 @@
 use chrono::{DateTime, Utc};
-use eve_esi::model::{alliance::Alliance, corporation::Corporation, universe::Faction};
+use eve_esi::model::{
+    alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
+};
 use sea_orm::{ActiveValue, EntityTrait};
 
 use crate::{error::TestError, setup::TestSetup};
@@ -64,6 +66,33 @@ impl TestSetup {
                 url: Some("https://autumn-order.com".to_string()),
                 war_eligible: Some(true),
                 faction_id: faction_id,
+            },
+        )
+    }
+
+    pub fn with_mock_character(
+        &self,
+        character_id: i64,
+        corporation_id: i64,
+        alliance_id: Option<i64>,
+        faction_id: Option<i64>,
+    ) -> (i64, Character) {
+        (
+            character_id,
+            Character {
+                alliance_id: alliance_id,
+                birthday: DateTime::parse_from_rfc3339("2018-12-20T16:11:54Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+                bloodline_id: 7,
+                corporation_id: corporation_id,
+                description: Some("description".to_string()),
+                faction_id: faction_id,
+                gender: "male".to_string(),
+                name: "Hyziri".to_string(),
+                race_id: 8,
+                security_status: Some(-0.100373643),
+                title: Some("Title".to_string()),
             },
         )
     }
@@ -147,6 +176,35 @@ impl TestSetup {
                 ticker: ActiveValue::Set(corporation.ticker),
                 url: ActiveValue::Set(corporation.url),
                 war_eligible: ActiveValue::Set(corporation.war_eligible),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                ..Default::default()
+            })
+            .exec_with_returning(&self.state.db)
+            .await?,
+        )
+    }
+
+    pub async fn insert_mock_character(
+        &self,
+        character_id: i64,
+        character: Character,
+        corporation_id: i32,
+        faction_id: Option<i32>,
+    ) -> Result<entity::eve_character::Model, TestError> {
+        Ok(
+            entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {
+                character_id: ActiveValue::Set(character_id),
+                corporation_id: ActiveValue::Set(corporation_id),
+                faction_id: ActiveValue::Set(faction_id),
+                birthday: ActiveValue::Set(character.birthday.naive_utc()),
+                bloodline_id: ActiveValue::Set(character.bloodline_id),
+                description: ActiveValue::Set(character.description),
+                gender: ActiveValue::Set(character.gender),
+                name: ActiveValue::Set(character.name),
+                race_id: ActiveValue::Set(character.race_id),
+                security_status: ActiveValue::Set(character.security_status),
+                title: ActiveValue::Set(character.title),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
