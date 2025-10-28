@@ -26,7 +26,7 @@ pub struct CallbackParams {
 /// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
 ///
 /// # Responses
-/// - 307 (Redirect Temporary): Redirects user to a temporary URL to start the EVE Online login process
+/// - 307 (Temporary Redirect): Redirects user to a temporary login URL to start the EVE Online login process
 /// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
 pub async fn login(
     State(state): State<AppState>,
@@ -47,7 +47,7 @@ pub async fn login(
 /// the access & refresh token for fetching data related to the requested scopes.
 ///
 /// # Responses
-/// - 200 (Success): Successful callback, returns user ID
+/// - 307 (Temporary Redirect): Successful login, redirect to API route to display user information
 /// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
 /// - 500 (Internal Server Error): An error occurred related to JWT token validation, an ESI request, or
 ///   a database-related error
@@ -71,4 +71,23 @@ pub async fn callback(
     }
 
     Ok(Redirect::temporary(&format!("/user/{}", user_id)))
+}
+
+/// Logs the user out by clearing their session
+///
+/// # Responses
+/// - 307 (Temporary Redirect): Successfully logged out, redirect to login route
+/// - 500 (Internal Server Error): There was an issue clearing the session
+pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
+    let maybe_user_id = SessionUserId::get(&session).await?;
+
+    // Only clear session if there is actually a user in session
+    //
+    // This avoids a 500 internal error response that occurs when trying
+    // to clear sessions which don't exist
+    if let Some(_) = maybe_user_id {
+        session.clear().await;
+    }
+
+    Ok(Redirect::temporary("/auth/login"))
 }
