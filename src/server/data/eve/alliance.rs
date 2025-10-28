@@ -51,147 +51,97 @@ impl<'a> AllianceRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
-    use crate::server::{
-        data::eve::faction::FactionRepository,
-        util::test::{eve::mock::mock_faction, setup::test_setup},
-    };
+    mod create {
+        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
 
-    async fn setup() -> Result<DatabaseConnection, DbErr> {
-        let test = test_setup().await;
+        use crate::server::data::eve::alliance::AllianceRepository;
 
-        let db = test.state.db;
-        let schema = Schema::new(DbBackend::Sqlite);
-
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        Ok(db)
-    }
-
-    /// Inserts a mock faction for foreign key dependencies
-    async fn insert_foreign_key_dependencies(
-        db: &DatabaseConnection,
-    ) -> entity::eve_faction::Model {
-        let faction_repo = FactionRepository::new(&db);
-
-        let faction = faction_repo
-            .upsert_many(vec![mock_faction()])
-            .await
-            .unwrap()
-            .first()
-            .unwrap()
-            .to_owned();
-
-        faction
-    }
-
-    mod create_alliance_tests {
-        use crate::server::{
-            data::eve::alliance::{
-                tests::{insert_foreign_key_dependencies, setup},
-                AllianceRepository,
-            },
-            util::test::eve::mock::mock_alliance,
-        };
-
-        /// Should succeed when inserting alliance into table with a faction ID
+        /// Expect Ok when creating alliance entry with a related faction
         #[tokio::test]
-        async fn create_alliance() {
-            let db = setup().await.unwrap();
-            let faction = insert_foreign_key_dependencies(&db).await;
+        async fn returns_success_creating_alliance_with_faction_id() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let faction = test.with_mock_faction();
+            let faction_model = test.insert_mock_faction(faction).await?;
+            let (alliance_id, alliance) =
+                test.with_mock_alliance(1, Some(faction_model.faction_id));
 
-            let alliance_repo = AllianceRepository::new(&db);
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
-            let alliance_id = 1;
-            let alliance = mock_alliance(Some(faction.faction_id));
             let result = alliance_repo
-                .create(alliance_id, alliance, Some(faction.id))
+                .create(alliance_id, alliance, Some(faction_model.id))
                 .await;
 
             assert!(result.is_ok());
             let created = result.unwrap();
 
-            // Need to create mock alliance again as eve_esi::model::alliance::Alliance does not implement Clone
-            // - An issue will need to be made on the eve_esi repo about this
-            let alliance = mock_alliance(Some(faction.faction_id));
-
+            let (alliance_id, alliance) =
+                test.with_mock_alliance(1, Some(faction_model.faction_id));
             assert_eq!(created.alliance_id, alliance_id);
             assert_eq!(created.name, alliance.name);
-            assert_eq!(created.faction_id, Some(faction.id));
+            assert_eq!(created.faction_id, Some(faction_model.id));
+
+            Ok(())
         }
 
-        /// Should succeed when inserting alliance into table without a faction ID
+        /// Expect Ok when creating alliance entry without faction ID
         #[tokio::test]
-        async fn create_alliance_no_faction() {
-            let db = setup().await.unwrap();
+        async fn returns_success_creating_alliance_without_faction() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let (alliance_id, alliance) = test.with_mock_alliance(1, None);
 
-            let alliance_repo = AllianceRepository::new(&db);
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
-            let alliance_id = 1;
-            let alliance = mock_alliance(None);
             let result = alliance_repo.create(alliance_id, alliance, None).await;
 
             assert!(result.is_ok());
             let created = result.unwrap();
-
             assert_eq!(created.faction_id, None);
+
+            Ok(())
         }
     }
 
-    mod get_by_alliance_id_tests {
-        use sea_orm::DbErr;
+    mod get_by_alliance_id {
+        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
 
-        use crate::server::{
-            data::eve::alliance::{tests::setup, AllianceRepository},
-            util::test::{eve::mock::mock_alliance, setup::test_setup},
-        };
+        use crate::server::data::eve::alliance::AllianceRepository;
 
         /// Expect Some when getting existing alliance from table
         #[tokio::test]
-        async fn test_get_by_alliance_id_some() -> Result<(), DbErr> {
-            let db = setup().await.unwrap();
+        async fn returns_some_with_existing_alliance() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let (alliance_id, alliance) = test.with_mock_alliance(1, None);
+            let alliance_model = test
+                .insert_mock_alliance(alliance_id, alliance, None)
+                .await?;
 
-            let alliance_repo = AllianceRepository::new(&db);
-
-            let alliance_id = 1;
-            let alliance = mock_alliance(None);
-            let existing_alliance = alliance_repo.create(alliance_id, alliance, None).await?;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
             let result = alliance_repo.get_by_alliance_id(alliance_id).await;
 
             assert!(result.is_ok());
             let alliance_option = result.unwrap();
-
             assert!(alliance_option.is_some());
             let alliance = alliance_option.unwrap();
-
-            assert_eq!(alliance.alliance_id, existing_alliance.alliance_id);
-            assert_eq!(alliance.id, existing_alliance.id);
+            assert_eq!(alliance.alliance_id, alliance_model.alliance_id);
+            assert_eq!(alliance.id, alliance_model.id);
 
             Ok(())
         }
 
         /// Expect None when getting alliance from table that does not exist
         #[tokio::test]
-        async fn test_get_by_alliance_id_none() -> Result<(), DbErr> {
-            let db = setup().await.unwrap();
+        async fn returns_none_with_non_existant_alliance() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
-            let alliance_repo = AllianceRepository::new(&db);
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
             let alliance_id = 1;
             let result = alliance_repo.get_by_alliance_id(alliance_id).await;
 
             assert!(result.is_ok());
             let alliance_option = result.unwrap();
-
             assert!(alliance_option.is_none());
 
             Ok(())
@@ -199,9 +149,8 @@ mod tests {
 
         /// Expect Error when getting alliance from table that has not been created
         #[tokio::test]
-        async fn test_get_by_alliance_id_error() -> Result<(), DbErr> {
-            // Use setup function that doesn't create alliance table to cause error
-            let test = test_setup().await;
+        async fn returns_error_with_missing_tables() -> Result<(), TestError> {
+            let test = test_setup!()?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
 

@@ -9,6 +9,7 @@ name = "bifrost_test_utils"
 path = "src/lib.rs"
 
 [dependencies]
+entity = { workspace = true }
 tower-sessions = { workspace = true }
 mockito = { workspace = true }
 eve_esi = { workspace = true }
@@ -18,3 +19,4 @@ sea-orm = { workspace = true, features = [
   "with-chrono"
 ] }
 thiserror = { workspace = true }
+chrono = { workspace = true }
