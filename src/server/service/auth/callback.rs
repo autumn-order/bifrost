@@ -33,7 +33,11 @@ impl<'a> CallbackService<'a> {
     /// Returns a result containing either:
     /// - `i32`: ID of the user after sucessful callback
     /// - [`Error`]: An error if JWT token fetching or validation fails
-    pub async fn handle_callback(&self, authorization_code: &str) -> Result<i32, Error> {
+    pub async fn handle_callback(
+        &self,
+        authorization_code: &str,
+        user_id: Option<i32>,
+    ) -> Result<i32, Error> {
         let user_service = UserService::new(&self.db, &self.esi_client);
 
         let token = self
@@ -46,6 +50,12 @@ impl<'a> CallbackService<'a> {
             .oauth2()
             .validate_token(token.access_token().secret().to_string())
             .await?;
+
+        if let Some(user_id) = user_id {
+            user_service.link_character(user_id, claims).await?;
+
+            return Ok(user_id);
+        }
 
         let user_id = user_service.get_or_create_user(claims).await?;
 
@@ -64,7 +74,10 @@ mod tests {
             auth::jwt_mockito::mock_jwt_endpoints,
             eve::mock::{mock_character, mock_corporation},
             mockito::{character::mock_character_endpoint, corporation::mock_corporation_endpoint},
-            setup::{test_setup, TestSetup},
+            setup::{
+                test_setup, test_setup_create_character, test_setup_create_corporation,
+                test_setup_create_user_with_character, TestSetup,
+            },
         },
     };
 
@@ -89,9 +102,9 @@ mod tests {
         Ok(test)
     }
 
-    /// Test successful callback
+    /// Expect Ok when logging in with a new character
     #[tokio::test]
-    async fn test_callback_success() -> Result<(), DbErr> {
+    async fn test_callback_new_user_success() -> Result<(), DbErr> {
         let mut test = setup().await?;
         let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
 
@@ -120,7 +133,10 @@ mod tests {
         );
 
         let authorization_code = "test_code";
-        let result = callback_service.handle_callback(&authorization_code).await;
+        let session_user_id = None;
+        let result = callback_service
+            .handle_callback(&authorization_code, session_user_id)
+            .await;
 
         assert!(result.is_ok());
 
@@ -135,7 +151,37 @@ mod tests {
         Ok(())
     }
 
-    /// Test server error when validation fails
+    /// Expect Ok when logging in with an existing character
+    #[tokio::test]
+    async fn test_callback_existing_user_success() -> Result<(), Error> {
+        let mut test = setup().await?;
+        let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
+
+        // Create the mock character & user in database
+        let character_id = 1;
+        let corporation_id = 1;
+        let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+        let character = test_setup_create_character(&test, character_id, corporation).await?;
+        let character_ownership = test_setup_create_user_with_character(&test, character).await?;
+
+        let authorization_code = "test_code";
+        let session_user_id = Some(character_ownership.user_id);
+        let result = callback_service
+            .handle_callback(&authorization_code, session_user_id)
+            .await;
+
+        assert!(result.is_ok(), "Error: {:#?}", result);
+
+        // Assert JWT keys & token were fetched during callback
+        mock_jwt_key_endpoint.assert();
+        mock_jwt_token_endpoint.assert();
+
+        Ok(())
+    }
+
+    /// Expect Error when ESI endpoints are unavailable
     #[tokio::test]
     async fn test_callback_server_error() {
         let test = test_setup().await;
@@ -144,7 +190,8 @@ mod tests {
         // Don't create any mock JWT token or key endpoints so that token validation fails
 
         let code = "string";
-        let result = callback_service.handle_callback(code).await;
+        let existing_user = None;
+        let result = callback_service.handle_callback(code, existing_user).await;
 
         assert!(result.is_err());
 

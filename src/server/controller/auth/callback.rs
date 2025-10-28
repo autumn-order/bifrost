@@ -37,9 +37,15 @@ pub async fn callback(
 
     validate_csrf(&session, &params.0.state).await?;
 
-    let user_id = callback_service.handle_callback(&params.0.code).await?;
+    let maybe_user_id = SessionUserId::get(&session).await?;
 
-    SessionUserId::insert(&session, user_id).await?;
+    let user_id = callback_service
+        .handle_callback(&params.0.code, maybe_user_id)
+        .await?;
+
+    if maybe_user_id.is_none() {
+        SessionUserId::insert(&session, user_id).await?;
+    }
 
     Ok((axum::http::StatusCode::OK, Json(user_id)))
 }
