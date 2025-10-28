@@ -21,7 +21,7 @@ pub mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
 
     use crate::server::{
-        controller::auth::csrf::validate_csrf, model::session::auth::SessionAuthCsrf,
+        controller::util::csrf::validate_csrf, model::session::auth::SessionAuthCsrf,
         util::test::setup::test_setup,
     };
 

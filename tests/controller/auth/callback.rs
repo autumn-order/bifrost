@@ -4,7 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use bifrost::server::{
-    controller::auth::callback::{callback, CallbackParams},
+    controller::auth::{callback, CallbackParams},
     error::Error,
     model::session::{auth::SessionAuthCsrf, user::SessionUserId},
 };
