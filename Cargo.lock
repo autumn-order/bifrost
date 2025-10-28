@@ -416,6 +416,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "base64",
+ "bifrost-test-utils",
  "chrono",
  "dioxus",
  "dioxus-cli-config",
@@ -436,6 +437,17 @@ dependencies = [
  "tokio",
  "tower-sessions",
  "tower-sessions-redis-store",
+]
+
+[[package]]
+name = "bifrost-test-utils"
+version = "0.1.0"
+dependencies = [
+ "bifrost",
+ "eve_esi",
+ "mockito",
+ "sea-orm",
+ "tower-sessions",
 ]
 
 [[package]]
