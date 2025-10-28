@@ -1,6 +1,7 @@
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, DeleteResult, EntityTrait,
+    IntoActiveModel,
 };
 
 pub struct UserRepository<'a> {
@@ -25,6 +26,43 @@ impl<'a> UserRepository<'a> {
         };
 
         user.insert(self.db).await
+    }
+
+    pub async fn get(
+        &self,
+        user_id: i32,
+    ) -> Result<
+        Option<(
+            entity::bifrost_user::Model,
+            Option<entity::eve_character::Model>,
+        )>,
+        DbErr,
+    > {
+        entity::prelude::BifrostUser::find_by_id(user_id)
+            .find_also_related(entity::eve_character::Entity)
+            .one(self.db)
+            .await
+    }
+
+    pub async fn update(
+        &self,
+        user_id: i32,
+        new_main_character_id: i32,
+    ) -> Result<Option<entity::bifrost_user::Model>, DbErr> {
+        let user = match entity::prelude::BifrostUser::find_by_id(user_id)
+            .one(self.db)
+            .await?
+        {
+            Some(user) => user,
+            None => return Ok(None),
+        };
+
+        let mut user_am = user.into_active_model();
+        user_am.main_character_id = ActiveValue::Set(new_main_character_id);
+
+        let user = user_am.update(self.db).await?;
+
+        Ok(Some(user))
     }
 
     /// Deletes a user
@@ -103,6 +141,111 @@ mod tests {
             let non_existant_main_character_id = 2;
             let result = user_repository.create(non_existant_main_character_id).await;
 
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod get_tests {
+        use crate::server::{
+            data::user::user::{tests::setup, UserRepository},
+            error::Error,
+            util::test::setup::test_setup,
+        };
+
+        /// Expect Ok(Some(_)) when existing user is found
+        #[tokio::test]
+        async fn get_user_some_with_existing_user() -> Result<(), Error> {
+            let (db, character) = setup().await?;
+            let user_repo = UserRepository::new(&db);
+            let user = user_repo.create(character.id).await?;
+
+            let result = user_repo.get(user.id).await;
+            assert!(matches!(result, Ok(Some(_))));
+
+            Ok(())
+        }
+
+        /// Expect Ok(None) when user is not found
+        #[tokio::test]
+        async fn get_user_some_with_non_existant_user() -> Result<(), Error> {
+            let (db, _) = setup().await?;
+            let user_repo = UserRepository::new(&db);
+
+            let non_existant_user_id = 1;
+            let result = user_repo.get(non_existant_user_id).await;
+            assert!(matches!(result, Ok(None)));
+
+            Ok(())
+        }
+
+        /// Expect Error when required database tables are not present]
+        #[tokio::test]
+        async fn get_user_error_with_missing_tables() -> Result<(), Error> {
+            let test = test_setup().await;
+            let user_repo = UserRepository::new(&test.state.db);
+
+            let user_id = 1;
+            let result = user_repo.get(user_id).await;
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod update_tests {
+        use crate::server::{
+            data::{
+                eve::character::CharacterRepository,
+                user::user::{tests::setup, UserRepository},
+            },
+            error::Error,
+            util::test::eve::mock::mock_character,
+        };
+
+        /// Expect Ok when updating user main character with valid character ID
+        #[tokio::test]
+        async fn update_user_some_with_existing_user() -> Result<(), Error> {
+            let (db, character) = setup().await?;
+            let user_repo = UserRepository::new(&db);
+            let character_repo = CharacterRepository::new(&db);
+            let user = user_repo.create(character.id).await?;
+
+            let corporation_id = 1;
+            let second_character = mock_character(corporation_id, None, None);
+            let second_character_model =
+                character_repo.create(2, second_character, 1, None).await?;
+
+            let result = user_repo.update(user.id, second_character_model.id).await;
+            assert!(matches!(result, Ok(Some(_))));
+            let updated_user = result.unwrap().unwrap();
+            assert_ne!(user.main_character_id, updated_user.main_character_id);
+
+            Ok(())
+        }
+
+        /// Expect Ok(None) when attempting to update user ID that does not exist
+        #[tokio::test]
+        async fn update_user_none_with_non_existant_user() -> Result<(), Error> {
+            let (db, character) = setup().await?;
+            let user_repo = UserRepository::new(&db);
+
+            let non_existant_user_id = 1;
+            let result = user_repo.update(non_existant_user_id, character.id).await;
+            assert!(matches!(result, Ok(None)));
+
+            Ok(())
+        }
+
+        /// Expect Error when attempting to update user main character with non existant character ID
+        #[tokio::test]
+        async fn update_user_error_with_non_existant_character_id() -> Result<(), Error> {
+            let (db, character) = setup().await?;
+            let user_repo = UserRepository::new(&db);
+            let user = user_repo.create(character.id).await?;
+
+            let result = user_repo.update(user.id, character.id + 1).await;
             assert!(result.is_err());
 
             Ok(())
