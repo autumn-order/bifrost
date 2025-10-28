@@ -29,15 +29,29 @@ impl<'a> UserService<'a> {
             .await?
         {
             Some((character, maybe_owner)) => {
-                if let Some(character_owner) = maybe_owner {
-                    return Ok(character_owner.id);
+                if let Some(ownership_entry) = maybe_owner {
+                    // Validate whether or not character has been sold or transferred between accounts
+                    if claims.owner == ownership_entry.owner_hash {
+                        // User ownership hasn't changed, user still owns this character
+                        return Ok(ownership_entry.id);
+                    }
+
+                    // Character has been sold or transferred, create a new user account
+                    let new_user = user_repo.create().await?;
+                    self.transfer_character(ownership_entry, new_user.id)
+                        .await?;
+
+                    return Ok(new_user.id);
                 }
 
+                // Character exists but not owned by any user, no need to create the character
                 character
             }
+            // Character not found in database, create the character
             None => character_service.create_character(character_id).await?,
         };
 
+        // Create new user and link character to user
         let new_user = user_repo.create().await?;
         let _ = user_character_repo
             .create(new_user.id, character.id, claims.owner)
@@ -186,6 +200,7 @@ mod tests {
         use eve_esi::model::oauth2::EveJwtClaims;
 
         use crate::server::{
+            data::user::user_character::UserCharacterRepository,
             error::Error,
             service::user::{tests::test_setup_module, UserService},
             util::test::setup::{
@@ -215,6 +230,41 @@ mod tests {
             let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
+        #[tokio::test]
+        async fn test_get_or_create_user_transfer_success() -> Result<(), Error> {
+            let test = test_setup_module().await?;
+
+            let character_id = 1;
+            let corporation_id = 1;
+            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+            let character = test_setup_create_character(&test, character_id, corporation).await?;
+            let old_ownership_entry =
+                test_setup_create_user_with_character(&test, character).await?;
+
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.owner = "different_owner_hash".to_string();
+
+            let result = user_service.get_or_create_user(claims).await;
+
+            assert!(result.is_ok());
+
+            // Ensure character was actually transferred & new user created
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+
+            assert_ne!(character_ownership.user_id, old_ownership_entry.user_id);
 
             Ok(())
         }
@@ -351,7 +401,7 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok & character transfer if ownerhash hasn't changed but user ID is different
+        /// Expect Ok & character transfer if owner hash hasn't changed but user ID is different
         #[tokio::test]
         async fn test_link_character_owned_different_user_transfer() -> Result<(), Error> {
             let test = test_setup_module().await?;
