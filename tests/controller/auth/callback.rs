@@ -1,0 +1,216 @@
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+};
+use bifrost::server::{
+    controller::auth::{callback, CallbackParams},
+    error::Error,
+    model::session::{auth::SessionAuthCsrf, user::SessionUserId},
+};
+use eve_esi::model::oauth2::EveJwtClaims;
+use mockito::{Mock, ServerGuard};
+use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
+
+use crate::util::{
+    auth::jwt::{create_mock_jwt_keys, create_mock_jwt_token},
+    mock::{mock_character, mock_corporation},
+    mockito::{character::mock_character_endpoint, corporation::mock_corporation_endpoint},
+    setup::{
+        test_setup, test_setup_create_character, test_setup_create_corporation,
+        test_setup_create_user_with_character, TestSetup,
+    },
+};
+
+async fn setup() -> Result<(TestSetup, CallbackParams), DbErr> {
+    let test = test_setup().await;
+    let db = &test.state.db;
+
+    let schema = Schema::new(DbBackend::Sqlite);
+    let stmts = vec![
+        schema.create_table_from_entity(entity::prelude::EveFaction),
+        schema.create_table_from_entity(entity::prelude::EveAlliance),
+        schema.create_table_from_entity(entity::prelude::EveCorporation),
+        schema.create_table_from_entity(entity::prelude::EveCharacter),
+        schema.create_table_from_entity(entity::prelude::BifrostUser),
+        schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
+    ];
+
+    for stmt in stmts {
+        db.execute(&stmt).await?;
+    }
+
+    let params = CallbackParams {
+        state: "state".to_string(),
+        code: "code".to_string(),
+    };
+
+    // Insert CSRF state into session for CSRF validation in callback
+    SessionAuthCsrf::insert(&test.session, &params.state)
+        .await
+        .unwrap();
+
+    Ok((test, params))
+}
+
+/// Provides mock endpoints for JWT token & keys used for callback after successful login
+fn mock_jwt_endpoints(server: &mut ServerGuard) -> (Mock, Mock) {
+    let mock_keys = create_mock_jwt_keys();
+
+    let mut claims = EveJwtClaims::mock();
+    // Set character ID to 1 which is the default used for mock_character used across tests
+    claims.sub = "CHARACTER:EVE:1".to_string();
+    claims.owner = "test_owner_hash".to_string();
+
+    let mock_token = create_mock_jwt_token(claims);
+
+    let mock_jwt_key_endpoint = server
+        .mock("GET", "/oauth/jwks")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(serde_json::to_string(&mock_keys).unwrap())
+        .create();
+
+    let mock_jwt_token_endpoint = server
+        .mock("POST", "/v2/oauth/token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(serde_json::to_string(&mock_token).unwrap())
+        .create();
+
+    (mock_jwt_key_endpoint, mock_jwt_token_endpoint)
+}
+
+#[tokio::test]
+/// Expect 200 success when logging with new character
+async fn test_callback_new_user_success() -> Result<(), DbErr> {
+    let (mut test, params) = setup().await?;
+    let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+
+    // Create the mock character & corporation that will be fetched during callback
+    let alliance_id = None;
+    let faction_id = None;
+    let mock_corporation = mock_corporation(alliance_id, faction_id);
+
+    let corporation_id = 1;
+    let mock_character = mock_character(corporation_id, alliance_id, faction_id);
+
+    let expected_requests = 1;
+    let corporation_endpoint = mock_corporation_endpoint(
+        &mut test.server,
+        "/corporations/1",
+        mock_corporation,
+        expected_requests,
+    );
+    let character_endpoint = mock_character_endpoint(
+        &mut test.server,
+        "/characters/1",
+        mock_character,
+        expected_requests,
+    );
+
+    let result = callback(State(test.state), test.session.clone(), Query(params)).await;
+
+    // Assert JWT keys & token were fetched during callback
+    mock_jwt_key_endpoint.assert();
+    mock_jwt_token_endpoint.assert();
+
+    // Assert character endpoints were fetched during callback when creating character entry
+    character_endpoint.assert();
+    corporation_endpoint.assert();
+
+    let resp = result.unwrap().into_response();
+
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    // Assert user is in session
+    let result = SessionUserId::get(&test.session).await;
+
+    assert!(result.is_ok());
+    let maybe_user_id = result.unwrap();
+
+    assert!(maybe_user_id.is_some());
+    let user_id = maybe_user_id.unwrap();
+
+    // User ID should be 1 as it would be the first user created in database
+    assert_eq!(user_id, 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+/// Expect 200 success when logging with existing user
+async fn test_callback_existing_user_success() -> Result<(), Error> {
+    let (mut test, params) = setup().await?;
+    let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+
+    // Create the mock character & user in database
+    let character_id = 1;
+    let corporation_id = 1;
+    let corporation = test_setup_create_corporation(&test, corporation_id).await?;
+    let character = test_setup_create_character(&test, character_id, corporation).await?;
+    let character_ownership = test_setup_create_user_with_character(&test, character).await?;
+
+    SessionUserId::insert(&test.session, character_ownership.user_id).await?;
+
+    let result = callback(State(test.state), test.session.clone(), Query(params)).await;
+
+    // Assert JWT keys & token were fetched during callback
+    mock_jwt_key_endpoint.assert();
+    mock_jwt_token_endpoint.assert();
+
+    let resp = result.unwrap().into_response();
+
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    // Assert user is in session
+    let result = SessionUserId::get(&test.session).await;
+
+    assert!(result.is_ok());
+    let maybe_user_id = result.unwrap();
+
+    assert!(maybe_user_id.is_some());
+    let user_id = maybe_user_id.unwrap();
+
+    // User ID should be 1 as it would be the first user created in database
+    assert_eq!(user_id, 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+/// Expect 400 bad request when CSRF state is modified
+async fn test_callback_bad_request() -> Result<(), DbErr> {
+    let (test, mut params) = setup().await?;
+
+    // Modify params CSRF state to trigger server error for failing CSRF validation
+    params.state = "incorrect_state".to_string();
+
+    let result = callback(State(test.state), test.session, Query(params)).await;
+
+    assert!(result.is_err());
+
+    let resp = result.err().unwrap().into_response();
+
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+    Ok(())
+}
+
+#[tokio::test]
+// Test the return of a 500 internal server error response for callback
+async fn test_callback_server_error() -> Result<(), DbErr> {
+    let (test, params) = setup().await?;
+
+    // Don't create any mock JWT token or key endpoints so that token validation fails
+
+    let result = callback(State(test.state), test.session, Query(params)).await;
+
+    assert!(result.is_err());
+
+    let resp = result.err().unwrap().into_response();
+
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+    Ok(())
+}
