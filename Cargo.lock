@@ -443,10 +443,10 @@ dependencies = [
 name = "bifrost-test-utils"
 version = "0.1.0"
 dependencies = [
- "bifrost",
  "eve_esi",
  "mockito",
  "sea-orm",
+ "thiserror 2.0.17",
  "tower-sessions",
 ]
 

@@ -9,7 +9,6 @@ name = "bifrost_test_utils"
 path = "src/lib.rs"
 
 [dependencies]
-bifrost = { path = ".." }
 tower-sessions = { workspace = true }
 mockito = { workspace = true }
 eve_esi = { workspace = true }
@@ -18,3 +17,4 @@ sea-orm = { workspace = true, features = [
   "sqlx-postgres",
   "with-chrono"
 ] }
+thiserror = { workspace = true }

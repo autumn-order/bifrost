@@ -80,119 +80,124 @@ impl<'a> FactionRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
-    use crate::server::{
-        data::eve::faction::FactionRepository,
-        util::test::{eve::mock::mock_faction, setup::test_setup},
-    };
+    mod upsert_faction {
+        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
 
-    async fn setup() -> Result<DatabaseConnection, DbErr> {
-        let test = test_setup().await;
+        use crate::server::data::eve::faction::FactionRepository;
 
-        let db = test.state.db;
-        let schema = Schema::new(DbBackend::Sqlite);
+        /// Expect Ok when upserting a new faction
+        #[tokio::test]
+        async fn returns_success_when_upserting_new_faction() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction)?;
 
-        let stmt = schema.create_table_from_entity(entity::prelude::EveFaction);
+            let repo = FactionRepository::new(&test.state.db);
 
-        db.execute(&stmt).await?;
+            let mock_faction = test.with_mock_faction();
+            let result = repo.upsert_many(vec![mock_faction]).await;
 
-        Ok(db)
+            assert!(result.is_ok(), "Error: {:?}", result);
+            let created_factions = result.unwrap();
+            assert_eq!(created_factions.len(), 1);
+            let created = created_factions.first().unwrap();
+
+            let faction = test.with_mock_faction();
+
+            assert_eq!(created.faction_id, faction.faction_id);
+            assert_eq!(created.name, faction.name);
+            assert_eq!(created.corporation_id, faction.corporation_d);
+            assert_eq!(
+                created.militia_corporation_id,
+                faction.militia_corporation_id
+            );
+
+            Ok(())
+        }
+
+        /// Expect Ok & update when trying to upsert an existing faction
+        #[tokio::test]
+        async fn returns_successful_update_with_existing_faction() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction)?;
+
+            let repo = FactionRepository::new(&test.state.db);
+
+            let mock_faction = test.with_mock_faction();
+            let initial = repo.upsert_many(vec![mock_faction]).await?;
+            let initial_entry = initial.into_iter().next().expect("no entry returned");
+
+            let initial_created_at = initial_entry.created_at;
+            let initial_updated_at = initial_entry.updated_at;
+
+            let mock_faction = test.with_mock_faction();
+            let latest = repo.upsert_many(vec![mock_faction]).await?;
+            let latest_entry = latest.into_iter().next().expect("no entry returned");
+
+            // created_at should not change and updated_at should increase
+            assert_eq!(latest_entry.created_at, initial_created_at);
+            assert!(latest_entry.updated_at > initial_updated_at);
+
+            Ok(())
+        }
     }
 
-    #[tokio::test]
-    async fn upsert_faction() {
-        let db = setup().await.unwrap();
-        let repo = FactionRepository::new(&db);
+    mod get_by_faction_id {
+        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
 
-        let faction = mock_faction();
-        let result = repo.upsert_many(vec![faction]).await;
+        use crate::server::{
+            data::eve::faction::FactionRepository, util::test::eve::mock::mock_faction,
+        };
 
-        assert!(result.is_ok(), "Error: {:?}", result);
-        let created = result.unwrap().first().unwrap().to_owned();
+        /// Expect Some when faction is present in the table
+        #[tokio::test]
+        async fn returns_some_with_existing_faction() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction)?;
 
-        // Need to create mock alliance again as eve_esi::model::alliance::Alliance does not implement Clone
-        // - An issue will need to be made on the eve_esi repo about this
-        let faction = mock_faction();
+            let repo = FactionRepository::new(&test.state.db);
 
-        assert_eq!(created.faction_id, faction.faction_id);
-        assert_eq!(created.name, faction.name);
-        assert_eq!(created.corporation_id, faction.corporation_d);
-        assert_eq!(
-            created.militia_corporation_id,
-            faction.militia_corporation_id
-        );
-    }
+            let mock_faction = test.with_mock_faction();
+            let initial = repo.upsert_many(vec![mock_faction]).await?;
+            let initial_entry = initial.into_iter().next().expect("no entry returned");
 
-    // Ensure duplicate faction entries are updated properly
-    #[tokio::test]
-    async fn upsert_duplicate_faction() -> Result<(), DbErr> {
-        let db = setup().await?;
-        let repo = FactionRepository::new(&db);
+            let mock_faction = test.with_mock_faction();
+            let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
 
-        let initial = repo.upsert_many(vec![mock_faction()]).await?;
-        let initial_entry = initial.into_iter().next().expect("no entry returned");
+            assert!(result.is_some());
+            let faction = result.unwrap();
 
-        let initial_created_at = initial_entry.created_at;
-        let initial_updated_at = initial_entry.updated_at;
+            assert_eq!(initial_entry.id, faction.id);
+            assert_eq!(initial_entry.faction_id, faction.faction_id);
 
-        let latest = repo.upsert_many(vec![mock_faction()]).await?;
-        let latest_entry = latest.into_iter().next().expect("no entry returned");
+            Ok(())
+        }
 
-        // created_at should not change and updated_at should increase
-        assert_eq!(latest_entry.created_at, initial_created_at);
-        assert!(latest_entry.updated_at > initial_updated_at);
+        /// Expect None when faction is not present in the table
+        #[tokio::test]
+        async fn returns_none_with_non_existant_faction() -> Result<(), TestError> {
+            let test = test_setup!(entity::prelude::EveFaction)?;
 
-        Ok(())
-    }
+            let repo = FactionRepository::new(&test.state.db);
 
-    /// Expect Some when faction is present in the table
-    #[tokio::test]
-    async fn test_get_by_faction_id_some() -> Result<(), DbErr> {
-        let db = setup().await?;
-        let repo = FactionRepository::new(&db);
+            let mock_faction = mock_faction();
+            let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
 
-        let initial = repo.upsert_many(vec![mock_faction()]).await?;
-        let initial_entry = initial.into_iter().next().expect("no entry returned");
+            assert!(result.is_none());
 
-        let mock_faction = mock_faction();
+            Ok(())
+        }
 
-        let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
+        /// Expect Error when trying to get faction when required tables have not been created
+        #[tokio::test]
+        async fn returns_error_with_missing_tables() -> Result<(), TestError> {
+            let test = test_setup!()?;
 
-        assert!(result.is_some());
-        let faction = result.unwrap();
+            let repo = FactionRepository::new(&test.state.db);
 
-        assert_eq!(initial_entry.id, faction.id);
-        assert_eq!(initial_entry.faction_id, faction.faction_id);
+            let mock_faction = test.with_mock_faction();
+            let result = repo.get_by_faction_id(mock_faction.faction_id).await;
 
-        Ok(())
-    }
+            assert!(result.is_err());
 
-    /// Expect None when faction is not present in the table
-    #[tokio::test]
-    async fn test_get_by_faction_id_none() -> Result<(), DbErr> {
-        let db = setup().await?;
-        let repo = FactionRepository::new(&db);
-
-        let mock_faction = mock_faction();
-        let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
-
-        assert!(result.is_none());
-
-        Ok(())
-    }
-
-    /// Expect Error when trying to get faction when table has not been created
-    #[tokio::test]
-    async fn test_get_by_faction_id_error() -> Result<(), DbErr> {
-        let test = test_setup().await;
-        let repo = FactionRepository::new(&test.state.db);
-
-        let mock_faction = mock_faction();
-        let result = repo.get_by_faction_id(mock_faction.faction_id).await;
-
-        assert!(result.is_err());
-
-        Ok(())
+            Ok(())
+        }
     }
 }
