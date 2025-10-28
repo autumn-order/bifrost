@@ -67,6 +67,26 @@ impl<'a> UserCharacterRepository<'a> {
             .await
     }
 
+    /// Gets character information for all characters owned by the user
+    pub async fn get_owned_characters_by_user_id(
+        &self,
+        user_id: i32,
+    ) -> Result<Vec<entity::eve_character::Model>, sea_orm::DbErr> {
+        let joined: Vec<(
+            entity::bifrost_user_character::Model,
+            Option<entity::eve_character::Model>,
+        )> = entity::prelude::BifrostUserCharacter::find()
+            .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
+            .find_also_related(entity::prelude::EveCharacter)
+            .all(self.db)
+            .await?;
+        let characters = joined
+            .into_iter()
+            .filter_map(|(_, maybe_char)| maybe_char)
+            .collect();
+        Ok(characters)
+    }
+
     /// Update a user character entry with a new user id
     ///
     /// # Arguments
@@ -434,6 +454,76 @@ mod tests {
 
             let user_id = 1;
             let result = user_character_repository.get_many_by_user_id(user_id).await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod get_owned_characters_by_user_id {
+        use sea_orm::DbErr;
+
+        use crate::server::{
+            data::user::{
+                user_character::{tests::setup, UserCharacterRepository},
+                UserRepository,
+            },
+            util::test::setup::test_setup,
+        };
+
+        /// Expect Ok with Vec length of 1 when requesting valid user ID
+        #[tokio::test]
+        async fn returns_owned_characters_for_user() -> Result<(), DbErr> {
+            let (db, character_model) = setup().await?;
+            let user_repository = UserRepository::new(&db);
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let user = user_repository.create(character_model.id).await?;
+            let _ = user_character_repository
+                .create(user.id, character_model.id, "owner_hash".to_string())
+                .await?;
+
+            let result = user_character_repository
+                .get_owned_characters_by_user_id(user.id)
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 1);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty Vec when requesting a non existant user ID
+        #[tokio::test]
+        async fn returns_empty_for_nonexistent_user() -> Result<(), DbErr> {
+            let (db, _) = setup().await?;
+            let user_character_repository = UserCharacterRepository::new(&db);
+
+            let non_existant_user_id = 1;
+            let result = user_character_repository
+                .get_owned_characters_by_user_id(non_existant_user_id)
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Error when required database tables do not exist
+        #[tokio::test]
+        async fn error_when_tables_missing() -> Result<(), DbErr> {
+            // Use test setup that doesn't setup required tables, causing a database error
+            let test = test_setup().await;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+
+            let non_existant_user_id = 1;
+            let result = user_character_repository
+                .get_owned_characters_by_user_id(non_existant_user_id)
+                .await;
 
             assert!(result.is_err());
 
