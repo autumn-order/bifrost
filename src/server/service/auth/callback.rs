@@ -1,7 +1,10 @@
 use oauth2::TokenResponse;
 use sea_orm::DatabaseConnection;
 
-use crate::server::{error::Error, service::user::UserService};
+use crate::server::{
+    error::Error,
+    service::user::{user_character::UserCharacterService, UserService},
+};
 
 pub struct CallbackService<'a> {
     db: &'a DatabaseConnection,
@@ -39,6 +42,7 @@ impl<'a> CallbackService<'a> {
         user_id: Option<i32>,
     ) -> Result<i32, Error> {
         let user_service = UserService::new(&self.db, &self.esi_client);
+        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
 
         let token = self
             .esi_client
@@ -52,7 +56,9 @@ impl<'a> CallbackService<'a> {
             .await?;
 
         if let Some(user_id) = user_id {
-            user_service.link_character(user_id, claims).await?;
+            user_character_service
+                .link_character(user_id, claims)
+                .await?;
 
             return Ok(user_id);
         }
