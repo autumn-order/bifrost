@@ -165,15 +165,12 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let _ = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let character_repo = CharacterRepository::new(&test.state.db);
-            let result = character_repo.get_by_character_id(character_id).await;
+            let result = character_repo
+                .get_by_character_id(character_model.character_id)
+                .await;
 
             assert!(result.is_ok());
             let character_option = result.unwrap();

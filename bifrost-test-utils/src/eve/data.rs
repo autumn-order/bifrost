@@ -1,5 +1,4 @@
 use chrono::Utc;
-use eve_esi::model::character::Character;
 use sea_orm::{ActiveValue, EntityTrait};
 
 use crate::{error::TestError, setup::TestSetup};
@@ -119,15 +118,33 @@ impl TestSetup {
     pub async fn insert_mock_character(
         &self,
         character_id: i64,
-        character: Character,
-        corporation_id: i32,
-        faction_id: Option<i32>,
+        corporation_id: i64,
+        alliance_id: Option<i64>,
+        faction_id: Option<i64>,
     ) -> Result<entity::eve_character::Model, TestError> {
+        let faction_model_id = if let Some(faction_id) = faction_id {
+            Some(self.insert_mock_faction(faction_id).await?.id)
+        } else {
+            None
+        };
+
+        let _ = if let Some(alliance_id) = alliance_id {
+            Some(self.insert_mock_alliance(alliance_id, None).await?.id)
+        } else {
+            None
+        };
+
+        let corporation_model = self
+            .insert_mock_corporation(corporation_id, None, None)
+            .await?;
+        let (character_id, character) =
+            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+
         Ok(
             entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {
                 character_id: ActiveValue::Set(character_id),
-                corporation_id: ActiveValue::Set(corporation_id),
-                faction_id: ActiveValue::Set(faction_id),
+                corporation_id: ActiveValue::Set(corporation_model.id),
+                faction_id: ActiveValue::Set(faction_model_id),
                 birthday: ActiveValue::Set(character.birthday.naive_utc()),
                 bloodline_id: ActiveValue::Set(character.bloodline_id),
                 description: ActiveValue::Set(character.description),

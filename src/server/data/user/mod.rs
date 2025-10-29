@@ -96,12 +96,7 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.create(character_model.id).await;
@@ -147,13 +142,8 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
-            let user_model = test.insert_mock_user(character.id).await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let result = user_repo.get(user_model.id).await;
@@ -212,17 +202,8 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let (character_two_id, character_two) =
-                test.with_mock_character(2, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
-            let character_model_two = test
-                .insert_mock_character(character_two_id, character_two, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model_two = test.insert_mock_character(2, 2, None, None).await?;
             let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -247,12 +228,7 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let non_existant_user_id = 1;
@@ -275,12 +251,7 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
             let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -310,12 +281,7 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
             let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repository = UserRepository::new(&test.state.db);
@@ -343,12 +309,7 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
-            let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
-            let character_model = test
-                .insert_mock_character(character_id, character, corporation_model.id, None)
-                .await?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
             let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repository = UserRepository::new(&test.state.db);
