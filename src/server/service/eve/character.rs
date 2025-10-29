@@ -83,20 +83,17 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let corporation_id = 1;
             let character_id = 1;
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
-            let character_endpoint =
-                test.with_character_endpoint(character_id, corporation_id, None, None, 1);
+            let endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -110,28 +107,17 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let alliance_id = 1;
-            let corporation_id = 1;
             let character_id = 1;
-            let alliance_endpoint = test.with_alliance_endpoint(alliance_id, None, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, Some(alliance_id), None, 1);
-            let character_endpoint = test.with_character_endpoint(
-                character_id,
-                corporation_id,
-                Some(alliance_id),
-                None,
-                1,
-            );
+            let endpoints = test.with_character_endpoint(character_id, 1, Some(1), None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            alliance_endpoint.assert();
-            corporation_endpoint.assert();
-            character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -145,28 +131,17 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let faction_id = 1;
-            let corporation_id = 1;
             let character_id = 1;
-            let faction_endpoint = test.with_faction_endpoint(faction_id, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
-            let character_endpoint = test.with_character_endpoint(
-                character_id,
-                corporation_id,
-                None,
-                Some(faction_id),
-                1,
-            );
+            let endpoints = test.with_character_endpoint(character_id, 1, None, Some(1), 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            faction_endpoint.assert();
-            corporation_endpoint.assert();
-            character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -180,31 +155,17 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let faction_id = 1;
-            let alliance_id = 1;
-            let corporation_id = 1;
             let character_id = 1;
-            let faction_endpoint = test.with_faction_endpoint(faction_id, 1);
-            let alliance_endpoint = test.with_alliance_endpoint(alliance_id, None, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, Some(alliance_id), None, 1);
-            let character_endpoint = test.with_character_endpoint(
-                character_id,
-                corporation_id,
-                Some(alliance_id),
-                Some(faction_id),
-                1,
-            );
+            let endpoints = test.with_character_endpoint(character_id, 1, Some(1), Some(1), 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            faction_endpoint.assert();
-            alliance_endpoint.assert();
-            corporation_endpoint.assert();
-            character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -242,7 +203,7 @@ mod tests {
             let _ = test
                 .insert_mock_character(character_id, corporation_id, None, None)
                 .await?;
-            let character_endpoint =
+            let endpoints =
                 test.with_character_endpoint(character_id, corporation_id, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
@@ -251,7 +212,10 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
             // Assert 1 request was made to mock endpoint
-            character_endpoint.assert();
+            //
+            // Use last() to assert only the character endpoint since DB error occurs
+            // afterwards when trying to get_or_create_corporation
+            endpoints.last().unwrap().assert();
 
             Ok(())
         }
@@ -292,12 +256,8 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let corporation_id = 1;
             let character_id = 1;
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
-            let character_endpoint =
-                test.with_character_endpoint(character_id, corporation_id, None, None, 1);
+            let endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -306,8 +266,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }

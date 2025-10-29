@@ -70,8 +70,7 @@ mod tests {
         #[tokio::test]
         async fn returns_success_when_creating_alliance_with_faction() -> Result<(), TestError> {
             let mut test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction_endpoint = test.with_faction_endpoint(1, 1);
-            let alliance_endpoint = test.with_alliance_endpoint(1, Some(1), 1);
+            let endpoints = test.with_alliance_endpoint(1, Some(1), 1);
 
             let alliance_id = 1;
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -79,8 +78,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            faction_endpoint.assert();
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -89,7 +89,7 @@ mod tests {
         #[tokio::test]
         async fn returns_success_when_creating_alliance_without_faction() -> Result<(), TestError> {
             let mut test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_endpoint = test.with_alliance_endpoint(1, None, 1);
+            let endpoints = test.with_alliance_endpoint(1, None, 1);
 
             let alliance_id = 1;
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -97,7 +97,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to mock alliance endpoint
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -121,7 +123,7 @@ mod tests {
         async fn returns_error_when_creating_duplicate_alliance() -> Result<(), TestError> {
             let mut test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.insert_mock_alliance(1, None).await?;
-            let alliance_endpoint = test.with_alliance_endpoint(1, None, 1);
+            let endpoints = test.with_alliance_endpoint(1, None, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -130,7 +132,9 @@ mod tests {
 
             assert!(matches!(result, Err(Error::DbErr(_))));
             // Assert 1 request was made to mock endpoint
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -162,14 +166,16 @@ mod tests {
         async fn returns_success_when_creating_alliance() -> Result<(), TestError> {
             let mut test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_id = 1;
-            let alliance_endpoint = test.with_alliance_endpoint(alliance_id, None, 1);
+            let endpoints = test.with_alliance_endpoint(alliance_id, None, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.get_or_create_alliance(alliance_id).await;
 
             assert!(result.is_ok());
             // Assert 1 request was made to alliance endpoint
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }

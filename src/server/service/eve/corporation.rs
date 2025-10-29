@@ -86,8 +86,7 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -95,7 +94,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to mock endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -108,11 +109,8 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let alliance_id = 1;
             let corporation_id = 1;
-            let alliance_endpoint = test.with_alliance_endpoint(alliance_id, None, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, Some(alliance_id), None, 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -120,8 +118,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -134,11 +133,8 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction_id = 1;
             let corporation_id = 1;
-            let faction_endpoint = test.with_faction_endpoint(faction_id, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(faction_id, None, Some(faction_id), 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, Some(1), 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -147,8 +143,9 @@ mod tests {
             assert!(result.is_ok());
 
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            faction_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -161,13 +158,8 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction_id = 1;
-            let alliance_id = 1;
             let corporation_id = 1;
-            let faction_endpoint = test.with_faction_endpoint(faction_id, 1);
-            let alliance_endpoint = test.with_alliance_endpoint(alliance_id, None, 1);
-            let corporation_endpoint =
-                test.with_corporation_endpoint(faction_id, Some(alliance_id), Some(faction_id), 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -175,9 +167,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            alliance_endpoint.assert();
-            faction_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -213,8 +205,7 @@ mod tests {
             let _ = test
                 .insert_mock_corporation(corporation_id, None, None)
                 .await?;
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -222,7 +213,9 @@ mod tests {
 
             assert!(matches!(result, Err(Error::DbErr(_))));
             // Assert 1 request was made to mock endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
@@ -263,8 +256,7 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let corporation_endpoint =
-                test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -274,7 +266,9 @@ mod tests {
 
             assert!(result.is_ok());
             // Assert 1 request was made to corporation endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
