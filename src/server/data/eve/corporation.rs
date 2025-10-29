@@ -78,14 +78,13 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction = test.with_mock_faction();
             let (alliance_id, alliance) = test.with_mock_alliance(1, None);
-            let faction_model = test.insert_mock_faction(&faction).await?;
+            let faction_model = test.insert_mock_faction(1).await?;
             let alliance_model = test
                 .insert_mock_alliance(alliance_id, alliance, None)
                 .await?;
             let (corporation_id, corporation) =
-                test.with_mock_corporation(1, Some(alliance_id), Some(faction.faction_id));
+                test.with_mock_corporation(1, Some(alliance_id), Some(faction_model.faction_id));
 
             let corporation_repo = CorporationRepository::new(&test.state.db);
             let result = corporation_repo
@@ -100,7 +99,7 @@ mod tests {
             assert!(result.is_ok(), "Error: {:?}", result);
             let created = result.unwrap();
             let (corporation_id, corporation) =
-                test.with_mock_corporation(1, Some(alliance_id), Some(faction.faction_id));
+                test.with_mock_corporation(1, Some(alliance_id), Some(faction_model.faction_id));
             assert_eq!(created.corporation_id, corporation_id,);
             assert_eq!(created.name, corporation.name);
             assert_eq!(created.alliance_id, Some(alliance_model.id),);
@@ -117,10 +116,9 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction = test.with_mock_faction();
-            let faction_model = test.insert_mock_faction(&faction).await?;
+            let faction_model = test.insert_mock_faction(1).await?;
             let (corporation_id, corporation) =
-                test.with_mock_corporation(1, None, Some(faction.faction_id));
+                test.with_mock_corporation(1, None, Some(faction_model.faction_id));
 
             let corporation_repo = CorporationRepository::new(&test.state.db);
             let result = corporation_repo

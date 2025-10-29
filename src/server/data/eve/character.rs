@@ -70,11 +70,10 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let faction = test.with_mock_faction();
             let corporation_model = test
                 .insert_mock_corporation(corporation_id, corporation, None, None)
                 .await?;
-            let faction_model = test.insert_mock_faction(&faction).await?;
+            let faction_model = test.insert_mock_faction(1).await?;
             let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
 
             let character_repo = CharacterRepository::new(&test.state.db);

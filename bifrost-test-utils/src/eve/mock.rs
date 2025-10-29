@@ -6,11 +6,11 @@ use eve_esi::model::{
 use crate::setup::TestSetup;
 
 impl TestSetup {
-    pub fn with_mock_faction(&self) -> Faction {
+    pub fn with_mock_faction(&self, faction_id: i64) -> Faction {
         Faction {
             corporation_d: Some(0),
             description: "string".to_string(),
-            faction_id: 0,
+            faction_id: faction_id,
             is_unique: true,
             militia_corporation_id: Some(0),
             name: "string".to_string(),

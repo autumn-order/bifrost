@@ -1,7 +1,5 @@
 use chrono::Utc;
-use eve_esi::model::{
-    alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
-};
+use eve_esi::model::{alliance::Alliance, character::Character, corporation::Corporation};
 use sea_orm::{ActiveValue, EntityTrait};
 
 use crate::{error::TestError, setup::TestSetup};
@@ -9,8 +7,10 @@ use crate::{error::TestError, setup::TestSetup};
 impl TestSetup {
     pub async fn insert_mock_faction(
         &self,
-        faction: &Faction,
+        faction_id: i64,
     ) -> Result<entity::eve_faction::Model, TestError> {
+        let faction = self.with_mock_faction(faction_id);
+
         Ok(
             entity::prelude::EveFaction::insert(entity::eve_faction::ActiveModel {
                 faction_id: ActiveValue::Set(faction.faction_id),

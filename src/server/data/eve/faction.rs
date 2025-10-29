@@ -93,7 +93,7 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let result = repo.upsert_many(vec![mock_faction]).await;
 
             assert!(result.is_ok(), "Error: {:?}", result);
@@ -101,7 +101,7 @@ mod tests {
             assert_eq!(created_factions.len(), 1);
             let created = created_factions.first().unwrap();
 
-            let faction = test.with_mock_faction();
+            let faction = test.with_mock_faction(1);
 
             assert_eq!(created.faction_id, faction.faction_id);
             assert_eq!(created.name, faction.name);
@@ -121,14 +121,14 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
 
             let initial_created_at = initial_entry.created_at;
             let initial_updated_at = initial_entry.updated_at;
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let latest = repo.upsert_many(vec![mock_faction]).await?;
             let latest_entry = latest.into_iter().next().expect("no entry returned");
 
@@ -154,11 +154,11 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
 
             assert!(result.is_some());
@@ -192,7 +192,7 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
 
-            let mock_faction = test.with_mock_faction();
+            let mock_faction = test.with_mock_faction(1);
             let result = repo.get_by_faction_id(mock_faction.faction_id).await;
 
             assert!(result.is_err());
