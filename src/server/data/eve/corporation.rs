@@ -174,13 +174,12 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let _ = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
 
             let corporation_repo = CorporationRepository::new(&test.state.db);
-            let result = corporation_repo.get_by_corporation_id(corporation_id).await;
+            let result = corporation_repo
+                .get_by_corporation_id(corporation_model.corporation_id)
+                .await;
 
             assert!(result.is_ok());
             let corporation_option = result.unwrap();

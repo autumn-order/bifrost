@@ -1,5 +1,5 @@
 use chrono::Utc;
-use eve_esi::model::{character::Character, corporation::Corporation};
+use eve_esi::model::character::Character;
 use sea_orm::{ActiveValue, EntityTrait};
 
 use crate::{error::TestError, setup::TestSetup};
@@ -67,10 +67,24 @@ impl TestSetup {
     pub async fn insert_mock_corporation(
         &self,
         corporation_id: i64,
-        corporation: Corporation,
-        alliance_id: Option<i32>,
-        faction_id: Option<i32>,
+        alliance_id: Option<i64>,
+        faction_id: Option<i64>,
     ) -> Result<entity::eve_corporation::Model, TestError> {
+        let alliance_model_id = if let Some(alliance_id) = alliance_id {
+            Some(self.insert_mock_alliance(alliance_id, None).await?.id)
+        } else {
+            None
+        };
+
+        let faction_model_id = if let Some(faction_id) = faction_id {
+            Some(self.insert_mock_faction(faction_id).await?.id)
+        } else {
+            None
+        };
+
+        let (corporation_id, corporation) =
+            self.with_mock_corporation(corporation_id, alliance_id, faction_id);
+
         let date_founded = match corporation.date_founded {
             Some(date) => Some(date.naive_utc()),
             None => None,
@@ -79,8 +93,8 @@ impl TestSetup {
         Ok(
             entity::prelude::EveCorporation::insert(entity::eve_corporation::ActiveModel {
                 corporation_id: ActiveValue::Set(corporation_id),
-                alliance_id: ActiveValue::Set(alliance_id),
-                faction_id: ActiveValue::Set(faction_id),
+                alliance_id: ActiveValue::Set(alliance_model_id),
+                faction_id: ActiveValue::Set(faction_model_id),
                 ceo_id: ActiveValue::Set(corporation.ceo_id),
                 creator_id: ActiveValue::Set(corporation.creator_id),
                 date_founded: ActiveValue::Set(date_founded),

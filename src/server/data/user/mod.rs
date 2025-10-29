@@ -96,11 +96,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -149,11 +147,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -216,13 +212,11 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let (character_two_id, character_two) =
-                test.with_mock_character(2, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+                test.with_mock_character(2, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -253,11 +247,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -283,11 +275,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -320,11 +310,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
@@ -355,11 +343,9 @@ mod tests {
                 entity::prelude::EveCharacter,
                 entity::prelude::BifrostUser
             )?;
-            let (corporation_id, corporation) = test.with_mock_corporation(1, None, None);
-            let (character_id, character) = test.with_mock_character(1, corporation_id, None, None);
-            let corporation_model = test
-                .insert_mock_corporation(corporation_id, corporation, None, None)
-                .await?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.with_mock_character(1, corporation_model.corporation_id, None, None);
             let character_model = test
                 .insert_mock_character(character_id, character, corporation_model.id, None)
                 .await?;
