@@ -110,14 +110,13 @@ mod tests {
         #[tokio::test]
         async fn returns_some_with_existing_alliance() -> Result<(), TestError> {
             let test = test_setup!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, alliance) = test.with_mock_alliance(1, None);
-            let alliance_model = test
-                .insert_mock_alliance(alliance_id, alliance, None)
-                .await?;
+            let alliance_model = test.insert_mock_alliance(1, None).await?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
 
-            let result = alliance_repo.get_by_alliance_id(alliance_id).await;
+            let result = alliance_repo
+                .get_by_alliance_id(alliance_model.alliance_id)
+                .await;
 
             assert!(result.is_ok());
             let alliance_option = result.unwrap();
