@@ -77,7 +77,7 @@ impl<'a> FactionService<'a> {
 mod tests {
 
     mod update_factions {
-        use bifrost_test_utils::{test_setup, TestError, TestSetup};
+        use bifrost_test_utils::prelude::*;
         use chrono::{Duration, Utc};
         use sea_orm::{ActiveModelTrait, ActiveValue, IntoActiveModel};
 
@@ -199,7 +199,7 @@ mod tests {
     }
 
     mod get_or_update_factions {
-        use bifrost_test_utils::{test_setup, TestError, TestSetup};
+        use bifrost_test_utils::prelude::*;
 
         use crate::server::{error::Error, service::eve::faction::FactionService};
 
