@@ -203,7 +203,7 @@ mod tests {
                 entity::prelude::BifrostUser
             )?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
-            let character_model_two = test.insert_mock_character(2, 2, None, None).await?;
+            let character_model_two = test.insert_mock_character(2, 1, None, None).await?;
             let user_model = test.insert_mock_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);

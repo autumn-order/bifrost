@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sea_orm::{ActiveValue, EntityTrait};
+use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::{error::TestError, setup::TestSetup};
 
@@ -8,6 +8,14 @@ impl TestSetup {
         &self,
         faction_id: i64,
     ) -> Result<entity::eve_faction::Model, TestError> {
+        if let Some(existing_faction) = entity::prelude::EveFaction::find()
+            .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
+            .one(&self.state.db)
+            .await?
+        {
+            return Ok(existing_faction);
+        }
+
         let faction = self.with_mock_faction(faction_id);
 
         Ok(
@@ -36,6 +44,14 @@ impl TestSetup {
         alliance_id: i64,
         faction_id: Option<i64>,
     ) -> Result<entity::eve_alliance::Model, TestError> {
+        if let Some(existing_alliance) = entity::prelude::EveAlliance::find()
+            .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
+            .one(&self.state.db)
+            .await?
+        {
+            return Ok(existing_alliance);
+        }
+
         let faction_model_id = if let Some(faction_id) = faction_id {
             Some(self.insert_mock_faction(faction_id).await?.id)
         } else {
@@ -69,6 +85,14 @@ impl TestSetup {
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
     ) -> Result<entity::eve_corporation::Model, TestError> {
+        if let Some(existing_corporation) = entity::prelude::EveCorporation::find()
+            .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
+            .one(&self.state.db)
+            .await?
+        {
+            return Ok(existing_corporation);
+        }
+
         let alliance_model_id = if let Some(alliance_id) = alliance_id {
             Some(self.insert_mock_alliance(alliance_id, None).await?.id)
         } else {
