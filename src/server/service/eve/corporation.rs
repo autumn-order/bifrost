@@ -203,9 +203,16 @@ mod tests {
 
         /// Expect Error when database table are not created
         #[tokio::test]
-        async fn create_corporation_err_missing_tables() -> Result<(), TestError> {
-            let mut test = test_setup!()?;
+        async fn create_corporation_err_duplicate_corporation() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+            )?;
             let corporation_id = 1;
+            let _ = test
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
             let corporation_endpoint =
                 test.with_corporation_endpoint(corporation_id, None, None, 1);
 
@@ -214,7 +221,7 @@ mod tests {
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
-            // Assert 1 request was made to mock endpoint (occurs prior to DB error)
+            // Assert 1 request was made to mock endpoint
             corporation_endpoint.assert();
 
             Ok(())
