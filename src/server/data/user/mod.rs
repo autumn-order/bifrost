@@ -89,13 +89,7 @@ mod tests {
         /// Expect success when creating a new user
         #[tokio::test]
         async fn returns_success_when_creating_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let user_repository = UserRepository::new(&test.state.db);
@@ -109,13 +103,7 @@ mod tests {
         /// Expect Error when setting user main character to character that does not exist in database
         #[tokio::test]
         async fn returns_error_with_non_existant_main_character() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser
-            )?;
+            let test = test_setup_with_user_tables!()?;
 
             let non_existant_main_character_id = 2;
             let user_repository = UserRepository::new(&test.state.db);
@@ -135,14 +123,7 @@ mod tests {
         /// Expect Ok(Some(_)) when existing user is found
         #[tokio::test]
         async fn get_user_ok_some_for_existing_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -158,13 +139,7 @@ mod tests {
         /// Expect Ok(None) when user is not found
         #[tokio::test]
         async fn get_user_ok_none_for_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser
-            )?;
+            let test = test_setup_with_user_tables!()?;
 
             let non_existant_user_id = 1;
             let user_repo = UserRepository::new(&test.state.db);
@@ -197,14 +172,7 @@ mod tests {
         /// Expect Ok when updating user main character with valid character ID
         #[tokio::test]
         async fn update_user_ok_some_for_existing_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model_two = test.insert_mock_character(2, 1, None, None).await?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
@@ -225,14 +193,7 @@ mod tests {
         /// Expect Ok(None) when attempting to update user ID that does not exist
         #[tokio::test]
         async fn update_user_ok_none_for_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -249,14 +210,7 @@ mod tests {
         /// Expect Error when attempting to update user main character with non existant character ID
         #[tokio::test]
         async fn update_user_err_for_non_existant_main_character() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, character_model) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -281,13 +235,7 @@ mod tests {
         /// Expect success when deleting user
         #[tokio::test]
         async fn delete_user_ok_for_existing_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
             let user_model = test.insert_user(character_model.id).await?;
 
@@ -309,14 +257,7 @@ mod tests {
         /// Expect no rows to be affected when deleting user that does not exist
         #[tokio::test]
         async fn delete_user_ok_no_rows_for_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;

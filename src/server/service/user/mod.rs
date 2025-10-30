@@ -137,14 +137,7 @@ mod tests {
         /// Expect Ok when user associated with character is found
         #[tokio::test]
         async fn get_or_create_user_ok_found() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -167,14 +160,7 @@ mod tests {
         /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
         #[tokio::test]
         async fn get_or_create_user_ok_transfer_owner_hash_change() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -206,14 +192,7 @@ mod tests {
         /// Expect Ok when character is found but new user is created
         #[tokio::test]
         async fn get_or_create_user_ok_created_existing_character() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             // Set character ID in claims to the mock character
@@ -231,14 +210,7 @@ mod tests {
         /// Expect Ok when new character & user is created
         #[tokio::test]
         async fn get_or_create_user_ok_created() -> Result<(), TestError> {
-            let mut test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let mut test = test_setup_with_user_tables!()?;
             let character_id = 1;
             let character_endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
 
@@ -278,14 +250,7 @@ mod tests {
         /// Expect Error when required ESI endpoints are unavailable
         #[tokio::test]
         async fn get_or_create_user_err_esi() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
@@ -308,14 +273,7 @@ mod tests {
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
         async fn get_user_ok_some_only_main() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -336,14 +294,7 @@ mod tests {
         /// Expect Ok with Some & 1 additional characters linked for user
         #[tokio::test]
         async fn get_user_ok_some_one_additional_character() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
@@ -366,14 +317,7 @@ mod tests {
         /// Expect Ok with None for user ID that does not exist
         #[tokio::test]
         async fn get_user_ok_none_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
 
             let non_existant_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -409,14 +353,7 @@ mod tests {
         /// Expect Ok with true indicating user was deleted
         #[tokio::test]
         async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
             // We include the character ID as a main which must be set for every user, for this test
             // they don't actually need to own the character so no ownership record is set.
@@ -437,15 +374,7 @@ mod tests {
         /// Expect Ok with false when trying to delete a user that does not exist
         #[tokio::test]
         async fn delete_user_ok_false_doesnt_exist() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
-
+            let test = test_setup_with_user_tables!()?;
             let non_existant_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.delete_user(non_existant_user_id).await;
@@ -462,14 +391,7 @@ mod tests {
         ///   a character ownership entry.
         #[tokio::test]
         async fn delete_user_err_has_owned_characters() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
-                entity::prelude::EveFaction,
-                entity::prelude::EveAlliance,
-                entity::prelude::EveCorporation,
-                entity::prelude::EveCharacter,
-                entity::prelude::BifrostUser,
-                entity::prelude::BifrostUserCharacter
-            )?;
+            let test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
