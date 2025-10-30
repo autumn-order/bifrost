@@ -55,7 +55,7 @@ impl<'a> CharacterRepository<'a> {
 mod tests {
 
     mod create {
-        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
+        use bifrost_test_utils::prelude::*;
         use sea_orm::{DbErr, RuntimeErr};
 
         use crate::server::data::eve::character::CharacterRepository;
@@ -152,7 +152,7 @@ mod tests {
     }
 
     mod get_by_character_id {
-        use bifrost_test_utils::{error::TestError, test_setup, TestSetup};
+        use bifrost_test_utils::prelude::*;
 
         use crate::server::data::eve::character::CharacterRepository;
 

@@ -71,276 +71,175 @@ impl<'a> CorporationService<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
 
-    use crate::server::util::test::setup::{test_setup, TestSetup};
+    mod create_corporation {
+        use bifrost_test_utils::prelude::*;
 
-    /// Creates prerequisite corporation, alliance, & faction tables for tests
-    async fn setup() -> Result<TestSetup, DbErr> {
-        let test = test_setup().await;
+        use crate::server::{error::Error, service::eve::corporation::CorporationService};
 
-        let db = &test.state.db;
-        let schema = Schema::new(DbBackend::Sqlite);
-
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-            schema.create_table_from_entity(entity::prelude::EveCorporation),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        Ok(test)
-    }
-
-    mod create_corporation_tests {
-        use sea_orm::DbErr;
-
-        use crate::server::{
-            error::Error,
-            service::eve::corporation::{tests::setup, CorporationService},
-            util::test::{
-                eve::mock::{mock_alliance, mock_corporation, mock_faction},
-                mockito::{
-                    alliance::mock_alliance_endpoint, corporation::mock_corporation_endpoint,
-                    faction::mock_faction_endpoint,
-                },
-                setup::test_setup,
-            },
-        };
-
-        /// Expect success when creating corporation with no alliance or faction
+        /// Expect Ok when creating corporation without alliance or faction
         #[tokio::test]
-        async fn test_create_corporation_success() -> Result<(), DbErr> {
-            let mut test = setup().await?;
+        async fn create_corporation_ok_no_alliance_or_faction() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corporation_id = 1;
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            let alliance_id = None;
-            let faction_id = None;
-            let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                mock_corporation,
-                expected_requests,
-            );
-
-            let corporation_id = 1;
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-
             // Assert 1 request was made to mock endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
 
-        /// Expect success when creating corporation with alliance
+        /// Expect Ok when creating corporation with alliance
         #[tokio::test]
-        async fn test_create_corporation_success_with_alliance() -> Result<(), DbErr> {
-            let mut test = setup().await?;
+        async fn create_corporation_ok_with_alliance() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corporation_id = 1;
+            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), None, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service.create_corporation(corporation_id).await;
 
-            let alliance_id = Some(1);
-            let faction_id = None;
-            let mock_corporation = mock_corporation(alliance_id, faction_id);
-            let mock_alliance = mock_alliance(faction_id);
+            assert!(result.is_ok());
+            // Assert 1 request was made to each mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                mock_corporation,
-                expected_requests,
-            );
-            let alliance_endpoint = mock_alliance_endpoint(
-                &mut test.server,
-                "/alliances/1",
-                mock_alliance,
-                expected_requests,
-            );
+            Ok(())
+        }
 
+        /// Expect Ok when creating corporation with faction
+        #[tokio::test]
+        async fn create_corporation_ok_with_faction() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
             let corporation_id = 1;
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, Some(1), 1);
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
 
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            alliance_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
 
-        /// Expect success when creating corporation with faction
+        /// Expect Ok when creating corporation with alliance and faction
         #[tokio::test]
-        async fn test_create_corporation_success_with_faction() -> Result<(), DbErr> {
-            let mut test = setup().await?;
+        async fn create_corporation_ok_with_alliance_and_faction() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corporation_id = 1;
+            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            let alliance_id = None;
-            let faction_id = Some(0);
-            let mock_corporation = mock_corporation(alliance_id, faction_id);
-            let mock_faction = mock_faction();
-
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                mock_corporation,
-                expected_requests,
-            );
-            let faction_endpoint =
-                mock_faction_endpoint(&mut test.server, vec![mock_faction], expected_requests);
-
-            let corporation_id = 1;
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-
             // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            faction_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
 
-        /// Expect success when creating corporation with alliance and faction
+        /// Expect Error when ESI endpoint is unavailable
         #[tokio::test]
-        async fn test_create_corporation_success_with_alliance_and_faction() -> Result<(), DbErr> {
-            let mut test = setup().await?;
-            let corporation_service =
-                CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            let alliance_id = Some(1);
-            let faction_id = Some(0);
-            let mock_corporation = mock_corporation(alliance_id, faction_id);
-            let mock_alliance = mock_alliance(faction_id);
-            let mock_faction = mock_faction();
-
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                mock_corporation,
-                expected_requests,
-            );
-            let alliance_endpoint = mock_alliance_endpoint(
-                &mut test.server,
-                "/alliances/1",
-                mock_alliance,
-                expected_requests,
-            );
-            let faction_endpoint =
-                mock_faction_endpoint(&mut test.server, vec![mock_faction], expected_requests);
+        async fn create_corporation_err_esi() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
 
             let corporation_id = 1;
-            let result = corporation_service.create_corporation(corporation_id).await;
-
-            assert!(result.is_ok(), "Error: {:#?}", result);
-
-            // Assert 1 request was made to each mock endpoint
-            corporation_endpoint.assert();
-            alliance_endpoint.assert();
-            faction_endpoint.assert();
-
-            Ok(())
-        }
-
-        /// Expect Error when fetch request to mock ESI endpoint fails
-        #[tokio::test]
-        async fn test_create_corporation_esi_error() -> Result<(), DbErr> {
-            let test = setup().await?;
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            // Create no mock ESI endpoints which will cause an error when fetching corporation
-
-            let corporation_id = 1;
             let result = corporation_service.create_corporation(corporation_id).await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
         }
 
-        /// Expect Error when database table is not created
+        /// Expect Error when database table are not created
         #[tokio::test]
-        async fn test_create_corporation_database_error() -> Result<(), DbErr> {
-            // Use setup function that doesn't create required tables to cause an error
-            let mut test = test_setup().await;
+        async fn create_corporation_err_duplicate_corporation() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+            )?;
+            let corporation_id = 1;
+            let _ = test
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            let alliance_id = None;
-            let faction_id = None;
-            let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                mock_corporation,
-                expected_requests,
-            );
-
-            let corporation_id = 1;
             let result = corporation_service.create_corporation(corporation_id).await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
-
             // Assert 1 request was made to mock endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
     }
 
-    mod get_or_create_corporation_tests {
-        use sea_orm::DbErr;
+    mod get_or_create_corporation {
+        use bifrost_test_utils::prelude::*;
 
-        use crate::server::{
-            data::eve::corporation::CorporationRepository,
-            error::Error,
-            service::eve::corporation::{tests::setup, CorporationService},
-            util::test::{
-                eve::mock::mock_corporation, mockito::corporation::mock_corporation_endpoint,
-                setup::test_setup,
-            },
-        };
+        use crate::server::{error::Error, service::eve::corporation::CorporationService};
 
-        // Expect success when getting corporation present in table
+        // Expect Ok when corporation is found already present in table
         #[tokio::test]
-        async fn test_get_or_create_corporation_found() -> Result<(), DbErr> {
-            let test = setup().await?;
-            let corporation_repo = CorporationRepository::new(&test.state.db);
+        async fn get_or_create_corporation_ok_found() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            // Create no endpoints as they shouldn't be fetched when corporation is found
-
-            // Insert existing corporation into database
-            let corporation_id = 1;
-            let alliance_id = None;
-            let faction_id = None;
-            let corporation = mock_corporation(alliance_id, faction_id);
-            corporation_repo
-                .create(corporation_id, corporation, None, None)
-                .await?;
-
-            // Get the corporation
             let result = corporation_service
-                .get_or_create_corporation(corporation_id)
+                .get_or_create_corporation(corporation_model.corporation_id)
                 .await;
 
             assert!(result.is_ok());
@@ -348,72 +247,65 @@ mod tests {
             Ok(())
         }
 
-        // Expect success when creating a new corporation when none is found in table
+        // Expect Ok when creating a new corporation when not found in table
         #[tokio::test]
-        async fn test_get_or_create_corporation_created() -> Result<(), DbErr> {
-            let mut test = setup().await?;
+        async fn get_or_create_corporation_ok_creates_if_missing() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corporation_id = 1;
+            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            let alliance_id = None;
-            let faction_id = None;
-            let corporation = mock_corporation(alliance_id, faction_id);
-
-            let expected_requests = 1;
-            let corporation_endpoint = mock_corporation_endpoint(
-                &mut test.server,
-                "/corporations/1",
-                corporation,
-                expected_requests,
-            );
-
-            let corporation_id = 1;
             let result = corporation_service
                 .get_or_create_corporation(corporation_id)
                 .await;
 
             assert!(result.is_ok());
-
             // Assert 1 request was made to corporation endpoint
-            corporation_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
-        #[tokio::test]
 
         /// Expect Error when trying to access database table that hasn't been created
-        async fn test_get_or_create_corporation_database_error() -> Result<(), DbErr> {
-            // Use setup function that doesn't create the required tables which will cause DB error
-            let test = test_setup().await;
-            let corporation_service =
-                CorporationService::new(&test.state.db, &test.state.esi_client);
+        #[tokio::test]
+        async fn get_or_create_corporation_err_missing_tables() -> Result<(), TestError> {
+            let test = test_setup!()?;
 
             let corporation_id = 1;
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service
                 .get_or_create_corporation(corporation_id)
                 .await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
         }
 
-        /// Expect ESI error when attempting to fetch from ESI endpoint that doesn't exist
+        /// Expect Error when required ESI endpoint is unavailable
         #[tokio::test]
-        async fn test_get_or_create_corporation_esi_error() -> Result<(), DbErr> {
-            let test = setup().await?;
-            let corporation_service =
-                CorporationService::new(&test.state.db, &test.state.esi_client);
-
-            // Create no mock endpoints which will cause an ESI error
+        async fn get_or_create_corporation_err_esi() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
 
             let corporation_id = 1;
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service
                 .get_or_create_corporation(corporation_id)
                 .await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
