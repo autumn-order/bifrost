@@ -63,7 +63,7 @@ mod tests {
         /// Expect success when creating character with a faction ID set
         #[tokio::test]
         async fn returns_success_when_creating_character_with_faction() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -96,7 +96,7 @@ mod tests {
         /// Expect success when creating character entry
         #[tokio::test]
         async fn returns_success_when_creating_new_character() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -123,7 +123,7 @@ mod tests {
         #[tokio::test]
         async fn returns_error_for_character_with_invalid_corporation_id() -> Result<(), TestError>
         {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -159,7 +159,7 @@ mod tests {
         /// Expect Some when character is present in database
         #[tokio::test]
         async fn returns_some_with_existing_character() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -182,7 +182,7 @@ mod tests {
         /// Expect None when no character entry is present
         #[tokio::test]
         async fn returns_none_with_non_existant_character() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -204,7 +204,7 @@ mod tests {
         #[tokio::test]
         async fn returns_error_with_missing_tables() -> Result<(), TestError> {
             // Use setup function that doesn't create required tables, causing a database error
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let character_id = 1;
             let character_repo = CharacterRepository::new(&test.state.db);

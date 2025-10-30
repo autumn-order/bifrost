@@ -64,7 +64,7 @@ impl TestSetup {
 }
 
 #[macro_export]
-macro_rules! test_setup {
+macro_rules! test_setup_with_tables {
     // Pattern 1: No entities provided
     () => {{
         TestSetup::new().await
@@ -77,6 +77,50 @@ macro_rules! test_setup {
 
             let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
             let stmts = vec![
+                $(schema.create_table_from_entity($entity),)+
+            ];
+            setup.with_tables(stmts).await?;
+
+            Ok::<_, $crate::error::TestError>(setup)
+        }.await
+    }};
+}
+
+#[macro_export]
+macro_rules! test_setup_with_user_tables {
+    // Pattern 1: No entities provided
+    () => {{
+        async {
+            let setup = TestSetup::new().await?;
+
+            let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
+            let stmts = vec![
+                schema.create_table_from_entity(entity::prelude::EveFaction),
+                schema.create_table_from_entity(entity::prelude::EveAlliance),
+                schema.create_table_from_entity(entity::prelude::EveCorporation),
+                schema.create_table_from_entity(entity::prelude::EveCharacter),
+                schema.create_table_from_entity(entity::prelude::BifrostUser),
+                schema.create_table_from_entity(entity::prelude::BifrostUserCharacter)
+            ];
+            setup.with_tables(stmts).await?;
+
+            Ok::<_, $crate::error::TestError>(setup)
+        }.await
+    }};
+
+    // Pattern 2: Entities provided
+    ($($entity:expr),+ $(,)?) => {{
+        async {
+            let setup = TestSetup::new().await?;
+
+            let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
+            let stmts = vec![
+                schema.create_table_from_entity(entity::prelude::EveFaction),
+                schema.create_table_from_entity(entity::prelude::EveAlliance),
+                schema.create_table_from_entity(entity::prelude::EveCorporation),
+                schema.create_table_from_entity(entity::prelude::EveCharacter),
+                schema.create_table_from_entity(entity::prelude::BifrostUser),
+                schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
                 $(schema.create_table_from_entity($entity),)+
             ];
             setup.with_tables(stmts).await?;

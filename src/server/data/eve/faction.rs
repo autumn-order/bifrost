@@ -89,7 +89,7 @@ mod tests {
         /// Expect Ok when upserting a new faction
         #[tokio::test]
         async fn returns_success_when_upserting_new_faction() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let repo = FactionRepository::new(&test.state.db);
 
@@ -117,7 +117,7 @@ mod tests {
         /// Expect Ok & update when trying to upsert an existing faction
         #[tokio::test]
         async fn returns_successful_update_with_existing_faction() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let repo = FactionRepository::new(&test.state.db);
 
@@ -150,7 +150,7 @@ mod tests {
         /// Expect Some when faction is present in the table
         #[tokio::test]
         async fn returns_some_with_existing_faction() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let repo = FactionRepository::new(&test.state.db);
 
@@ -173,7 +173,7 @@ mod tests {
         /// Expect None when faction is not present in the table
         #[tokio::test]
         async fn returns_none_with_non_existant_faction() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let repo = FactionRepository::new(&test.state.db);
 
@@ -188,7 +188,7 @@ mod tests {
         /// Expect Error when trying to get faction when required tables have not been created
         #[tokio::test]
         async fn returns_error_with_missing_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let repo = FactionRepository::new(&test.state.db);
 
