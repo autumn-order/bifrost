@@ -124,166 +124,152 @@ impl<'a> UserService<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
 
-    use crate::server::util::test::setup::{test_setup, TestSetup};
-
-    async fn test_setup_module() -> Result<TestSetup, DbErr> {
-        let test = test_setup().await;
-        let db = &test.state.db;
-
-        let schema = Schema::new(DbBackend::Sqlite);
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-            schema.create_table_from_entity(entity::prelude::EveCorporation),
-            schema.create_table_from_entity(entity::prelude::EveCharacter),
-            schema.create_table_from_entity(entity::prelude::BifrostUser),
-            schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        Ok(test)
-    }
-
-    mod get_or_create_user_tests {
+    mod get_or_create_user {
+        use bifrost_test_utils::prelude::*;
         use eve_esi::model::oauth2::EveJwtClaims;
 
         use crate::server::{
-            data::user::user_character::UserCharacterRepository,
-            error::Error,
-            service::user::{tests::test_setup_module, UserService},
-            util::test::setup::{
-                test_setup, test_setup_create_character, test_setup_create_character_endpoints,
-                test_setup_create_corporation, test_setup_create_user_with_character,
-            },
+            data::user::user_character::UserCharacterRepository, error::Error,
+            service::user::UserService,
         };
 
-        /// Expect success when user associated with character is found
+        /// Expect Ok when user associated with character is found
         #[tokio::test]
-        async fn test_get_or_create_user_found_user() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character =
-                test_setup_create_character(&test, character_id, corporation.clone()).await?;
-            let _ = test_setup_create_user_with_character(&test, character).await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn get_or_create_user_ok_found() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let (user_model, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
+            claims.owner = user_character_model.owner_hash;
 
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
+            let user_id = result.unwrap();
+            assert_eq!(user_id, user_model.id);
 
             Ok(())
         }
 
         /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
         #[tokio::test]
-        async fn test_get_or_create_user_transfer_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let old_ownership_entry =
-                test_setup_create_user_with_character(&test, character).await?;
-
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn get_or_create_user_ok_transfer_owner_hash_change() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let (_, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = "CHARACTER:EVE:1".to_string();
             claims.owner = "different_owner_hash".to_string();
 
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
-
             // Ensure character was actually transferred & new user created
-            let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+            let user_character_result = user_character_repo
+                .get_by_character_id(character_model.character_id)
                 .await?;
-            let (_, maybe_ownership) = ownership_entry.unwrap();
-            let character_ownership = maybe_ownership.unwrap();
+            let (_, maybe_user_character_model) = user_character_result.unwrap();
+            let updated_user_character_model = maybe_user_character_model.unwrap();
 
-            assert_ne!(character_ownership.user_id, old_ownership_entry.user_id);
+            assert_ne!(
+                updated_user_character_model.user_id,
+                user_character_model.user_id
+            );
 
             Ok(())
         }
 
-        /// Expect success when character is found but new user is created
+        /// Expect Ok when character is found but new user is created
         #[tokio::test]
-        async fn test_get_or_create_user_new_user() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn get_or_create_user_ok_created_existing_character() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
+            // Set character ID in claims to the mock character
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
+
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+            let result = user_service.get_or_create_user(claims).await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok when new character & user is created
+        #[tokio::test]
+        async fn get_or_create_user_ok_created() -> Result<(), TestError> {
+            let mut test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
             let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let _ = test_setup_create_character(&test, character_id, corporation.clone()).await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+            let character_endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
-
-            let result = user_service.get_or_create_user(claims).await;
-
-            assert!(result.is_ok());
-
-            Ok(())
-        }
-
-        /// Expect success when new character & user is created
-        #[tokio::test]
-        async fn test_get_or_create_user_new_character() -> Result<(), Error> {
-            let mut test = test_setup_module().await?;
-            let (mock_character_endpoint, mock_corporation_endpoint) =
-                test_setup_create_character_endpoints(&mut test).await;
+            claims.sub = format!("CHARACTER:EVE:{}", character_id);
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-
-            // Set character ID in claims to the mock character
-            let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
-
             let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
-
             // Assert 1 request was made to each mock endpoint
-            mock_corporation_endpoint.assert();
-            mock_character_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
 
         /// Expect Error when the required database tables haven't been created
         #[tokio::test]
-        async fn test_get_or_create_user_database_error() -> Result<(), Error> {
-            // Use test setup that doesn't create required tables, causing database error
-            let test = test_setup().await;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn get_or_create_user_err_missing_tables() -> Result<(), TestError> {
+            let test = test_setup!()?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", 1);
 
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_or_create_user(claims).await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
@@ -291,20 +277,23 @@ mod tests {
 
         /// Expect Error when required ESI endpoints are unavailable
         #[tokio::test]
-        async fn test_get_or_create_user_esi_error() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-
-            // Don't create mock ESI endpoints, causing an ESI error
+        async fn get_or_create_user_err_esi() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", 1);
 
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_or_create_user(claims).await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
@@ -312,27 +301,27 @@ mod tests {
     }
 
     mod get_user {
-        use crate::server::{
-            data::user::user_character::UserCharacterRepository,
-            error::Error,
-            service::user::{tests::test_setup_module, UserService},
-            util::test::setup::{
-                test_setup, test_setup_create_character, test_setup_create_corporation,
-                test_setup_create_user_with_character,
-            },
-        };
+        use bifrost_test_utils::prelude::*;
+
+        use crate::server::{error::Error, service::user::UserService};
 
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
-        async fn returns_only_main_for_existing_user() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-            let corporation_model = test_setup_create_corporation(&test, 1).await?;
-            let character_model = test_setup_create_character(&test, 1, corporation_model).await?;
-            let user = test_setup_create_user_with_character(&test, character_model).await?;
+        async fn get_user_ok_some_only_main() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-
-            let result = user_service.get_user(user.id).await;
+            let result = user_service.get_user(user_model.id).await;
             assert!(result.is_ok());
             let maybe_user = result.unwrap();
             assert!(maybe_user.is_some());
@@ -346,27 +335,28 @@ mod tests {
 
         /// Expect Ok with Some & 1 additional characters linked for user
         #[tokio::test]
-        async fn returns_with_multiple_characters_for_existing_user() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-            let corporation_model = test_setup_create_corporation(&test, 1).await?;
-            let character_model =
-                test_setup_create_character(&test, 1, corporation_model.clone()).await?;
-            let user_model = test_setup_create_user_with_character(&test, character_model).await?;
-
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-
-            let character_two = test_setup_create_character(&test, 2, corporation_model).await?;
-            user_character_repo
-                .create(user_model.id, character_two.id, "owner_has_2".to_string())
+        async fn get_user_ok_some_one_additional_character() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let (_, _) = test
+                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
                 .await?;
 
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_user(user_model.id).await;
             assert!(result.is_ok());
             let maybe_user = result.unwrap();
             assert!(maybe_user.is_some());
             let user_info = maybe_user.unwrap();
-
             // Additional characters, which does not include main, should equal 1
             assert_eq!(user_info.characters.len(), 1);
 
@@ -375,13 +365,20 @@ mod tests {
 
         /// Expect Ok with None for user ID that does not exist
         #[tokio::test]
-        async fn returns_none_for_non_existant_user() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn get_user_ok_none_non_existant_user() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
 
             let non_existant_user_id = 1;
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_user(non_existant_user_id).await;
+
             assert!(result.is_ok());
             let maybe_user = result.unwrap();
             assert!(maybe_user.is_none());
@@ -391,14 +388,13 @@ mod tests {
 
         /// Expect Error when required tables are not present
         #[tokio::test]
-        async fn error_when_tables_missing() -> Result<(), Error> {
-            // Use setup function that does not create required tables, causing DB error
-            let test = test_setup().await;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn get_user_err_missing_tables() -> Result<(), TestError> {
+            let test = test_setup!()?;
 
             let non_existant_user_id = 1;
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.get_user(non_existant_user_id).await;
+
             assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
@@ -406,53 +402,56 @@ mod tests {
     }
 
     mod delete_user_tests {
-        use crate::server::{
-            data::user::UserRepository,
-            error::Error,
-            service::user::{tests::test_setup_module, UserService},
-            util::test::setup::{
-                test_setup_create_character, test_setup_create_corporation,
-                test_setup_create_user_with_character,
-            },
-        };
+        use bifrost_test_utils::prelude::*;
+
+        use crate::server::{error::Error, service::user::UserService};
 
         /// Expect Ok with true indicating user was deleted
         #[tokio::test]
-        async fn test_delete_user_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            // We include the character ID as a main which must be set for every user, for this test
+            // they don't actually need to own the character so no ownership record is set.
+            let user_model = test.insert_user(character_model.id).await?;
 
-            let user_repository = UserRepository::new(&test.state.db);
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-
-            let user = user_repository.create(character.id).await?;
-            let result = user_service.delete_user(user.id).await;
+            let result = user_service.delete_user(user_model.id).await;
 
             assert!(result.is_ok());
             let user_deleted = result.unwrap();
-
             assert!(user_deleted);
+            let maybe_user = user_service.get_user(user_model.id).await.unwrap();
+            assert!(maybe_user.is_none());
 
             Ok(())
         }
 
         /// Expect Ok with false when trying to delete a user that does not exist
         #[tokio::test]
-        async fn test_delete_user_does_not_exist() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+        async fn delete_user_ok_false_doesnt_exist() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
 
             let non_existant_user_id = 1;
+            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.delete_user(non_existant_user_id).await;
 
             assert!(result.is_ok());
             let user_deleted = result.unwrap();
-
             assert!(!user_deleted);
 
             Ok(())
@@ -462,20 +461,23 @@ mod tests {
         /// - This is due to a foreign key violation requiring a user ID to exist for
         ///   a character ownership entry.
         #[tokio::test]
-        async fn test_delete_user_owned_characters_error() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let user = test_setup_create_user_with_character(&test, character).await?;
+        async fn delete_user_err_has_owned_characters() -> Result<(), TestError> {
+            let test = test_setup!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+                entity::prelude::BifrostUser,
+                entity::prelude::BifrostUserCharacter
+            )?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
+            let result = user_service.delete_user(user_model.id).await;
 
-            let result = user_service.delete_user(user.id).await;
-
-            assert!(result.is_err());
+            assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
         }
