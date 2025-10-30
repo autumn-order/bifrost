@@ -80,7 +80,7 @@ mod tests {
         /// Expect Ok when creating corporation without alliance or faction
         #[tokio::test]
         async fn create_corporation_ok_no_alliance_or_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -104,7 +104,7 @@ mod tests {
         /// Expect Ok when creating corporation with alliance
         #[tokio::test]
         async fn create_corporation_ok_with_alliance() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -128,7 +128,7 @@ mod tests {
         /// Expect Ok when creating corporation with faction
         #[tokio::test]
         async fn create_corporation_ok_with_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -153,7 +153,7 @@ mod tests {
         /// Expect Ok when creating corporation with alliance and faction
         #[tokio::test]
         async fn create_corporation_ok_with_alliance_and_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -177,7 +177,7 @@ mod tests {
         /// Expect Error when ESI endpoint is unavailable
         #[tokio::test]
         async fn create_corporation_err_esi() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -196,7 +196,7 @@ mod tests {
         /// Expect Error when database table are not created
         #[tokio::test]
         async fn create_corporation_err_duplicate_corporation() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -229,7 +229,7 @@ mod tests {
         // Expect Ok when corporation is found already present in table
         #[tokio::test]
         async fn get_or_create_corporation_ok_found() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -250,7 +250,7 @@ mod tests {
         // Expect Ok when creating a new corporation when not found in table
         #[tokio::test]
         async fn get_or_create_corporation_ok_creates_if_missing() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
@@ -276,7 +276,7 @@ mod tests {
         /// Expect Error when trying to access database table that hasn't been created
         #[tokio::test]
         async fn get_or_create_corporation_err_missing_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let corporation_id = 1;
             let corporation_service =
@@ -293,7 +293,7 @@ mod tests {
         /// Expect Error when required ESI endpoint is unavailable
         #[tokio::test]
         async fn get_or_create_corporation_err_esi() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation

@@ -77,7 +77,7 @@ mod tests {
         /// Expect Ok when creating character without alliance or faction
         #[tokio::test]
         async fn create_character_ok_no_alliance_or_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -101,7 +101,7 @@ mod tests {
         /// Expect Ok when creating character with alliance
         #[tokio::test]
         async fn create_character_ok_with_alliance() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -125,7 +125,7 @@ mod tests {
         /// Expect Ok when creating character with faction
         #[tokio::test]
         async fn create_character_ok_with_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -149,7 +149,7 @@ mod tests {
         /// Expect Ok when creating character with alliance & faction
         #[tokio::test]
         async fn create_character_ok_with_alliance_and_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -173,7 +173,7 @@ mod tests {
         /// Expect Error when ESI endpoint is unavailable
         #[tokio::test]
         async fn create_character_err_esi() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -192,7 +192,7 @@ mod tests {
         /// Expect Error when trying to create character that already exists
         #[tokio::test]
         async fn create_character_err_duplicate_character() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -229,7 +229,7 @@ mod tests {
         /// Expect Ok when character is found in database
         #[tokio::test]
         async fn get_or_create_character_ok_found() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -250,7 +250,7 @@ mod tests {
         /// Expect Ok when character is created when not found in database
         #[tokio::test]
         async fn test_get_or_create_character_created() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -276,7 +276,7 @@ mod tests {
         /// Expect Error when attempting to access database tables that haven't been created
         #[tokio::test]
         async fn get_or_create_character_err_missing_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let character_id = 1;
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
@@ -292,7 +292,7 @@ mod tests {
         /// Expect Error when attempting to fetch from ESI endpoint that doesn't exist
         #[tokio::test]
         async fn get_or_create_character_err_esi() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,

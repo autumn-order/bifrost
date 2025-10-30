@@ -137,7 +137,7 @@ mod tests {
         /// Expect Ok when user associated with character is found
         #[tokio::test]
         async fn get_or_create_user_ok_found() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -167,7 +167,7 @@ mod tests {
         /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
         #[tokio::test]
         async fn get_or_create_user_ok_transfer_owner_hash_change() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -206,7 +206,7 @@ mod tests {
         /// Expect Ok when character is found but new user is created
         #[tokio::test]
         async fn get_or_create_user_ok_created_existing_character() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -231,7 +231,7 @@ mod tests {
         /// Expect Ok when new character & user is created
         #[tokio::test]
         async fn get_or_create_user_ok_created() -> Result<(), TestError> {
-            let mut test = test_setup!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -261,7 +261,7 @@ mod tests {
         /// Expect Error when the required database tables haven't been created
         #[tokio::test]
         async fn get_or_create_user_err_missing_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
@@ -278,7 +278,7 @@ mod tests {
         /// Expect Error when required ESI endpoints are unavailable
         #[tokio::test]
         async fn get_or_create_user_err_esi() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -308,7 +308,7 @@ mod tests {
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
         async fn get_user_ok_some_only_main() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -336,7 +336,7 @@ mod tests {
         /// Expect Ok with Some & 1 additional characters linked for user
         #[tokio::test]
         async fn get_user_ok_some_one_additional_character() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -366,7 +366,7 @@ mod tests {
         /// Expect Ok with None for user ID that does not exist
         #[tokio::test]
         async fn get_user_ok_none_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -389,7 +389,7 @@ mod tests {
         /// Expect Error when required tables are not present
         #[tokio::test]
         async fn get_user_err_missing_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let non_existant_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -409,7 +409,7 @@ mod tests {
         /// Expect Ok with true indicating user was deleted
         #[tokio::test]
         async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -437,7 +437,7 @@ mod tests {
         /// Expect Ok with false when trying to delete a user that does not exist
         #[tokio::test]
         async fn delete_user_ok_false_doesnt_exist() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
@@ -462,7 +462,7 @@ mod tests {
         ///   a character ownership entry.
         #[tokio::test]
         async fn delete_user_err_has_owned_characters() -> Result<(), TestError> {
-            let test = test_setup!(
+            let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,

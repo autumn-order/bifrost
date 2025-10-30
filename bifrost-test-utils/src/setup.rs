@@ -64,7 +64,7 @@ impl TestSetup {
 }
 
 #[macro_export]
-macro_rules! test_setup {
+macro_rules! test_setup_with_tables {
     // Pattern 1: No entities provided
     () => {{
         TestSetup::new().await

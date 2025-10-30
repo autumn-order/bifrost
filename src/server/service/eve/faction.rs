@@ -89,7 +89,7 @@ mod tests {
         /// Expect success when updating an empty factions table
         #[tokio::test]
         async fn returns_success_when_updating_empty_faction_table() -> Result<(), TestError> {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_endpoint = test.with_faction_endpoint(1, 1);
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
@@ -108,7 +108,7 @@ mod tests {
         /// Expect Ok with an update performed due to existing factions being past cache expiry
         #[tokio::test]
         async fn returns_success_with_update_due_to_past_cache_expiry() -> Result<(), TestError> {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 1);
 
@@ -141,7 +141,7 @@ mod tests {
         #[tokio::test]
         async fn returns_success_with_no_update_due_to_within_cache_expiry() -> Result<(), TestError>
         {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 0);
 
@@ -171,7 +171,7 @@ mod tests {
         /// Expect Error when attempting to update factions while ESI endpoint is unavailable
         #[tokio::test]
         async fn returns_error_due_to_unavailable_esi_endpoint() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let update_result = faction_service.update_factions().await;
@@ -187,7 +187,7 @@ mod tests {
         /// Expect Error when attempting to update factions due to required tables not being created
         #[tokio::test]
         async fn returns_error_due_to_missing_required_tables() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let update_result = faction_service.update_factions().await;
@@ -206,7 +206,7 @@ mod tests {
         /// Expect Ok with faction found when it is present in database
         #[tokio::test]
         async fn returns_success_with_found_when_faction_exists() -> Result<(), TestError> {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 0);
 
@@ -225,7 +225,7 @@ mod tests {
         /// Expect Ok with created faction when not present in database
         #[tokio::test]
         async fn returns_success_with_created_when_faction_doesnt_exist() -> Result<(), TestError> {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_id = 1;
             let faction_endpoint = test.with_faction_endpoint(faction_id, 1);
 
@@ -245,7 +245,7 @@ mod tests {
         /// Expect Error when required database tables for factions are missing
         #[tokio::test]
         async fn returns_error_when_required_tables_are_missing() -> Result<(), TestError> {
-            let test = test_setup!()?;
+            let test = test_setup_with_tables!()?;
 
             let faction_id = 1;
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
@@ -259,7 +259,7 @@ mod tests {
         /// Expect Error when ESI endpoint for factions is not available
         #[tokio::test]
         async fn returns_error_when_esi_endpoint_is_unavailable() -> Result<(), TestError> {
-            let test = test_setup!(entity::prelude::EveFaction)?;
+            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
             let faction_id = 1;
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
@@ -273,7 +273,7 @@ mod tests {
         /// Expect Error if ESI endpoint does not return the required faction
         #[tokio::test]
         async fn returns_error_when_endpoint_doesnt_have_faction() -> Result<(), TestError> {
-            let mut test = test_setup!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_endpoint = test.with_faction_endpoint(1, 1);
 
             let faction_id = 2;
