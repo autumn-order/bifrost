@@ -154,70 +154,36 @@ impl<'a> UserCharacterService<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
 
-    use crate::server::util::test::setup::{test_setup, TestSetup};
-
-    async fn test_setup_module() -> Result<TestSetup, DbErr> {
-        let test = test_setup().await;
-        let db = &test.state.db;
-
-        let schema = Schema::new(DbBackend::Sqlite);
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-            schema.create_table_from_entity(entity::prelude::EveCorporation),
-            schema.create_table_from_entity(entity::prelude::EveCharacter),
-            schema.create_table_from_entity(entity::prelude::BifrostUser),
-            schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        Ok(test)
-    }
-
-    mod link_character_tests {
+    mod link_character {
+        use bifrost_test_utils::prelude::*;
         use eve_esi::model::oauth2::EveJwtClaims;
 
         use crate::server::{
-            data::user::{user_character::UserCharacterRepository, UserRepository},
-            error::Error,
-            service::user::user_character::{tests::test_setup_module, UserCharacterService},
-            util::test::setup::{
-                test_setup_create_character, test_setup_create_character_endpoints,
-                test_setup_create_corporation, test_setup_create_user_with_character,
-            },
+            data::user::user_character::UserCharacterRepository, error::Error,
+            service::user::user_character::UserCharacterService,
         };
 
         /// Expect no link created when finding character owned by provided user ID
         #[tokio::test]
-        async fn test_link_character_owned_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn test_link_character_owned_success() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let character_ownership =
-                test_setup_create_user_with_character(&test, character).await?;
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
+            claims.owner = user_character_model.owner_hash;
 
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
-            claims.owner = "test_owner_hash".to_string();
-
             let result = user_character_service
-                .link_character(character_ownership.user_id, claims)
+                .link_character(user_model.id, claims)
                 .await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
-
             assert!(!link_created);
 
             Ok(())
@@ -225,172 +191,154 @@ mod tests {
 
         /// Expect Ok & character transfer if owner hash hasn't changed but user ID is different
         #[tokio::test]
-        async fn test_link_character_owned_different_user_transfer() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn test_link_character_owned_different_user_transfer() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (_, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let new_user_model = test.insert_user(user_character_model.character_id).await?;
 
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let character_main_id = character.id;
-            let _ = test_setup_create_user_with_character(&test, character).await?;
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
+            claims.owner = user_character_model.owner_hash;
 
-            let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
-            claims.owner = "test_owner_hash".to_string();
-
-            let new_user = user_repo.create(character_main_id).await?;
             let result = user_character_service
-                .link_character(new_user.id, claims)
+                .link_character(new_user_model.id, claims)
                 .await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
-
             assert!(link_created);
 
             // Ensure character was actually transferred
             let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+                .get_by_character_id(character_model.character_id)
                 .await?;
             let (_, maybe_ownership) = ownership_entry.unwrap();
             let character_ownership = maybe_ownership.unwrap();
-
-            assert_eq!(character_ownership.user_id, new_user.id);
+            assert_eq!(character_ownership.user_id, new_user_model.id);
 
             Ok(())
         }
 
         /// Expect Ok & character transfer if ownerhash for character has changed, requiring a new user
         #[tokio::test]
-        async fn test_link_character_owned_transfer_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn test_link_character_owned_transfer_success() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (_, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let new_user_model = test.insert_user(user_character_model.character_id).await?;
 
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let character_main_id = character.id;
-            let _ = test_setup_create_user_with_character(&test, character).await?;
+            let mut claims = EveJwtClaims::mock();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
+            claims.owner = format!("different_{}", user_character_model.owner_hash);
 
-            let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
-            claims.owner = "different_owner_hash".to_string();
-
-            let new_user = user_repo.create(character_main_id).await?;
             let result = user_character_service
-                .link_character(new_user.id, claims)
+                .link_character(new_user_model.id, claims)
                 .await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
-
             assert!(link_created);
 
             // Ensure character was actually transferred
             let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+                .get_by_character_id(character_model.character_id)
                 .await?;
             let (_, maybe_ownership) = ownership_entry.unwrap();
             let character_ownership = maybe_ownership.unwrap();
-
-            assert_eq!(character_ownership.user_id, new_user.id);
+            assert_eq!(character_ownership.user_id, new_user_model.id);
 
             Ok(())
         }
 
         /// Expect link created when character is created but not owned and linked to provided user ID
         #[tokio::test]
-        async fn test_link_character_not_owned_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-
-            let user_repo = UserRepository::new(&test.state.db);
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+        async fn test_link_character_not_owned_success() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            // Character is set as main but there isn't actually an ownership record set
+            let user_model = test.insert_user(character_model.id).await?;
 
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
-            // Note: character is set as main character for user but they aren't actually set as owned
-            let user = user_repo.create(character.id).await?;
-            let result = user_character_service.link_character(user.id, claims).await;
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_service =
+                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = user_character_service
+                .link_character(user_model.id, claims)
+                .await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
-
             assert!(link_created);
+
+            // Ensure character was actually linked
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_model.character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+            assert_eq!(character_ownership.user_id, user_model.id);
 
             Ok(())
         }
 
         /// Expect link created when creating a new character and linking to provided user ID
         #[tokio::test]
-        async fn test_link_character_create_character_success() -> Result<(), Error> {
-            let mut test = test_setup_module().await?;
-            let (mock_character_endpoint, mock_corporation_endpoint) =
-                test_setup_create_character_endpoints(&mut test).await;
-
-            let user_repo = UserRepository::new(&test.state.db);
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+        async fn test_link_character_create_character_success() -> Result<(), TestError> {
+            let mut test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let second_character_id = 2;
+            let endpoints = test.with_character_endpoint(second_character_id, 2, None, None, 1);
 
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", second_character_id);
 
-            // Add existing character to represent user's main character
-            let character_id = 2;
-            let corporation_id = 2;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-
-            let user = user_repo.create(character.id).await?;
-            let result = user_character_service.link_character(user.id, claims).await;
+            let user_character_service =
+                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = user_character_service
+                .link_character(user_model.id, claims)
+                .await;
 
             assert!(result.is_ok());
             let link_created = result.unwrap();
-
             assert!(link_created);
 
             // Assert 1 request was made to each mock endpoint
-            mock_corporation_endpoint.assert();
-            mock_character_endpoint.assert();
+            for endpoint in endpoints {
+                endpoint.assert()
+            }
 
             Ok(())
         }
 
         /// Expect database Error when user ID provided does not exist in database
         #[tokio::test]
-        async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let _ = test_setup_create_character(&test, character_id, corporation).await?;
-
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+        async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
-            let user_id = 1;
-            let result = user_character_service.link_character(user_id, claims).await;
+            let non_existant_id = 1;
+            let user_character_service =
+                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = user_character_service
+                .link_character(non_existant_id, claims)
+                .await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::DbErr(_))));
 
             Ok(())
@@ -398,19 +346,18 @@ mod tests {
 
         /// Expect ESI error when endpoints required to create a character are not available
         #[tokio::test]
-        async fn test_link_character_create_character_esi_error() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn test_link_character_create_character_esi_error() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
 
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
+            let character_id = 1;
             let mut claims = EveJwtClaims::mock();
-            claims.sub = "CHARACTER:EVE:1".to_string();
+            claims.sub = format!("CHARACTER:EVE:{}", character_id);
 
             let user_id = 1;
+            let user_character_service =
+                UserCharacterService::new(&test.state.db, &test.state.esi_client);
             let result = user_character_service.link_character(user_id, claims).await;
 
-            assert!(result.is_err());
             assert!(matches!(result, Err(Error::EsiError(_))));
 
             Ok(())
@@ -418,226 +365,128 @@ mod tests {
     }
 
     mod transfer_character_tests {
+        use bifrost_test_utils::prelude::*;
+
         use crate::server::{
             data::user::{user_character::UserCharacterRepository, UserRepository},
-            error::Error,
-            service::user::user_character::{tests::test_setup_module, UserCharacterService},
-            util::test::setup::{
-                test_setup_create_character, test_setup_create_corporation,
-                test_setup_create_user_with_character,
-            },
+            service::user::user_character::UserCharacterService,
         };
 
         /// Expect Ok with user deletion when last character is transferred
         #[tokio::test]
-        async fn test_transfer_character_with_deletion_success() -> Result<(), Error> {
-            let test = test_setup_module().await?;
+        async fn test_transfer_character_with_deletion_success() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (_, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            // Character is set as main but there isn't actually an ownership record set so it will transfer
+            let new_user_model = test.insert_user(character_model.id).await?;
 
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let character_main_id = character.id;
-            let character_ownership =
-                test_setup_create_user_with_character(&test, character).await?;
-
-            let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            // We'll add character as main just to satisfy the foreign key relation, doesn't matter for this test
-            let new_user = user_repo.create(character_main_id).await?;
             let result = user_character_service
-                .transfer_character(character_ownership, new_user.id)
+                .transfer_character(user_character_model, new_user_model.id)
                 .await;
 
             assert!(result.is_ok());
             let previous_user_deleted = result.unwrap();
-
             assert!(previous_user_deleted);
 
             // Ensure character was actually transferred
             let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+                .get_by_character_id(character_model.character_id)
                 .await?;
             let (_, maybe_ownership) = ownership_entry.unwrap();
             let character_ownership = maybe_ownership.unwrap();
-
-            assert_eq!(character_ownership.user_id, new_user.id);
+            assert_eq!(character_ownership.user_id, new_user_model.id);
 
             Ok(())
         }
 
         /// Expect Ok with no user deletion when character is transferred from user with multiple characters
+        /// - No main change
         #[tokio::test]
-        async fn transfer_character_without_deletion() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character =
-                test_setup_create_character(&test, character_id, corporation.clone()).await?;
-            let character_ownership =
-                test_setup_create_user_with_character(&test, character).await?;
+        async fn transfer_character_without_deletion() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let (second_user_character_model, character_model) = test
+                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
+                .await?;
+            // Character is set as main but there isn't actually an ownership record set so it will transfer
+            let new_user_model = test.insert_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            // Get old user for later main character transfer check
-            let (old_user, _) = user_repo.get(character_ownership.user_id).await?.unwrap();
-
-            // Add an additional character to the old user so they don't get deleted
-            let second_character_id = 2;
-            let second_character =
-                test_setup_create_character(&test, second_character_id, corporation).await?;
-            let _ = user_character_repo
-                .create(
-                    character_ownership.user_id,
-                    second_character.id,
-                    "owner_hash".to_string(),
-                )
-                .await?;
-
-            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
-            let new_user = user_repo.create(second_character.id).await?;
             let result = user_character_service
-                .transfer_character(character_ownership, new_user.id)
+                .transfer_character(second_user_character_model, new_user_model.id)
                 .await;
 
             assert!(result.is_ok());
             let previous_user_deleted = result.unwrap();
-
             assert!(!previous_user_deleted);
 
             // Ensure character was actually transferred
             let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+                .get_by_character_id(character_model.character_id)
                 .await?;
             let (_, maybe_ownership) = ownership_entry.unwrap();
             let character_ownership = maybe_ownership.unwrap();
+            assert_eq!(character_ownership.user_id, new_user_model.id);
 
-            assert_eq!(character_ownership.user_id, new_user.id);
-
-            // Ensure main character was changed since it was transferred
-            let (updated_old_user, _) = user_repo.get(character_ownership.user_id).await?.unwrap();
-            assert_ne!(
-                old_user.main_character_id,
-                updated_old_user.main_character_id
-            );
-
-            Ok(())
-        }
-
-        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
-        #[tokio::test]
-        async fn transfer_character_with_change_main() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let main_character =
-                test_setup_create_character(&test, character_id, corporation.clone()).await?;
-            let main_character_ownership =
-                test_setup_create_user_with_character(&test, main_character).await?;
-
-            let user_repo = UserRepository::new(&test.state.db);
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            // Get old user for later main character transfer check
-            let (old_user, _) = user_repo
-                .get(main_character_ownership.user_id)
-                .await?
-                .unwrap();
-
-            // Add an additional character to the old user so they don't get deleted
-            let second_character_id = 2;
-            let second_character =
-                test_setup_create_character(&test, second_character_id, corporation).await?;
-            let second_character_ownership = user_character_repo
-                .create(
-                    main_character_ownership.user_id,
-                    second_character.id,
-                    "owner_hash".to_string(),
-                )
-                .await?;
-
-            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
-            let new_user = user_repo.create(second_character.id).await?;
-            let _ = user_character_service
-                .transfer_character(main_character_ownership, new_user.id)
-                .await?;
-
-            // Ensure main character was changed since it was transferred
-            let (updated_old_user, _) = user_repo
-                .get(second_character_ownership.user_id)
-                .await?
-                .unwrap();
-
-            assert_ne!(
-                old_user.main_character_id,
-                updated_old_user.main_character_id
-            );
-
-            Ok(())
-        }
-
-        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
-        #[tokio::test]
-        async fn transfer_character_without_change_main() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let main_character =
-                test_setup_create_character(&test, character_id, corporation.clone()).await?;
-            let main_character_ownership =
-                test_setup_create_user_with_character(&test, main_character).await?;
-
-            let user_repo = UserRepository::new(&test.state.db);
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let user_character_service =
-                UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            // Get old user for later main character transfer check
-            let (old_user, _) = user_repo
-                .get(main_character_ownership.user_id)
-                .await?
-                .unwrap();
-
-            // Add an additional character to the old user so they don't get deleted
-            let second_character_id = 2;
-            let second_character =
-                test_setup_create_character(&test, second_character_id, corporation).await?;
-            let second_character_ownership = user_character_repo
-                .create(
-                    main_character_ownership.user_id,
-                    second_character.id,
-                    "owner_hash".to_string(),
-                )
-                .await?;
-
-            // We'll add second character as main just to satisfy the foreign key relation, doesn't matter for this test
-            let new_user = user_repo.create(second_character.id).await?;
-            let _ = user_character_service
-                .transfer_character(second_character_ownership, new_user.id)
-                .await?;
-
-            // Ensure main character was not changed since the main itself wasn't transferred
-            let (updated_old_user, _) = user_repo
-                .get(main_character_ownership.user_id)
-                .await?
-                .unwrap();
+            // Ensure main character was not changed since it wasn't transferred
+            let (updated_user_model, _) = user_repo.get(user_model.id).await?.unwrap();
             assert_eq!(
-                old_user.main_character_id,
-                updated_old_user.main_character_id
+                user_model.main_character_id,
+                updated_user_model.main_character_id
+            );
+
+            Ok(())
+        }
+
+        /// Expect Ok with no user deletion when character is transferred from user with multiple characters
+        /// - change main
+        #[tokio::test]
+        async fn transfer_character_with_change_main() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, main_user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let (_, _) = test
+                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
+                .await?;
+            // Character is set as main but there isn't actually an ownership record set so it will transfer
+            let new_user_model = test.insert_user(character_model.id).await?;
+
+            let user_repo = UserRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_service =
+                UserCharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = user_character_service
+                .transfer_character(main_user_character_model, new_user_model.id)
+                .await;
+
+            assert!(result.is_ok());
+            let previous_user_deleted = result.unwrap();
+            assert!(!previous_user_deleted);
+
+            // Ensure character was actually transferred
+            let ownership_entry = user_character_repo
+                .get_by_character_id(character_model.character_id)
+                .await?;
+            let (_, maybe_ownership) = ownership_entry.unwrap();
+            let character_ownership = maybe_ownership.unwrap();
+            assert_eq!(character_ownership.user_id, new_user_model.id);
+
+            // Ensure main character was changed since it was transferred
+            let (updated_user_model, _) = user_repo.get(user_model.id).await?.unwrap();
+            assert_ne!(
+                user_model.main_character_id,
+                updated_user_model.main_character_id
             );
 
             Ok(())
@@ -645,37 +494,30 @@ mod tests {
 
         /// Expect Error transferring character to user that does not exist
         #[tokio::test]
-        async fn test_transfer_character_error() -> Result<(), Error> {
-            let test = test_setup_module().await?;
-
-            let character_id = 1;
-            let corporation_id = 1;
-            let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-            let character = test_setup_create_character(&test, character_id, corporation).await?;
-            let character_ownership =
-                test_setup_create_user_with_character(&test, character).await?;
+        async fn test_transfer_character_error() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, user_character_model, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
-
-            let non_existant_user_id = 2;
             let result = user_character_service
-                .transfer_character(character_ownership.clone(), non_existant_user_id)
+                .transfer_character(user_character_model.clone(), user_model.id + 1)
                 .await;
 
             assert!(result.is_err());
 
             // Ensure character was not transferred
             let ownership_entry = user_character_repo
-                .get_by_character_id(character_id)
+                .get_by_character_id(character_model.character_id)
                 .await?;
             let (_, maybe_ownership) = ownership_entry.unwrap();
             let latest_character_ownership = maybe_ownership.unwrap();
-
             assert_eq!(
                 latest_character_ownership.user_id,
-                character_ownership.user_id
+                user_character_model.user_id
             );
 
             Ok(())
