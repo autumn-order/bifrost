@@ -124,74 +124,23 @@ impl<'a> UserCharacterRepository<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Schema};
 
-    use crate::server::{
-        data::eve::{character::CharacterRepository, corporation::CorporationRepository},
-        util::test::{
-            eve::mock::{mock_character, mock_corporation},
-            setup::test_setup,
-        },
-    };
-
-    async fn setup() -> Result<(DatabaseConnection, entity::eve_character::Model), DbErr> {
-        let test = test_setup().await;
-        let db = test.state.db;
-
-        let character_repository = CharacterRepository::new(&db);
-        let corporation_repository = CorporationRepository::new(&db);
-
-        let schema = Schema::new(DbBackend::Sqlite);
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-            schema.create_table_from_entity(entity::prelude::EveCorporation),
-            schema.create_table_from_entity(entity::prelude::EveCharacter),
-            schema.create_table_from_entity(entity::prelude::BifrostUser),
-            schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        // Insert mock character & corporation required for tests
-        let faction_id = None;
-        let alliance_id = None;
-        let corporation_id = 1;
-        let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-        let character_id = 1;
-        let mock_character = mock_character(corporation_id, alliance_id, faction_id);
-
-        let corporation = corporation_repository
-            .create(corporation_id, mock_corporation, None, None)
-            .await?;
-        let character = character_repository
-            .create(character_id, mock_character, corporation.id, None)
-            .await?;
-
-        Ok((db, character))
-    }
-
-    mod create_tests {
+    mod create {
+        use bifrost_test_utils::prelude::*;
         use sea_orm::{DbErr, RuntimeErr};
 
-        use crate::server::data::user::{
-            user_character::{tests::setup, UserCharacterRepository},
-            UserRepository,
-        };
+        use crate::server::data::user::user_character::UserCharacterRepository;
 
         /// Expect success when creating user character linked to existing user and character
         #[tokio::test]
-        async fn test_create_user_character_success() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_create_user_character_success() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let user_model = test.insert_user(character_model.id).await?;
 
-            let user = user_repository.create(character.id).await?;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .create(user.id, character.id, "owner hash".to_string())
+                .create(user_model.id, character_model.id, "owner_hash".to_string())
                 .await;
 
             assert!(result.is_ok());
@@ -201,18 +150,18 @@ mod tests {
 
         /// Expect error when creating user character linked to missing user
         #[tokio::test]
-        async fn test_create_user_character_missing_user() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_create_user_character_missing_user() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
             // Don't create a user first, this will cause a foreign key error
             let user_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .create(user_id, character.id, "owner hash".to_string())
+                .create(user_id, character_model.id, "owner_hash".to_string())
                 .await;
 
-            assert!(result.is_err());
-
+            // Assert error code is 787 indicating a foreign key constraint error
             assert!(matches!(
                 result,
                 Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
@@ -226,18 +175,20 @@ mod tests {
 
         /// Expect error when creating user character linked to missing character
         #[tokio::test]
-        async fn test_create_user_character_missing_character() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_create_user_character_missing_character() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let user_model = test.insert_user(character_model.id).await?;
 
             // Increment character ID to one that does not exist, causing a foreign key error
-            let user = user_repository.create(character.id).await?;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .create(user.id, character.id + 1, "owner hash".to_string())
+                .create(
+                    user_model.id,
+                    character_model.id + 1,
+                    "owner hash".to_string(),
+                )
                 .await;
-
-            assert!(result.is_err());
 
             // Assert error code is 787 indicating a foreign key constraint error
             assert!(matches!(
@@ -252,39 +203,28 @@ mod tests {
         }
     }
 
-    mod get_by_character_id_tests {
-        use sea_orm::{DbErr, EntityTrait};
+    mod get_by_character_id {
+        use bifrost_test_utils::prelude::*;
 
-        use crate::server::{
-            data::user::{
-                user_character::{tests::setup, UserCharacterRepository},
-                UserRepository,
-            },
-            util::test::setup::test_setup,
-        };
+        use crate::server::data::user::user_character::UserCharacterRepository;
 
         // Expect Some when character & character ownership entry is found
         #[tokio::test]
-        async fn test_get_by_character_id_some_character_ownership() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-
-            let user = user_repository.create(character.id).await?;
-            let _ = user_character_repository
-                .create(user.id, character.id, "owner hash".to_string())
+        async fn test_get_by_character_id_some_character_ownership() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (_, _, character_model) = test
+                .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character.character_id)
+                .get_by_character_id(character_model.character_id)
                 .await;
 
             assert!(result.is_ok());
             let maybe_character = result.unwrap();
-
             assert!(maybe_character.is_some());
             let (_, maybe_owner) = maybe_character.unwrap();
-
             assert!(maybe_owner.is_some());
 
             Ok(())
@@ -292,20 +232,19 @@ mod tests {
 
         // Expect Some when character entry is found but no character ownership entry
         #[tokio::test]
-        async fn test_get_by_character_id_some_character() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_get_by_character_id_some_character() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
 
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character.character_id)
+                .get_by_character_id(character_model.character_id)
                 .await;
 
             assert!(result.is_ok());
             let maybe_character = result.unwrap();
-
             assert!(maybe_character.is_some());
             let (_, maybe_owner) = maybe_character.unwrap();
-
             assert!(maybe_owner.is_none());
 
             Ok(())
@@ -313,22 +252,17 @@ mod tests {
 
         // Expect None when character is not found
         #[tokio::test]
-        async fn test_get_by_character_id_none_character() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_get_by_character_id_none_character() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
 
-            // Delete the character entry first
-            entity::prelude::EveCharacter::delete_by_id(character.id)
-                .exec(&db)
-                .await?;
-
+            let non_existant_character_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character.character_id)
+                .get_by_character_id(non_existant_character_id)
                 .await;
 
             assert!(result.is_ok());
             let maybe_character = result.unwrap();
-
             assert!(maybe_character.is_none());
 
             Ok(())
@@ -336,12 +270,12 @@ mod tests {
 
         // Expect Error when required database tables are not present
         #[tokio::test]
-        async fn test_get_by_character_id_error() -> Result<(), DbErr> {
+        async fn test_get_by_character_id_error() -> Result<(), TestError> {
             // Use test setup that does not create required tables, causing a database error
-            let test = test_setup().await;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let test = test_setup_with_tables!()?;
 
             let character_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
                 .get_by_character_id(character_id)
                 .await;
@@ -353,50 +287,26 @@ mod tests {
     }
 
     mod get_many_by_user_id {
-        use sea_orm::DbErr;
+        use bifrost_test_utils::prelude::*;
 
-        use crate::server::{
-            data::{
-                eve::character::CharacterRepository,
-                user::{
-                    user_character::{tests::setup, UserCharacterRepository},
-                    UserRepository,
-                },
-            },
-            util::test::{eve::mock::mock_character, setup::test_setup},
-        };
+        use crate::server::data::user::user_character::UserCharacterRepository;
 
         /// Expect Ok with 2 owned character entries
         #[tokio::test]
-        async fn test_get_many_by_user_id_multiple() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-            let character_repository = CharacterRepository::new(&db);
-
-            let user = user_repository.create(character.id).await?;
-            let _ = user_character_repository
-                .create(user.id, character.id, "owner hash".to_string())
+        async fn test_get_many_by_user_id_multiple() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let (_, _) = test
+                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
                 .await?;
 
-            // Create an additional mock character
-            let character_id = 2;
-            let corporation_id = 1; // Use existing corporation from setup()
-            let alliance_id = None;
-            let faction_id = None;
-            let second_character = mock_character(corporation_id, alliance_id, faction_id);
-            let character = character_repository
-                .create(character_id, second_character, 1, None)
-                .await?;
-            let _ = user_character_repository
-                .create(user.id, character.id, "owner hash".to_string())
-                .await?;
-
-            let result = user_character_repository.get_many_by_user_id(user.id).await;
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
-
             assert_eq!(ownership_entries.len(), 2);
 
             Ok(())
@@ -404,21 +314,17 @@ mod tests {
 
         /// Expect Ok with only 1 owned character entry
         #[tokio::test]
-        async fn test_get_many_by_user_id_single() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-
-            let user = user_repository.create(character.id).await?;
-            let _ = user_character_repository
-                .create(user.id, character.id, "owner hash".to_string())
+        async fn test_get_many_by_user_id_single() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
-            let result = user_character_repository.get_many_by_user_id(user.id).await;
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
-
             assert_eq!(ownership_entries.len(), 1);
 
             Ok(())
@@ -426,20 +332,17 @@ mod tests {
 
         /// Expect Ok with empty Vec due to no owned characters
         #[tokio::test]
-        async fn test_get_many_by_user_id_empty() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_get_many_by_user_id_empty() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            // Character is set as main but it is not actually owned due to no ownership entry
+            let user_model = test.insert_user(character_model.id).await?;
 
-            let user = user_repository.create(character.id).await?;
-
-            // Assign no ownerships to character, result will be empty
-
-            let result = user_character_repository.get_many_by_user_id(user.id).await;
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
-
             assert!(ownership_entries.is_empty());
 
             Ok(())
@@ -447,12 +350,12 @@ mod tests {
 
         /// Expect database error when required tables aren't present
         #[tokio::test]
-        async fn test_get_many_by_user_id_error() -> Result<(), DbErr> {
+        async fn test_get_many_by_user_id_error() -> Result<(), TestError> {
             // Use test setup that doesn't create required tables, causing an error
-            let test = test_setup().await;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let test = test_setup_with_tables!()?;
 
             let user_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository.get_many_by_user_id(user_id).await;
 
             assert!(result.is_err());
@@ -462,30 +365,21 @@ mod tests {
     }
 
     mod get_owned_characters_by_user_id {
-        use sea_orm::DbErr;
+        use bifrost_test_utils::prelude::*;
 
-        use crate::server::{
-            data::user::{
-                user_character::{tests::setup, UserCharacterRepository},
-                UserRepository,
-            },
-            util::test::setup::test_setup,
-        };
+        use crate::server::data::user::user_character::UserCharacterRepository;
 
         /// Expect Ok with Vec length of 1 when requesting valid user ID
         #[tokio::test]
-        async fn returns_owned_characters_for_user() -> Result<(), DbErr> {
-            let (db, character_model) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-
-            let user = user_repository.create(character_model.id).await?;
-            let _ = user_character_repository
-                .create(user.id, character_model.id, "owner_hash".to_string())
+        async fn returns_owned_characters_for_user() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
-            let result = user_character_repository
-                .get_owned_characters_by_user_id(user.id)
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
+                .get_owned_characters_by_user_id(user_model.id)
                 .await;
 
             assert!(result.is_ok());
@@ -497,11 +391,11 @@ mod tests {
 
         /// Expect Ok with empty Vec when requesting a non existant user ID
         #[tokio::test]
-        async fn returns_empty_for_nonexistent_user() -> Result<(), DbErr> {
-            let (db, _) = setup().await?;
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
 
             let non_existant_user_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
                 .get_owned_characters_by_user_id(non_existant_user_id)
                 .await;
@@ -515,13 +409,13 @@ mod tests {
 
         /// Expect Error when required database tables do not exist
         #[tokio::test]
-        async fn error_when_tables_missing() -> Result<(), DbErr> {
+        async fn error_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't setup required tables, causing a database error
-            let test = test_setup().await;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let test = test_setup_with_tables!()?;
 
             let non_existant_user_id = 1;
-            let result = user_character_repository
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
                 .get_owned_characters_by_user_id(non_existant_user_id)
                 .await;
 
@@ -531,34 +425,30 @@ mod tests {
         }
     }
 
-    mod update_tests {
+    mod update {
+        use bifrost_test_utils::prelude::*;
         use sea_orm::{DbErr, RuntimeErr};
 
-        use crate::server::data::user::{
-            user_character::{tests::setup, UserCharacterRepository},
-            UserRepository,
-        };
+        use crate::server::data::user::user_character::UserCharacterRepository;
 
         /// Expect Some when user character update is successful
         #[tokio::test]
-        async fn test_update_user_character_some() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-
-            let old_user = user_repository.create(character.id).await?;
-            let user_character_entry = user_character_repository
-                .create(old_user.id, character.id, "owner hash".to_string())
+        async fn test_update_user_character_some() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (_, user_one_character_model, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
+                .await?;
+            let (user_two_model, _, _) = test
+                .insert_mock_user_with_character(2, 1, None, None)
                 .await?;
 
-            let new_user = user_repository.create(character.id).await?;
-            let result = user_character_repository
-                .update(user_character_entry.id, new_user.id)
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
+                .update(user_one_character_model.id, user_two_model.id)
                 .await;
 
             assert!(result.is_ok());
             let result_option = result.unwrap();
-
             assert!(result_option.is_some());
 
             Ok(())
@@ -566,22 +456,20 @@ mod tests {
 
         /// Expect None when user character entry is not found
         #[tokio::test]
-        async fn test_update_user_character_none() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
+        async fn test_update_user_character_none() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            // Set character ID as main but don't actually set any ownership records
+            let user_model = test.insert_user(character_model.id).await?;
 
-            // Try to update entry ID that doesn't exist
-            // - Note: User has a main character set but no table doesn't actually show they own them
-            let user_character_entry_id = 1;
-            let new_user = user_repository.create(character.id).await?;
-            let result = user_character_repository
-                .update(user_character_entry_id, new_user.id)
+            let non_existant_id = 1;
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
+                .update(non_existant_id, user_model.id)
                 .await;
 
             assert!(result.is_ok());
             let result_option = result.unwrap();
-
             assert!(result_option.is_none());
 
             Ok(())
@@ -589,23 +477,17 @@ mod tests {
 
         /// Expect Error when updating user character entry to user that doesn't exist
         #[tokio::test]
-        async fn test_update_user_character_error() -> Result<(), DbErr> {
-            let (db, character) = setup().await?;
-            let user_repository = UserRepository::new(&db);
-            let user_character_repository = UserCharacterRepository::new(&db);
-
-            let old_user = user_repository.create(character.id).await?;
-            let user_character_entry = user_character_repository
-                .create(old_user.id, character.id, "owner hash".to_string())
+        async fn test_update_user_character_error() -> Result<(), TestError> {
+            let test = test_setup_with_user_tables!()?;
+            let (user_model, user_character_model, _) = test
+                .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
             // Try to update entry to new_user_id that doesn't exist
-            let new_user_id = old_user.id + 1;
+            let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .update(user_character_entry.id, new_user_id)
+                .update(user_character_model.id, user_model.id + 1)
                 .await;
-
-            assert!(result.is_err());
 
             // Assert error code is 787 indicating a foreign key constraint error
             assert!(matches!(
