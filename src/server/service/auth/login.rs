@@ -27,38 +27,38 @@ pub fn login_service(
 
 #[cfg(test)]
 pub mod tests {
-    use crate::server::{
-        error::Error,
-        service::auth::login::login_service,
-        util::test::setup::{test_setup, TEST_USER_AGENT},
-    };
+    use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
+
+    use crate::server::{error::Error, service::auth::login::login_service};
 
     /// Test successful login
     #[tokio::test]
-    async fn test_login_service() {
-        let test = test_setup().await;
+    async fn test_login_service() -> Result<(), TestError> {
+        let test = test_setup_with_tables!()?;
 
         let scopes = vec![];
         let result = login_service(&test.state.esi_client, scopes);
 
-        assert!(result.is_ok())
+        assert!(result.is_ok());
+
+        Ok(())
     }
 
     /// Test server error when OAuth2 for ESI client is not configured
     #[test]
-    fn test_login_server_error() {
+    fn test_login_server_error() -> Result<(), TestError> {
         let esi_client = eve_esi::Client::new(TEST_USER_AGENT).expect("Failed to build ESI client");
 
         let scopes = vec![];
         let result = login_service(&esi_client, scopes);
-
-        assert!(result.is_err());
 
         assert!(matches!(
             result,
             Err(Error::EsiError(eve_esi::Error::OAuthError(
                 eve_esi::OAuthError::OAuth2NotConfigured
             )))
-        ))
+        ));
+
+        Ok(())
     }
 }
