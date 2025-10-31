@@ -86,7 +86,9 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -110,7 +112,9 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), None, 1);
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, Some(1), None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -134,7 +138,9 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let endpoints = test.with_corporation_endpoint(corporation_id, None, Some(1), 1);
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, None, Some(1), 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -159,7 +165,9 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let endpoints = test.with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
+            let endpoints =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -206,7 +214,9 @@ mod tests {
                 .eve()
                 .insert_mock_corporation(corporation_id, None, None)
                 .await?;
-            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -257,7 +267,9 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_id = 1;
-            let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, None, None, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);

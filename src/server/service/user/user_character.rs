@@ -310,7 +310,9 @@ mod tests {
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             let second_character_id = 2;
-            let endpoints = test.with_character_endpoint(second_character_id, 2, None, None, 1);
+            let endpoints =
+                test.eve()
+                    .with_character_endpoint(second_character_id, 2, None, None, 1);
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", second_character_id);

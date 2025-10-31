@@ -1,12 +1,13 @@
 use mockito::Mock;
 
-use crate::TestSetup;
+use crate::fixtures::eve::EveFixtures;
 
-impl TestSetup {
+impl<'a> EveFixtures<'a> {
     pub fn with_faction_endpoint(&mut self, faction_id: i64, expected_requests: usize) -> Mock {
-        let faction = self.eve().with_mock_faction(faction_id);
+        let faction = self.with_mock_faction(faction_id);
 
-        self.server
+        self.setup
+            .server
             .mock("GET", "/universe/factions")
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -21,7 +22,7 @@ impl TestSetup {
         faction_id: Option<i64>,
         expected_requests: usize,
     ) -> Vec<Mock> {
-        let (_, alliance) = self.eve().with_mock_alliance(alliance_id, faction_id);
+        let (_, alliance) = self.with_mock_alliance(alliance_id, faction_id);
         let url = format!("/alliances/{}", alliance_id);
 
         let mut endpoints = Vec::new();
@@ -31,7 +32,8 @@ impl TestSetup {
         }
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")
@@ -50,9 +52,7 @@ impl TestSetup {
         faction_id: Option<i64>,
         expected_requests: usize,
     ) -> Vec<Mock> {
-        let (_, corporation) =
-            self.eve()
-                .with_mock_corporation(corporation_id, alliance_id, faction_id);
+        let (_, corporation) = self.with_mock_corporation(corporation_id, alliance_id, faction_id);
         let url = format!("/corporations/{}", corporation_id);
 
         let mut endpoints = Vec::new();
@@ -66,7 +66,8 @@ impl TestSetup {
         }
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")
@@ -87,8 +88,7 @@ impl TestSetup {
         expected_requests: usize,
     ) -> Vec<Mock> {
         let (_, character) =
-            self.eve()
-                .with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
         let url = format!("/characters/{}", character_id);
 
         let mut endpoints = Vec::new();
@@ -105,7 +105,8 @@ impl TestSetup {
         ));
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")

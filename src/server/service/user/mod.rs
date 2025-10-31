@@ -214,7 +214,9 @@ mod tests {
         async fn get_or_create_user_ok_created() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_id = 1;
-            let character_endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
+            let character_endpoints =
+                test.eve()
+                    .with_character_endpoint(character_id, 1, None, None, 1);
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
