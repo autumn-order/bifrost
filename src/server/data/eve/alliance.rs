@@ -60,11 +60,12 @@ mod tests {
         /// Expect Ok when creating alliance entry with a related faction
         #[tokio::test]
         async fn returns_success_creating_alliance_with_faction_id() -> Result<(), TestError> {
-            let test =
+            let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction_model = test.insert_mock_faction(1).await?;
-            let (alliance_id, alliance) =
-                test.with_mock_alliance(1, Some(faction_model.faction_id));
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
 
@@ -75,8 +76,9 @@ mod tests {
             assert!(result.is_ok());
             let created = result.unwrap();
 
-            let (alliance_id, alliance) =
-                test.with_mock_alliance(1, Some(faction_model.faction_id));
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
             assert_eq!(created.alliance_id, alliance_id);
             assert_eq!(created.name, alliance.name);
             assert_eq!(created.faction_id, Some(faction_model.id));
@@ -87,9 +89,9 @@ mod tests {
         /// Expect Ok when creating alliance entry without faction ID
         #[tokio::test]
         async fn returns_success_creating_alliance_without_faction() -> Result<(), TestError> {
-            let test =
+            let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, alliance) = test.with_mock_alliance(1, None);
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
 
@@ -111,9 +113,9 @@ mod tests {
         /// Expect Some when getting existing alliance from table
         #[tokio::test]
         async fn returns_some_with_existing_alliance() -> Result<(), TestError> {
-            let test =
+            let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_model = test.insert_mock_alliance(1, None).await?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
 

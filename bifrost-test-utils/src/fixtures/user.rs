@@ -4,6 +4,16 @@ use sea_orm::{ActiveValue, EntityTrait};
 use crate::{error::TestError, TestSetup};
 
 impl TestSetup {
+    pub fn user<'a>(&'a mut self) -> UserFixtures<'a> {
+        UserFixtures { setup: self }
+    }
+}
+
+pub struct UserFixtures<'a> {
+    setup: &'a mut TestSetup,
+}
+
+impl<'a> UserFixtures<'a> {
     pub async fn insert_user(
         &self,
         character_id: i32,
@@ -14,7 +24,7 @@ impl TestSetup {
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.state.db)
+            .exec_with_returning(&self.setup.state.db)
             .await?,
         )
     }
@@ -34,12 +44,12 @@ impl TestSetup {
                 ..Default::default()
             },
         )
-        .exec_with_returning(&self.state.db)
+        .exec_with_returning(&self.setup.state.db)
         .await?)
     }
 
     pub async fn insert_mock_user_with_character(
-        &self,
+        &mut self,
         character_id: i64,
         corporation_id: i64,
         alliance_id: Option<i64>,
@@ -53,6 +63,8 @@ impl TestSetup {
         TestError,
     > {
         let character_model = self
+            .setup
+            .eve()
             .insert_mock_character(character_id, corporation_id, alliance_id, faction_id)
             .await?;
 
@@ -66,7 +78,7 @@ impl TestSetup {
     }
 
     pub async fn insert_mock_character_owned_by_user(
-        &self,
+        &mut self,
         user_id: i32,
         character_id: i64,
         corporation_id: i64,
@@ -80,6 +92,8 @@ impl TestSetup {
         TestError,
     > {
         let character_model = self
+            .setup
+            .eve()
             .insert_mock_character(character_id, corporation_id, alliance_id, faction_id)
             .await?;
 

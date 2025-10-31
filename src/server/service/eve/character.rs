@@ -84,7 +84,9 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let character_id = 1;
-            let endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
+            let endpoints = test
+                .eve()
+                .with_character_endpoint(character_id, 1, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
@@ -108,7 +110,9 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let character_id = 1;
-            let endpoints = test.with_character_endpoint(character_id, 1, Some(1), None, 1);
+            let endpoints = test
+                .eve()
+                .with_character_endpoint(character_id, 1, Some(1), None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
@@ -132,7 +136,9 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let character_id = 1;
-            let endpoints = test.with_character_endpoint(character_id, 1, None, Some(1), 1);
+            let endpoints = test
+                .eve()
+                .with_character_endpoint(character_id, 1, None, Some(1), 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
@@ -156,7 +162,9 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let character_id = 1;
-            let endpoints = test.with_character_endpoint(character_id, 1, Some(1), Some(1), 1);
+            let endpoints =
+                test.eve()
+                    .with_character_endpoint(character_id, 1, Some(1), Some(1), 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
@@ -201,10 +209,12 @@ mod tests {
             let corporation_id = 1;
             let character_id = 1;
             let _ = test
+                .eve()
                 .insert_mock_character(character_id, corporation_id, None, None)
                 .await?;
             let endpoints =
-                test.with_character_endpoint(character_id, corporation_id, None, None, 1);
+                test.eve()
+                    .with_character_endpoint(character_id, corporation_id, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
@@ -229,13 +239,13 @@ mod tests {
         /// Expect Ok when character is found in database
         #[tokio::test]
         async fn get_or_create_character_ok_found() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -257,7 +267,9 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
             let character_id = 1;
-            let endpoints = test.with_character_endpoint(character_id, 1, None, None, 1);
+            let endpoints = test
+                .eve()
+                .with_character_endpoint(character_id, 1, None, None, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service

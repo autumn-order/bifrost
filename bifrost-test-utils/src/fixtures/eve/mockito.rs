@@ -1,12 +1,13 @@
 use mockito::Mock;
 
-use crate::TestSetup;
+use crate::fixtures::eve::EveFixtures;
 
-impl TestSetup {
+impl<'a> EveFixtures<'a> {
     pub fn with_faction_endpoint(&mut self, faction_id: i64, expected_requests: usize) -> Mock {
         let faction = self.with_mock_faction(faction_id);
 
-        self.server
+        self.setup
+            .server
             .mock("GET", "/universe/factions")
             .with_status(200)
             .with_header("content-type", "application/json")
@@ -31,7 +32,8 @@ impl TestSetup {
         }
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")
@@ -64,7 +66,8 @@ impl TestSetup {
         }
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")
@@ -102,7 +105,8 @@ impl TestSetup {
         ));
 
         endpoints.push(
-            self.server
+            self.setup
+                .server
                 .mock("GET", url.as_str())
                 .with_status(200)
                 .with_header("content-type", "application/json")

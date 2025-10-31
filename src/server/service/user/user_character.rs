@@ -167,8 +167,9 @@ mod tests {
         /// Expect no link created when finding character owned by provided user ID
         #[tokio::test]
         async fn test_link_character_owned_success() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
@@ -192,11 +193,15 @@ mod tests {
         /// Expect Ok & character transfer if owner hash hasn't changed but user ID is different
         #[tokio::test]
         async fn test_link_character_owned_different_user_transfer() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
-            let new_user_model = test.insert_user(user_character_model.character_id).await?;
+            let new_user_model = test
+                .user()
+                .insert_user(user_character_model.character_id)
+                .await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
@@ -227,11 +232,15 @@ mod tests {
         /// Expect Ok & character transfer if ownerhash for character has changed, requiring a new user
         #[tokio::test]
         async fn test_link_character_owned_transfer_success() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
-            let new_user_model = test.insert_user(user_character_model.character_id).await?;
+            let new_user_model = test
+                .user()
+                .insert_user(user_character_model.character_id)
+                .await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
@@ -262,10 +271,10 @@ mod tests {
         /// Expect link created when character is created but not owned and linked to provided user ID
         #[tokio::test]
         async fn test_link_character_not_owned_success() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Character is set as main but there isn't actually an ownership record set
-            let user_model = test.insert_user(character_model.id).await?;
+            let user_model = test.user().insert_user(character_model.id).await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
@@ -297,10 +306,13 @@ mod tests {
         async fn test_link_character_create_character_success() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             let second_character_id = 2;
-            let endpoints = test.with_character_endpoint(second_character_id, 2, None, None, 1);
+            let endpoints =
+                test.eve()
+                    .with_character_endpoint(second_character_id, 2, None, None, 1);
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", second_character_id);
@@ -326,8 +338,8 @@ mod tests {
         /// Expect database Error when user ID provided does not exist in database
         #[tokio::test]
         async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
@@ -375,12 +387,13 @@ mod tests {
         /// Expect Ok with user deletion when last character is transferred
         #[tokio::test]
         async fn test_transfer_character_with_deletion_success() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
-            let new_user_model = test.insert_user(character_model.id).await?;
+            let new_user_model = test.user().insert_user(character_model.id).await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
             let user_character_service =
@@ -408,15 +421,17 @@ mod tests {
         /// - No main change
         #[tokio::test]
         async fn transfer_character_without_deletion() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             let (second_user_character_model, character_model) = test
+                .user()
                 .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
-            let new_user_model = test.insert_user(character_model.id).await?;
+            let new_user_model = test.user().insert_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
@@ -452,15 +467,17 @@ mod tests {
         /// - change main
         #[tokio::test]
         async fn transfer_character_with_change_main() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, main_user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             let (_, _) = test
+                .user()
                 .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
-            let new_user_model = test.insert_user(character_model.id).await?;
+            let new_user_model = test.user().insert_user(character_model.id).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
@@ -495,8 +512,9 @@ mod tests {
         /// Expect Error transferring character to user that does not exist
         #[tokio::test]
         async fn test_transfer_character_error() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
