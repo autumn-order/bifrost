@@ -77,7 +77,7 @@ impl<'a> UserFixtures<'a> {
         Ok((user_model, user_character_model, character_model))
     }
 
-    pub async fn insert_mock_character_owned_by_user(
+    pub async fn insert_mock_character_for_user(
         &mut self,
         user_id: i32,
         character_id: i64,

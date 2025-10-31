@@ -428,7 +428,7 @@ mod tests {
                 .await?;
             let (second_user_character_model, character_model) = test
                 .user()
-                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
+                .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
             let new_user_model = test.user().insert_user(character_model.id).await?;
@@ -474,7 +474,7 @@ mod tests {
                 .await?;
             let (_, _) = test
                 .user()
-                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
+                .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
             let new_user_model = test.user().insert_user(character_model.id).await?;

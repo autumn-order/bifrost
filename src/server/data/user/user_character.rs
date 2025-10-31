@@ -302,7 +302,7 @@ mod tests {
                 .await?;
             let (_, _) = test
                 .user()
-                .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
+                .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
