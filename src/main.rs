@@ -6,65 +6,59 @@ mod model;
 #[cfg(feature = "server")]
 use tower_sessions::SessionManagerLayer;
 #[cfg(feature = "server")]
-use tower_sessions_redis_store::{fred::prelude::RedisPool, RedisStore};
+use tower_sessions_redis_store::{fred::prelude::Pool, RedisStore};
 
 #[cfg(feature = "server")]
 use bifrost::server;
 #[cfg(feature = "server")]
 use server::error::Error;
 
-#[cfg(not(feature = "server"))]
 fn main() {
+    #[cfg(not(feature = "server"))]
     dioxus::launch(client::App);
-}
 
-#[cfg(feature = "server")]
-#[tokio::main]
-async fn main() {
-    use dioxus::prelude::*;
-    use dioxus_logger::tracing::{info, Level};
+    #[cfg(feature = "server")]
+    dioxus::serve(|| async move {
+        use dioxus_logger::tracing::info;
 
-    use crate::server::{config::Config, model::app::AppState};
+        use crate::server::{config::Config, model::app::AppState};
 
-    dotenvy::dotenv().ok();
+        dotenvy::dotenv().ok();
 
-    let config = Config::from_env().unwrap();
+        let config = Config::from_env().unwrap();
 
-    let user_agent = format!(
-        "{}/{} ({}; +{})",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION"),
-        config.contact_email,
-        env!("CARGO_PKG_REPOSITORY")
-    );
+        let user_agent = format!(
+            "{}/{} ({}; +{})",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION"),
+            config.contact_email,
+            env!("CARGO_PKG_REPOSITORY")
+        );
 
-    let esi_client = build_esi_client(
-        &user_agent,
-        &config.esi_client_id,
-        &config.esi_client_secret,
-        &config.esi_callback_url,
-    )
-    .unwrap();
-    let session = connect_to_session(&config.valkey_url).await.unwrap();
-    let db = connect_to_database(&config.database_url).await.unwrap();
+        let esi_client = build_esi_client(
+            &user_agent,
+            &config.esi_client_id,
+            &config.esi_client_secret,
+            &config.esi_callback_url,
+        )
+        .unwrap();
+        let session = connect_to_session(&config.valkey_url).await.unwrap();
+        let db = connect_to_database(&config.database_url).await.unwrap();
 
-    dioxus_logger::init(Level::INFO).expect("failed to init logger");
-    info!("Starting server");
+        info!("Starting server");
 
-    let state = AppState {
-        db,
-        esi_client: esi_client,
-    };
+        let state = AppState {
+            db,
+            esi_client: esi_client,
+        };
 
-    let router = server::router::routes()
-        .serve_dioxus_application(ServeConfigBuilder::default(), client::App)
-        .with_state(state)
-        .layer(session);
+        let mut router = dioxus::server::router(client::App);
 
-    let router = router.into_make_service();
-    let address = dioxus_cli_config::fullstack_address_or_localhost();
-    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
-    axum::serve(listener, router).await.unwrap();
+        let server = server::router::routes().with_state(state).layer(session);
+        router = router.merge(server);
+
+        Ok(router)
+    })
 }
 
 #[cfg(feature = "server")]
@@ -106,13 +100,13 @@ pub async fn connect_to_database(database_url: &str) -> Result<sea_orm::Database
 #[cfg(feature = "server")]
 pub async fn connect_to_session(
     valkey_url: &str,
-) -> Result<SessionManagerLayer<RedisStore<RedisPool>>, Error> {
+) -> Result<SessionManagerLayer<RedisStore<Pool>>, Error> {
     use time::Duration;
     use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
     use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
 
-    let config = RedisConfig::from_url(&valkey_url)?;
-    let pool = RedisPool::new(config, None, None, None, 6)?;
+    let config = Config::from_url(&valkey_url)?;
+    let pool = Pool::new(config, None, None, None, 6)?;
 
     pool.connect();
     pool.wait_for_connect().await?;

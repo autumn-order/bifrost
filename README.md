@@ -6,7 +6,7 @@
 
 - [BunJS](https://bun.sh/)
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Dioxus](https://dioxuslabs.com/learn/0.6/getting_started/)
+- [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
 - [Docker](https://docs.docker.com/engine/install/)
 
 Install the tailwindcss dependencies with:
@@ -44,11 +44,7 @@ Set the following in `.env`:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-2. Run the following 2 commands in separate terminals:
-
-```bash
-bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch
-```
+1. Start the dioxus application
 
 ```bash
 dx serve

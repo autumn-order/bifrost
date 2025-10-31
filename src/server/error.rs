@@ -5,7 +5,6 @@ use axum::{
 };
 use dioxus_logger::tracing::{debug, error};
 use thiserror::Error;
-use tower_sessions_redis_store::fred::error::RedisError;
 
 use crate::model::api::ErrorDto;
 
@@ -40,7 +39,7 @@ pub enum Error {
     #[error(transparent)]
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
-    SessionRedisError(#[from] RedisError),
+    SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
 }
 
 impl IntoResponse for Error {
