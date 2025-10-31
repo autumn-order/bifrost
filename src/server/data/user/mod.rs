@@ -89,8 +89,8 @@ mod tests {
         /// Expect success when creating a new user
         #[tokio::test]
         async fn returns_success_when_creating_user() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.create(character_model.id).await;
@@ -174,7 +174,7 @@ mod tests {
         #[tokio::test]
         async fn update_user_ok_some_for_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model_two = test.insert_mock_character(2, 1, None, None).await?;
+            let character_model_two = test.eve().insert_mock_character(2, 1, None, None).await?;
             let (user_model, _, _) = test
                 .user()
                 .insert_mock_user_with_character(1, 1, None, None)
@@ -195,8 +195,8 @@ mod tests {
         /// Expect Ok(None) when attempting to update user ID that does not exist
         #[tokio::test]
         async fn update_user_ok_none_for_non_existant_user() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
             let non_existant_user_id = 1;
@@ -239,7 +239,7 @@ mod tests {
         #[tokio::test]
         async fn delete_user_ok_for_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
             let user_repository = UserRepository::new(&test.state.db);

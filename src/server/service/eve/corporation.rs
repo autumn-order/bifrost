@@ -203,6 +203,7 @@ mod tests {
             )?;
             let corporation_id = 1;
             let _ = test
+                .eve()
                 .insert_mock_corporation(corporation_id, None, None)
                 .await?;
             let endpoints = test.with_corporation_endpoint(corporation_id, None, None, 1);
@@ -229,12 +230,12 @@ mod tests {
         // Expect Ok when corporation is found already present in table
         #[tokio::test]
         async fn get_or_create_corporation_ok_found() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);

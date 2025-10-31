@@ -49,7 +49,7 @@ impl<'a> UserFixtures<'a> {
     }
 
     pub async fn insert_mock_user_with_character(
-        &self,
+        &mut self,
         character_id: i64,
         corporation_id: i64,
         alliance_id: Option<i64>,
@@ -64,6 +64,7 @@ impl<'a> UserFixtures<'a> {
     > {
         let character_model = self
             .setup
+            .eve()
             .insert_mock_character(character_id, corporation_id, alliance_id, faction_id)
             .await?;
 
@@ -77,7 +78,7 @@ impl<'a> UserFixtures<'a> {
     }
 
     pub async fn insert_mock_character_owned_by_user(
-        &self,
+        &mut self,
         user_id: i32,
         character_id: i64,
         corporation_id: i64,
@@ -92,6 +93,7 @@ impl<'a> UserFixtures<'a> {
     > {
         let character_model = self
             .setup
+            .eve()
             .insert_mock_character(character_id, corporation_id, alliance_id, faction_id)
             .await?;
 

@@ -272,7 +272,7 @@ mod tests {
         #[tokio::test]
         async fn test_link_character_not_owned_success() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Character is set as main but there isn't actually an ownership record set
             let user_model = test.user().insert_user(character_model.id).await?;
 
@@ -336,8 +336,8 @@ mod tests {
         /// Expect database Error when user ID provided does not exist in database
         #[tokio::test]
         async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);

@@ -1,22 +1,22 @@
 use chrono::Utc;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
-use crate::{error::TestError, setup::TestSetup};
+use crate::{error::TestError, fixtures::eve::EveFixtures};
 
-impl TestSetup {
+impl<'a> EveFixtures<'a> {
     pub async fn insert_mock_faction(
         &self,
         faction_id: i64,
     ) -> Result<entity::eve_faction::Model, TestError> {
         if let Some(existing_faction) = entity::prelude::EveFaction::find()
             .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
-            .one(&self.state.db)
+            .one(&self.setup.state.db)
             .await?
         {
             return Ok(existing_faction);
         }
 
-        let faction = self.with_mock_faction(faction_id);
+        let faction = self.setup.with_mock_faction(faction_id);
 
         Ok(
             entity::prelude::EveFaction::insert(entity::eve_faction::ActiveModel {
@@ -34,7 +34,7 @@ impl TestSetup {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.state.db)
+            .exec_with_returning(&self.setup.state.db)
             .await?,
         )
     }
@@ -46,7 +46,7 @@ impl TestSetup {
     ) -> Result<entity::eve_alliance::Model, TestError> {
         if let Some(existing_alliance) = entity::prelude::EveAlliance::find()
             .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
-            .one(&self.state.db)
+            .one(&self.setup.state.db)
             .await?
         {
             return Ok(existing_alliance);
@@ -58,7 +58,7 @@ impl TestSetup {
             None
         };
 
-        let (alliance_id, alliance) = self.with_mock_alliance(alliance_id, faction_id);
+        let (alliance_id, alliance) = self.setup.with_mock_alliance(alliance_id, faction_id);
 
         Ok(
             entity::prelude::EveAlliance::insert(entity::eve_alliance::ActiveModel {
@@ -74,7 +74,7 @@ impl TestSetup {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.state.db)
+            .exec_with_returning(&self.setup.state.db)
             .await?,
         )
     }
@@ -87,7 +87,7 @@ impl TestSetup {
     ) -> Result<entity::eve_corporation::Model, TestError> {
         if let Some(existing_corporation) = entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
-            .one(&self.state.db)
+            .one(&self.setup.state.db)
             .await?
         {
             return Ok(existing_corporation);
@@ -106,7 +106,8 @@ impl TestSetup {
         };
 
         let (corporation_id, corporation) =
-            self.with_mock_corporation(corporation_id, alliance_id, faction_id);
+            self.setup
+                .with_mock_corporation(corporation_id, alliance_id, faction_id);
 
         let date_founded = match corporation.date_founded {
             Some(date) => Some(date.naive_utc()),
@@ -134,7 +135,7 @@ impl TestSetup {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.state.db)
+            .exec_with_returning(&self.setup.state.db)
             .await?,
         )
     }
@@ -162,7 +163,8 @@ impl TestSetup {
             .insert_mock_corporation(corporation_id, None, None)
             .await?;
         let (character_id, character) =
-            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+            self.setup
+                .with_mock_character(character_id, corporation_id, alliance_id, faction_id);
 
         Ok(
             entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {
@@ -181,7 +183,7 @@ impl TestSetup {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.state.db)
+            .exec_with_returning(&self.setup.state.db)
             .await?,
         )
     }

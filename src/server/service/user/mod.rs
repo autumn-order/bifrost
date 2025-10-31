@@ -194,8 +194,8 @@ mod tests {
         /// Expect Ok when character is found but new user is created
         #[tokio::test]
         async fn get_or_create_user_ok_created_existing_character() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
@@ -359,7 +359,7 @@ mod tests {
         #[tokio::test]
         async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // We include the character ID as a main which must be set for every user, for this test
             // they don't actually need to own the character so no ownership record is set.
             let user_model = test.user().insert_user(character_model.id).await?;

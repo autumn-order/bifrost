@@ -73,13 +73,13 @@ mod tests {
         #[tokio::test]
         async fn returns_success_for_corporation_with_alliance_and_faction() -> Result<(), TestError>
         {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction_model = test.insert_mock_faction(1).await?;
-            let alliance_model = test.insert_mock_alliance(1, None).await?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
             let (corporation_id, corporation) = test.with_mock_corporation(
                 1,
                 Some(alliance_model.alliance_id),
@@ -114,12 +114,12 @@ mod tests {
         /// Expect Ok when inserting a corporation with only a faction ID
         #[tokio::test]
         async fn returns_success_for_corporation_with_faction() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let faction_model = test.insert_mock_faction(1).await?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
             let (corporation_id, corporation) =
                 test.with_mock_corporation(1, None, Some(faction_model.faction_id));
 
@@ -169,12 +169,12 @@ mod tests {
         /// Expect Some when getting corporation present in table
         #[tokio::test]
         async fn returns_success_with_existing_corporation() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_model = test.insert_mock_corporation(1, None, None).await?;
+            let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
 
             let corporation_repo = CorporationRepository::new(&test.state.db);
             let result = corporation_repo

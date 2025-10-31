@@ -135,7 +135,7 @@ mod tests {
         #[tokio::test]
         async fn test_create_user_character_success() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -151,8 +151,8 @@ mod tests {
         /// Expect error when creating user character linked to missing user
         #[tokio::test]
         async fn test_create_user_character_missing_user() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             // Don't create a user first, this will cause a foreign key error
             let user_id = 1;
@@ -177,7 +177,7 @@ mod tests {
         #[tokio::test]
         async fn test_create_user_character_missing_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
             // Increment character ID to one that does not exist, causing a foreign key error
@@ -234,8 +234,8 @@ mod tests {
         // Expect Some when character entry is found but no character ownership entry
         #[tokio::test]
         async fn test_get_by_character_id_some_character() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let mut test = test_setup_with_user_tables!()?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
@@ -338,7 +338,7 @@ mod tests {
         #[tokio::test]
         async fn test_get_many_by_user_id_empty() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Character is set as main but it is not actually owned due to no ownership entry
             let user_model = test.user().insert_user(character_model.id).await?;
 
@@ -465,7 +465,7 @@ mod tests {
         #[tokio::test]
         async fn test_update_user_character_none() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Set character ID as main but don't actually set any ownership records
             let user_model = test.user().insert_user(character_model.id).await?;
 

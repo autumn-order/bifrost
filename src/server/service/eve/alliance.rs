@@ -126,7 +126,7 @@ mod tests {
         async fn returns_error_when_creating_duplicate_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_model = test.insert_mock_alliance(1, None).await?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
             let endpoints = test.with_alliance_endpoint(1, None, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -152,9 +152,9 @@ mod tests {
         // Expect Ok with found when alliance exists in database
         #[tokio::test]
         async fn returns_success_when_alliance_exists() -> Result<(), TestError> {
-            let test =
+            let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_model = test.insert_mock_alliance(1, None).await?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service

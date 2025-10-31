@@ -201,6 +201,7 @@ mod tests {
             let corporation_id = 1;
             let character_id = 1;
             let _ = test
+                .eve()
                 .insert_mock_character(character_id, corporation_id, None, None)
                 .await?;
             let endpoints =
@@ -229,13 +230,13 @@ mod tests {
         /// Expect Ok when character is found in database
         #[tokio::test]
         async fn get_or_create_character_ok_found() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_model = test.insert_mock_character(1, 1, None, None).await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service

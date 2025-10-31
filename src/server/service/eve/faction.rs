@@ -109,7 +109,7 @@ mod tests {
         #[tokio::test]
         async fn returns_success_with_update_due_to_past_cache_expiry() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_model = test.insert_mock_faction(1).await?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 1);
 
             // Set updated_at to *before* the effective expiry so an update should be performed.
@@ -142,7 +142,7 @@ mod tests {
         async fn returns_success_with_no_update_due_to_within_cache_expiry() -> Result<(), TestError>
         {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_model = test.insert_mock_faction(1).await?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 0);
 
             // Set updated_at to just after the effective expiry so it should be considered cached.
@@ -207,7 +207,7 @@ mod tests {
         #[tokio::test]
         async fn returns_success_with_found_when_faction_exists() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_model = test.insert_mock_faction(1).await?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
             let faction_endpoint = test.with_faction_endpoint(1, 0);
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
