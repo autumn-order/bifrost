@@ -19,59 +19,63 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
 #[cfg(test)]
 pub mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
+    use bifrost_test_utils::prelude::*;
 
     use crate::server::{
         controller::util::csrf::validate_csrf, model::session::auth::SessionAuthCsrf,
-        util::test::setup::test_setup,
     };
 
     #[tokio::test]
     /// Tests successful validation of CSRF state
     ///
     /// 200 success
-    async fn test_validate_csrf_success() {
-        let test = test_setup().await;
+    async fn test_validate_csrf_success() -> Result<(), TestError> {
+        let test = test_setup_with_tables!()?;
         let state = "state";
 
-        let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
-        let validate_result = validate_csrf(&test.session, state).await;
+        let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
+        let result = validate_csrf(&test.session, state).await;
 
-        assert!(insert_result.is_ok());
-        assert!(validate_result.is_ok())
+        assert!(result.is_ok());
+
+        Ok(())
     }
 
     #[tokio::test]
     /// Tests failed validation of CSRF state due to mismatch
     ///
     /// 400 bad request
-    async fn test_validate_csrf_mismatch() {
-        let test = test_setup().await;
+    async fn test_validate_csrf_mismatch() -> Result<(), TestError> {
+        let test = test_setup_with_tables!()?;
         let state = "state";
 
-        let insert_result = SessionAuthCsrf::insert(&test.session, "different_state").await;
-        let validate_result = validate_csrf(&test.session, state).await;
+        let _ = SessionAuthCsrf::insert(&test.session, "different_state")
+            .await
+            .unwrap();
+        let result = validate_csrf(&test.session, state).await;
 
-        assert!(insert_result.is_ok());
-        assert!(validate_result.is_err());
-
-        let resp = validate_result.unwrap_err().into_response();
+        assert!(result.is_err());
+        let resp = result.unwrap_err().into_response();
         assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+
+        Ok(())
     }
 
     #[tokio::test]
     /// Tests failed validation of CSRF state due to session error
     ///
     /// 500 internal server error
-    async fn test_validate_csrf_session_error() {
-        let test = test_setup().await;
+    async fn test_validate_csrf_session_error() -> Result<(), TestError> {
+        let test = test_setup_with_tables!()?;
         let state = "state";
 
         // Attempt to validate result despite no state being inserted into sesison
-        let validate_result = validate_csrf(&test.session, state).await;
+        let result = validate_csrf(&test.session, state).await;
 
-        assert!(validate_result.is_err());
-
-        let resp = validate_result.unwrap_err().into_response();
+        assert!(result.is_err());
+        let resp = result.unwrap_err().into_response();
         assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+
+        Ok(())
     }
 }
