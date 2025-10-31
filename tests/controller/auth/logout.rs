@@ -1,17 +1,14 @@
 use axum::{http::StatusCode, response::IntoResponse};
-use bifrost::server::{
-    controller::auth::logout, error::Error, model::session::user::SessionUserId,
-};
-
-use crate::util::setup::test_setup;
+use bifrost::server::{controller::auth::logout, model::session::user::SessionUserId};
+use bifrost_test_utils::prelude::*;
 
 #[tokio::test]
 /// Expect 307 temporary redirect after logout with a user ID in session
-async fn returns_redirect_on_logout_with_user_id() -> Result<(), Error> {
-    let test = test_setup().await;
+async fn returns_redirect_on_logout_with_user_id() -> Result<(), TestError> {
+    let test = test_setup_with_user_tables!()?;
 
     let user_id = 1;
-    SessionUserId::insert(&test.session, user_id).await?;
+    SessionUserId::insert(&test.session, user_id).await.unwrap();
 
     let result = logout(test.session.clone()).await;
 
@@ -20,7 +17,7 @@ async fn returns_redirect_on_logout_with_user_id() -> Result<(), Error> {
     assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
 
     // Ensure user was cleared from session
-    let maybe_user_id = SessionUserId::get(&test.session).await?;
+    let maybe_user_id = SessionUserId::get(&test.session).await.unwrap();
     assert!(maybe_user_id.is_none());
 
     Ok(())
@@ -33,8 +30,8 @@ async fn returns_redirect_on_logout_with_user_id() -> Result<(), Error> {
 /// a session without any data in it. To resolve this, the endpoint doesn't
 /// clear session unless there is actually a user ID in session, it will redirect
 /// to login regardless of clear being called.
-async fn returns_redirect_on_logout_with_no_session() -> Result<(), Error> {
-    let test = test_setup().await;
+async fn returns_redirect_on_logout_with_no_session() -> Result<(), TestError> {
+    let test = test_setup_with_user_tables!()?;
 
     let result = logout(test.session).await;
 
