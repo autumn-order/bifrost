@@ -170,7 +170,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let mut claims = EveJwtClaims::mock();
@@ -196,7 +196,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let new_user_model = test
                 .user()
@@ -235,7 +235,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let new_user_model = test
                 .user()
@@ -307,7 +307,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let second_character_id = 2;
             let endpoints =
@@ -390,7 +390,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             // Character is set as main but there isn't actually an ownership record set so it will transfer
             let new_user_model = test.user().insert_user(character_model.id).await?;
@@ -424,7 +424,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let (second_user_character_model, character_model) = test
                 .user()
@@ -470,7 +470,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, main_user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let (_, _) = test
                 .user()
@@ -515,7 +515,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);

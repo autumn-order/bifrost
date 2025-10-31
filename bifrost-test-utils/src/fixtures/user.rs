@@ -48,7 +48,7 @@ impl<'a> UserFixtures<'a> {
         .await?)
     }
 
-    pub async fn insert_mock_user_with_character(
+    pub async fn insert_user_with_mock_character(
         &mut self,
         character_id: i64,
         corporation_id: i64,

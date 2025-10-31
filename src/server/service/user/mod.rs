@@ -140,7 +140,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             // Set character ID in claims to the mock character
@@ -164,7 +164,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let mut claims = EveJwtClaims::mock();
@@ -280,7 +280,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -302,7 +302,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let (_, _) = test
                 .user()
@@ -401,7 +401,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);

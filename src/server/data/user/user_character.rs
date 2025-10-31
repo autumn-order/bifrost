@@ -214,7 +214,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, _, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -298,7 +298,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let (_, _) = test
                 .user()
@@ -321,7 +321,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
@@ -379,7 +379,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
@@ -442,11 +442,11 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_one_character_model, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
             let (user_two_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(2, 1, None, None)
+                .insert_user_with_mock_character(2, 1, None, None)
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
@@ -488,7 +488,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             // Try to update entry to new_user_id that doesn't exist
