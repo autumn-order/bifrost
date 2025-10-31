@@ -130,19 +130,16 @@ mod tests {
     mod get_by_faction_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::{
-            data::eve::faction::FactionRepository, util::test::eve::mock::mock_faction,
-        };
+        use crate::server::data::eve::faction::FactionRepository;
 
         /// Expect Some when faction is present in the table
         #[tokio::test]
         async fn returns_some_with_existing_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_id = 1;
-            let mock_faction = test.eve().with_mock_faction(1);
+            let mock_faction = test.eve().with_mock_faction(faction_id);
 
             let repo = FactionRepository::new(&test.state.db);
-
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
             let result = repo.get_by_faction_id(faction_id).await?;
@@ -159,11 +156,10 @@ mod tests {
         /// Expect None when faction is not present in the table
         #[tokio::test]
         async fn returns_none_with_non_existant_faction() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mock_faction = test.eve().with_mock_faction(1);
 
             let repo = FactionRepository::new(&test.state.db);
-
-            let mock_faction = mock_faction();
             let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
 
             assert!(result.is_none());
