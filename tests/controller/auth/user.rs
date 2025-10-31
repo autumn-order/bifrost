@@ -3,44 +3,19 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
-use bifrost::server::{controller::user::get_user, error::Error};
-use sea_orm::{ConnectionTrait, DbBackend, Schema};
-
-use crate::util::setup::{
-    test_setup, test_setup_create_character, test_setup_create_corporation,
-    test_setup_create_user_with_character, TestSetup,
-};
-
-async fn setup() -> Result<TestSetup, Error> {
-    let test = test_setup().await;
-    let db = &test.state.db;
-
-    let schema = Schema::new(DbBackend::Sqlite);
-    let stmts = vec![
-        schema.create_table_from_entity(entity::prelude::EveFaction),
-        schema.create_table_from_entity(entity::prelude::EveAlliance),
-        schema.create_table_from_entity(entity::prelude::EveCorporation),
-        schema.create_table_from_entity(entity::prelude::EveCharacter),
-        schema.create_table_from_entity(entity::prelude::BifrostUser),
-        schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-    ];
-
-    for stmt in stmts {
-        db.execute(&stmt).await?;
-    }
-
-    Ok(test)
-}
+use bifrost::server::controller::user::get_user;
+use bifrost_test_utils::prelude::*;
 
 #[tokio::test]
 /// Expect 200 success with user information for existing user
-async fn returns_success_for_existing_user() -> Result<(), Error> {
-    let test = setup().await?;
-    let corporation_model = test_setup_create_corporation(&test, 1).await?;
-    let character_model = test_setup_create_character(&test, 1, corporation_model).await?;
-    let user = test_setup_create_user_with_character(&test, character_model).await?;
+async fn returns_success_for_existing_user() -> Result<(), TestError> {
+    let mut test = test_setup_with_user_tables!()?;
+    let (user_model, _, _) = test
+        .user()
+        .insert_user_with_mock_character(1, 1, None, None)
+        .await?;
 
-    let result = get_user(State(test.state), Path(user.id)).await;
+    let result = get_user(State(test.state()), Path(user_model.id)).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -51,11 +26,11 @@ async fn returns_success_for_existing_user() -> Result<(), Error> {
 
 #[tokio::test]
 /// Expect 404 not found for user that does not exist
-async fn returns_not_found_for_user_that_doesnt_exist() -> Result<(), Error> {
-    let test = setup().await?;
+async fn returns_not_found_for_user_that_doesnt_exist() -> Result<(), TestError> {
+    let test = test_setup_with_user_tables!()?;
 
     let non_existant_user_id = 1;
-    let result = get_user(State(test.state), Path(non_existant_user_id)).await;
+    let result = get_user(State(test.state()), Path(non_existant_user_id)).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -66,11 +41,11 @@ async fn returns_not_found_for_user_that_doesnt_exist() -> Result<(), Error> {
 
 #[tokio::test]
 /// Expect 500 internal server error when required database tables dont exist
-async fn error_when_required_tables_dont_exist() -> Result<(), Error> {
-    let test = test_setup().await;
+async fn error_when_required_tables_dont_exist() -> Result<(), TestError> {
+    let test = test_setup_with_tables!()?;
 
     let non_existant_user_id = 1;
-    let result = get_user(State(test.state), Path(non_existant_user_id)).await;
+    let result = get_user(State(test.state()), Path(non_existant_user_id)).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();

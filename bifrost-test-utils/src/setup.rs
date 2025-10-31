@@ -9,15 +9,31 @@ use crate::{
     error::TestError,
 };
 
-pub struct AppState {
+pub struct TestAppState {
     pub db: DatabaseConnection,
     pub esi_client: eve_esi::Client,
 }
 
 pub struct TestSetup {
     pub server: ServerGuard,
-    pub state: AppState,
+    pub state: TestAppState,
     pub session: Session,
+}
+
+impl TestSetup {
+    /// Convert TestAppState into any type that can be constructed from its fields.
+    /// This allows conversion to AppState without creating a circular dependency.
+    ///
+    /// # Example
+    /// ```
+    /// let app_state: AppState = test_app_state.into_app_state();
+    /// ```
+    pub fn state<T>(&self) -> T
+    where
+        T: From<(DatabaseConnection, eve_esi::Client)>,
+    {
+        T::from((self.state.db.clone(), self.state.esi_client.clone()))
+    }
 }
 
 impl TestSetup {
@@ -46,7 +62,7 @@ impl TestSetup {
 
         Ok(TestSetup {
             server: mock_server,
-            state: AppState {
+            state: TestAppState {
                 db,
                 esi_client: esi_client,
             },

@@ -5,4 +5,4 @@ pub mod prelude;
 pub mod setup;
 
 pub use error::TestError;
-pub use setup::TestSetup;
+pub use setup::{TestAppState, TestSetup};

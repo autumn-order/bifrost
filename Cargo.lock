@@ -443,10 +443,14 @@ dependencies = [
 name = "bifrost-test-utils"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "chrono",
  "entity",
  "eve_esi",
+ "jsonwebtoken",
  "mockito",
+ "oauth2",
+ "openssl",
  "sea-orm",
  "serde_json",
  "thiserror 2.0.17",

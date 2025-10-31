@@ -71,73 +71,21 @@ impl<'a> CallbackService<'a> {
 
 #[cfg(test)]
 mod tests {
-    use sea_orm::{ConnectionTrait, DbBackend, DbErr, Schema};
+    use bifrost_test_utils::prelude::*;
 
-    use crate::server::{
-        error::Error,
-        service::auth::callback::CallbackService,
-        util::test::{
-            auth::jwt_mockito::mock_jwt_endpoints,
-            eve::mock::{mock_character, mock_corporation},
-            mockito::{character::mock_character_endpoint, corporation::mock_corporation_endpoint},
-            setup::{
-                test_setup, test_setup_create_character, test_setup_create_corporation,
-                test_setup_create_user_with_character, TestSetup,
-            },
-        },
-    };
-
-    async fn setup() -> Result<TestSetup, DbErr> {
-        let test = test_setup().await;
-        let db = &test.state.db;
-
-        let schema = Schema::new(DbBackend::Sqlite);
-        let stmts = vec![
-            schema.create_table_from_entity(entity::prelude::EveFaction),
-            schema.create_table_from_entity(entity::prelude::EveAlliance),
-            schema.create_table_from_entity(entity::prelude::EveCorporation),
-            schema.create_table_from_entity(entity::prelude::EveCharacter),
-            schema.create_table_from_entity(entity::prelude::BifrostUser),
-            schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-        ];
-
-        for stmt in stmts {
-            db.execute(&stmt).await?;
-        }
-
-        Ok(test)
-    }
+    use crate::server::{error::Error, service::auth::callback::CallbackService};
 
     /// Expect Ok when logging in with a new character
     #[tokio::test]
-    async fn test_callback_new_user_success() -> Result<(), DbErr> {
-        let mut test = setup().await?;
-        let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+    async fn test_callback_new_user_success() -> Result<(), TestError> {
+        let mut test = test_setup_with_user_tables!()?;
+        let character_id = 1;
+        let character_endpoints =
+            test.eve()
+                .with_character_endpoint(character_id, 1, None, None, 1);
+        let jwt_endpoints = test.auth().with_jwt_endpoints(character_id, "owner_hash");
 
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
-
-        // Create the mock character & corporation that will be fetched during callback
-        let alliance_id = None;
-        let faction_id = None;
-        let mock_corporation = mock_corporation(alliance_id, faction_id);
-
-        let corporation_id = 1;
-        let mock_character = mock_character(corporation_id, alliance_id, faction_id);
-
-        let expected_requests = 1;
-        let corporation_endpoint = mock_corporation_endpoint(
-            &mut test.server,
-            "/corporations/1",
-            mock_corporation,
-            expected_requests,
-        );
-        let character_endpoint = mock_character_endpoint(
-            &mut test.server,
-            "/characters/1",
-            mock_character,
-            expected_requests,
-        );
-
         let authorization_code = "test_code";
         let session_user_id = None;
         let result = callback_service
@@ -147,65 +95,83 @@ mod tests {
         assert!(result.is_ok());
 
         // Assert JWT keys & token were fetched during callback
-        mock_jwt_key_endpoint.assert();
-        mock_jwt_token_endpoint.assert();
+        for endpoint in jwt_endpoints {
+            endpoint.assert();
+        }
 
         // Assert character endpoints were fetched during callback when creating character entry
-        character_endpoint.assert();
-        corporation_endpoint.assert();
+        for endpoint in character_endpoints {
+            endpoint.assert();
+        }
 
         Ok(())
     }
 
     /// Expect Ok when logging in with an existing character
     #[tokio::test]
-    async fn test_callback_existing_user_success() -> Result<(), Error> {
-        let mut test = setup().await?;
-        let (mock_jwt_key_endpoint, mock_jwt_token_endpoint) = mock_jwt_endpoints(&mut test.server);
+    async fn test_callback_existing_user_success() -> Result<(), TestError> {
+        let mut test = test_setup_with_user_tables!()?;
+        let (user_model, user_character_model, character_model) = test
+            .user()
+            .insert_user_with_mock_character(1, 1, None, None)
+            .await?;
+        let jwt_endpoints = test.auth().with_jwt_endpoints(
+            character_model.character_id,
+            &user_character_model.owner_hash,
+        );
 
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
 
-        // Create the mock character & user in database
-        let character_id = 1;
-        let corporation_id = 1;
-        let corporation = test_setup_create_corporation(&test, corporation_id).await?;
-        let character = test_setup_create_character(&test, character_id, corporation).await?;
-        let character_ownership = test_setup_create_user_with_character(&test, character).await?;
-
         let authorization_code = "test_code";
-        let session_user_id = Some(character_ownership.user_id);
         let result = callback_service
-            .handle_callback(&authorization_code, session_user_id)
+            .handle_callback(&authorization_code, Some(user_model.id))
             .await;
 
         assert!(result.is_ok(), "Error: {:#?}", result);
 
         // Assert JWT keys & token were fetched during callback
-        mock_jwt_key_endpoint.assert();
-        mock_jwt_token_endpoint.assert();
+        for endpoint in jwt_endpoints {
+            endpoint.assert();
+        }
 
         Ok(())
     }
 
     /// Expect Error when ESI endpoints are unavailable
     #[tokio::test]
-    async fn test_callback_server_error() {
-        let test = test_setup().await;
+    async fn test_callback_server_error() -> Result<(), TestError> {
+        let test = test_setup_with_user_tables!()?;
+
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
+        let authorization_code = "string";
+        let result = callback_service
+            .handle_callback(authorization_code, None)
+            .await;
 
-        // Don't create any mock JWT token or key endpoints so that token validation fails
+        assert!(matches!(result, Err(Error::EsiError(_))),);
 
-        let code = "string";
-        let existing_user = None;
-        let result = callback_service.handle_callback(code, existing_user).await;
+        Ok(())
+    }
 
-        assert!(result.is_err());
+    /// Expect Error required database tables are not presents
+    #[tokio::test]
+    async fn handle_callback_err_missing_tables() -> Result<(), TestError> {
+        let mut test = test_setup_with_tables!()?;
+        let jwt_endpoints = test.auth().with_jwt_endpoints(1, "owner_hash");
 
-        assert!(matches!(
-            result,
-            Err(Error::EsiError(eve_esi::Error::OAuthError(
-                eve_esi::OAuthError::RequestTokenError(_)
-            )))
-        ),)
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
+        let authorization_code = "string";
+        let result = callback_service
+            .handle_callback(authorization_code, None)
+            .await;
+
+        assert!(matches!(result, Err(Error::DbErr(_))));
+
+        // Assert JWT keys & token were fetched during callback
+        for endpoint in jwt_endpoints {
+            endpoint.assert();
+        }
+
+        Ok(())
     }
 }
