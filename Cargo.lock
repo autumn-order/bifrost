@@ -415,7 +415,6 @@ name = "bifrost"
 version = "0.1.0"
 dependencies = [
  "axum",
- "base64",
  "bifrost-test-utils",
  "chrono",
  "dioxus",
@@ -424,14 +423,10 @@ dependencies = [
  "dotenvy",
  "entity",
  "eve_esi",
- "jsonwebtoken",
  "migration",
- "mockito",
  "oauth2",
- "openssl",
  "sea-orm",
  "serde",
- "serde_json",
  "thiserror 2.0.17",
  "time",
  "tokio",

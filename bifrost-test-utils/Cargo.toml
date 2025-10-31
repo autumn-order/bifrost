@@ -19,7 +19,7 @@ oauth2 = { workspace = true }
 openssl = { workspace = true }
 sea-orm = { workspace = true, features = [
   "runtime-tokio-rustls",
-  "sqlx-postgres",
+  "sqlx-sqlite",
   "with-chrono"
 ] }
 serde_json = { workspace = true }
