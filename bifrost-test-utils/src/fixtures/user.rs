@@ -29,7 +29,7 @@ impl<'a> UserFixtures<'a> {
         )
     }
 
-    pub async fn insert_character_ownership_for_user(
+    pub async fn insert_user_character_ownership(
         &self,
         user_id: i32,
         character_id: i32,
@@ -48,7 +48,7 @@ impl<'a> UserFixtures<'a> {
         .await?)
     }
 
-    pub async fn insert_mock_user_with_character(
+    pub async fn insert_user_with_mock_character(
         &mut self,
         character_id: i64,
         corporation_id: i64,
@@ -71,13 +71,13 @@ impl<'a> UserFixtures<'a> {
         let user_model = self.insert_user(character_model.id).await?;
 
         let user_character_model = self
-            .insert_character_ownership_for_user(user_model.id, character_model.id)
+            .insert_user_character_ownership(user_model.id, character_model.id)
             .await?;
 
         Ok((user_model, user_character_model, character_model))
     }
 
-    pub async fn insert_mock_character_owned_by_user(
+    pub async fn insert_mock_character_for_user(
         &mut self,
         user_id: i32,
         character_id: i64,
@@ -98,7 +98,7 @@ impl<'a> UserFixtures<'a> {
             .await?;
 
         let user_character_model = self
-            .insert_character_ownership_for_user(user_id, character_model.id)
+            .insert_user_character_ownership(user_id, character_model.id)
             .await?;
 
         Ok((user_character_model, character_model))

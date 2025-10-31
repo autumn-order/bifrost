@@ -126,7 +126,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -177,7 +177,7 @@ mod tests {
             let character_model_two = test.eve().insert_mock_character(2, 1, None, None).await?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -215,7 +215,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, character_model) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_repo = UserRepository::new(&test.state.db);
@@ -263,7 +263,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
-                .insert_mock_user_with_character(1, 1, None, None)
+                .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
             let user_repository = UserRepository::new(&test.state.db);
