@@ -137,8 +137,9 @@ mod tests {
         /// Expect Ok when user associated with character is found
         #[tokio::test]
         async fn get_or_create_user_ok_found() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
@@ -160,8 +161,9 @@ mod tests {
         /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
         #[tokio::test]
         async fn get_or_create_user_ok_transfer_owner_hash_change() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
@@ -273,8 +275,9 @@ mod tests {
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
         async fn get_user_ok_some_only_main() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
@@ -294,11 +297,13 @@ mod tests {
         /// Expect Ok with Some & 1 additional characters linked for user
         #[tokio::test]
         async fn get_user_ok_some_one_additional_character() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
             let (_, _) = test
+                .user()
                 .insert_mock_character_owned_by_user(user_model.id, 2, 1, None, None)
                 .await?;
 
@@ -353,11 +358,11 @@ mod tests {
         /// Expect Ok with true indicating user was deleted
         #[tokio::test]
         async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let character_model = test.insert_mock_character(1, 1, None, None).await?;
             // We include the character ID as a main which must be set for every user, for this test
             // they don't actually need to own the character so no ownership record is set.
-            let user_model = test.insert_user(character_model.id).await?;
+            let user_model = test.user().insert_user(character_model.id).await?;
 
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
             let result = user_service.delete_user(user_model.id).await;
@@ -391,8 +396,9 @@ mod tests {
         ///   a character ownership entry.
         #[tokio::test]
         async fn delete_user_err_has_owned_characters() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
+                .user()
                 .insert_mock_user_with_character(1, 1, None, None)
                 .await?;
 
