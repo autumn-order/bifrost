@@ -18,16 +18,9 @@ fn main() {
 
         dotenvy::dotenv().ok();
         let config = Config::from_env().unwrap();
-        let user_agent = format!(
-            "{}/{} ({}; +{})",
-            env!("CARGO_PKG_NAME"),
-            env!("CARGO_PKG_VERSION"),
-            config.contact_email,
-            env!("CARGO_PKG_REPOSITORY")
-        );
 
         let esi_client = startup::build_esi_client(
-            &user_agent,
+            &config.user_agent,
             &config.esi_client_id,
             &config.esi_client_secret,
             &config.esi_callback_url,
