@@ -9,10 +9,14 @@ name = "bifrost_test_utils"
 path = "src/lib.rs"
 
 [dependencies]
+base64 = { workspace = true }
 chrono = { workspace = true }
 entity = { workspace = true }
 eve_esi = { workspace = true }
+jsonwebtoken = { workspace = true }
 mockito = { workspace = true }
+oauth2 = { workspace = true }
+openssl = { workspace = true }
 sea-orm = { workspace = true, features = [
   "runtime-tokio-rustls",
   "sqlx-postgres",
