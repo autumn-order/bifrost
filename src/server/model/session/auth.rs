@@ -37,35 +37,38 @@ impl SessionAuthCsrf {
 
 #[cfg(test)]
 mod tests {
-    use crate::server::{model::session::auth::SessionAuthCsrf, util::test::setup::test_setup};
+    use bifrost_test_utils::prelude::*;
+
+    use crate::server::model::session::auth::SessionAuthCsrf;
 
     #[tokio::test]
     /// Expect success when inserting CSRF into session
-    async fn test_session_insert_csrf_succcess() {
-        let test = test_setup().await;
+    async fn test_session_insert_csrf_succcess() -> Result<(), TestError> {
+        let test = test_setup_with_tables!()?;
 
         let result = SessionAuthCsrf::insert(&test.session, "string").await;
 
-        assert!(result.is_ok())
+        assert!(result.is_ok());
+
+        Ok(())
     }
 
     mod session_csrf_get_tests {
-        use crate::server::{
-            error::Error, model::session::auth::SessionAuthCsrf, util::test::setup::test_setup,
-        };
+        use bifrost_test_utils::prelude::*;
+
+        use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
 
         /// Expect success when retrieving CSRF from session
         #[tokio::test]
-        async fn test_session_get_csrf_success() -> Result<(), Error> {
-            let test = test_setup().await;
+        async fn test_session_get_csrf_success() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
             let state = "string";
+            let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
 
-            let _ = SessionAuthCsrf::insert(&test.session, state).await?;
             let result = SessionAuthCsrf::get(&test.session).await;
 
             assert!(result.is_ok());
             let result_state = result.unwrap();
-
             assert_eq!(result_state, state.to_string());
 
             Ok(())
@@ -73,8 +76,8 @@ mod tests {
 
         /// Expect Error when no state is present in session
         #[tokio::test]
-        async fn test_session_get_csrf_error() -> Result<(), Error> {
-            let test = test_setup().await;
+        async fn test_session_get_csrf_error() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
 
             let result = SessionAuthCsrf::get(&test.session).await;
 
@@ -87,16 +90,17 @@ mod tests {
     }
 
     mod session_csrf_remove_tests {
-        use crate::server::{
-            error::Error, model::session::auth::SessionAuthCsrf, util::test::setup::test_setup,
-        };
+        use bifrost_test_utils::prelude::*;
+
+        use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
 
         /// Expect successful removal of CSRF state from session
         #[tokio::test]
-        async fn test_remove_session_csrf_success() -> Result<(), Error> {
-            let test = test_setup().await;
-
-            let _ = SessionAuthCsrf::insert(&test.session, "state").await?;
+        async fn test_remove_session_csrf_success() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
+            let _ = SessionAuthCsrf::insert(&test.session, "state")
+                .await
+                .unwrap();
 
             let result = SessionAuthCsrf::remove(&test.session).await;
 
@@ -107,8 +111,8 @@ mod tests {
 
         /// Expect Error when no state is present in session
         #[tokio::test]
-        async fn test_remove_session_csrf_error() -> Result<(), Error> {
-            let test = test_setup().await;
+        async fn test_remove_session_csrf_error() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
 
             let result = SessionAuthCsrf::remove(&test.session).await;
 
