@@ -16,7 +16,7 @@ impl<'a> EveFixtures<'a> {
             return Ok(existing_faction);
         }
 
-        let faction = self.setup.with_mock_faction(faction_id);
+        let faction = self.with_mock_faction(faction_id);
 
         Ok(
             entity::prelude::EveFaction::insert(entity::eve_faction::ActiveModel {
@@ -58,7 +58,7 @@ impl<'a> EveFixtures<'a> {
             None
         };
 
-        let (alliance_id, alliance) = self.setup.with_mock_alliance(alliance_id, faction_id);
+        let (alliance_id, alliance) = self.with_mock_alliance(alliance_id, faction_id);
 
         Ok(
             entity::prelude::EveAlliance::insert(entity::eve_alliance::ActiveModel {
@@ -106,8 +106,7 @@ impl<'a> EveFixtures<'a> {
         };
 
         let (corporation_id, corporation) =
-            self.setup
-                .with_mock_corporation(corporation_id, alliance_id, faction_id);
+            self.with_mock_corporation(corporation_id, alliance_id, faction_id);
 
         let date_founded = match corporation.date_founded {
             Some(date) => Some(date.naive_utc()),
@@ -163,8 +162,7 @@ impl<'a> EveFixtures<'a> {
             .insert_mock_corporation(corporation_id, None, None)
             .await?;
         let (character_id, character) =
-            self.setup
-                .with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
 
         Ok(
             entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {

@@ -3,9 +3,9 @@ use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
 };
 
-use crate::setup::TestSetup;
+use crate::fixtures::eve::EveFixtures;
 
-impl TestSetup {
+impl<'a> EveFixtures<'a> {
     pub fn with_mock_faction(&self, faction_id: i64) -> Faction {
         Faction {
             corporation_d: Some(0),

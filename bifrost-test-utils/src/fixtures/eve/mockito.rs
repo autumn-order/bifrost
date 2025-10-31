@@ -4,7 +4,7 @@ use crate::TestSetup;
 
 impl TestSetup {
     pub fn with_faction_endpoint(&mut self, faction_id: i64, expected_requests: usize) -> Mock {
-        let faction = self.with_mock_faction(faction_id);
+        let faction = self.eve().with_mock_faction(faction_id);
 
         self.server
             .mock("GET", "/universe/factions")
@@ -21,7 +21,7 @@ impl TestSetup {
         faction_id: Option<i64>,
         expected_requests: usize,
     ) -> Vec<Mock> {
-        let (_, alliance) = self.with_mock_alliance(alliance_id, faction_id);
+        let (_, alliance) = self.eve().with_mock_alliance(alliance_id, faction_id);
         let url = format!("/alliances/{}", alliance_id);
 
         let mut endpoints = Vec::new();
@@ -50,7 +50,9 @@ impl TestSetup {
         faction_id: Option<i64>,
         expected_requests: usize,
     ) -> Vec<Mock> {
-        let (_, corporation) = self.with_mock_corporation(corporation_id, alliance_id, faction_id);
+        let (_, corporation) =
+            self.eve()
+                .with_mock_corporation(corporation_id, alliance_id, faction_id);
         let url = format!("/corporations/{}", corporation_id);
 
         let mut endpoints = Vec::new();
@@ -85,7 +87,8 @@ impl TestSetup {
         expected_requests: usize,
     ) -> Vec<Mock> {
         let (_, character) =
-            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+            self.eve()
+                .with_mock_character(character_id, corporation_id, alliance_id, faction_id);
         let url = format!("/characters/{}", character_id);
 
         let mut endpoints = Vec::new();

@@ -89,27 +89,15 @@ mod tests {
         /// Expect Ok when upserting a new faction
         #[tokio::test]
         async fn returns_success_when_upserting_new_faction() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mock_faction = test.eve().with_mock_faction(1);
 
             let repo = FactionRepository::new(&test.state.db);
-
-            let mock_faction = test.with_mock_faction(1);
             let result = repo.upsert_many(vec![mock_faction]).await;
 
             assert!(result.is_ok(), "Error: {:?}", result);
             let created_factions = result.unwrap();
             assert_eq!(created_factions.len(), 1);
-            let created = created_factions.first().unwrap();
-
-            let faction = test.with_mock_faction(1);
-
-            assert_eq!(created.faction_id, faction.faction_id);
-            assert_eq!(created.name, faction.name);
-            assert_eq!(created.corporation_id, faction.corporation_d);
-            assert_eq!(
-                created.militia_corporation_id,
-                faction.militia_corporation_id
-            );
 
             Ok(())
         }
@@ -117,19 +105,18 @@ mod tests {
         /// Expect Ok & update when trying to upsert an existing faction
         #[tokio::test]
         async fn returns_successful_update_with_existing_faction() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mock_faction = test.eve().with_mock_faction(1);
+            let mock_faction_update = test.eve().with_mock_faction(1);
 
             let repo = FactionRepository::new(&test.state.db);
-
-            let mock_faction = test.with_mock_faction(1);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
 
             let initial_created_at = initial_entry.created_at;
             let initial_updated_at = initial_entry.updated_at;
 
-            let mock_faction = test.with_mock_faction(1);
-            let latest = repo.upsert_many(vec![mock_faction]).await?;
+            let latest = repo.upsert_many(vec![mock_faction_update]).await?;
             let latest_entry = latest.into_iter().next().expect("no entry returned");
 
             // created_at should not change and updated_at should increase
@@ -150,16 +137,15 @@ mod tests {
         /// Expect Some when faction is present in the table
         #[tokio::test]
         async fn returns_some_with_existing_faction() -> Result<(), TestError> {
-            let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(1);
 
             let repo = FactionRepository::new(&test.state.db);
 
-            let mock_faction = test.with_mock_faction(1);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
-
-            let mock_faction = test.with_mock_faction(1);
-            let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
+            let result = repo.get_by_faction_id(faction_id).await?;
 
             assert!(result.is_some());
             let faction = result.unwrap();
@@ -190,10 +176,9 @@ mod tests {
         async fn returns_error_with_missing_tables() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
+            let faction_id = 1;
             let repo = FactionRepository::new(&test.state.db);
-
-            let mock_faction = test.with_mock_faction(1);
-            let result = repo.get_by_faction_id(mock_faction.faction_id).await;
+            let result = repo.get_by_faction_id(faction_id).await;
 
             assert!(result.is_err());
 

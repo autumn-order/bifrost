@@ -72,7 +72,8 @@ mod tests {
             let faction_model = test.eve().insert_mock_faction(1).await?;
             let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
             let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
 
             let character_repo = CharacterRepository::new(&test.state.db);
             let result = character_repo
@@ -104,7 +105,8 @@ mod tests {
             )?;
             let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
             let (character_id, character) =
-                test.with_mock_character(1, corporation_model.corporation_id, None, None);
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
 
             let character_repo = CharacterRepository::new(&test.state.db);
             let result = character_repo
@@ -123,13 +125,13 @@ mod tests {
         #[tokio::test]
         async fn returns_error_for_character_with_invalid_corporation_id() -> Result<(), TestError>
         {
-            let test = test_setup_with_tables!(
+            let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let (character_id, character) = test.with_mock_character(1, 1, None, None);
+            let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
 
             let corporation_id = 1;
             let character_repo = CharacterRepository::new(&test.state.db);
