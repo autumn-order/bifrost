@@ -20,9 +20,7 @@ pub fn build_esi_client(
 }
 
 /// Connect to the database and run migrations
-pub async fn connect_to_database(
-    database_url: &str,
-) -> Result<sea_orm::DatabaseConnection, Error> {
+pub async fn connect_to_database(database_url: &str) -> Result<sea_orm::DatabaseConnection, Error> {
     use migration::{Migrator, MigratorTrait};
     use sea_orm::{ConnectOptions, Database};
 

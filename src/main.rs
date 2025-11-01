@@ -14,7 +14,7 @@ fn main() {
     dioxus::serve(|| async move {
         use dioxus_logger::tracing::info;
 
-        use crate::server::{config::Config, model::app::AppState, startup};
+        use crate::server::{config::Config, model::app::AppState, scheduler, startup};
 
         dotenvy::dotenv().ok();
         let config = Config::from_env().unwrap();
@@ -32,6 +32,7 @@ fn main() {
         let db = startup::connect_to_database(&config.database_url)
             .await
             .unwrap();
+        let _ = scheduler::start_job_scheduler(&db).await.unwrap();
 
         info!("Starting server");
 
