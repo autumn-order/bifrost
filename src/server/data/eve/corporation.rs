@@ -71,8 +71,7 @@ mod tests {
 
         // Expect Ok when inserting a corporation with both an alliance & faction ID
         #[tokio::test]
-        async fn returns_success_for_corporation_with_alliance_and_faction() -> Result<(), TestError>
-        {
+        async fn creates_corporation_with_alliance_and_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -113,7 +112,7 @@ mod tests {
 
         /// Expect Ok when inserting a corporation with only a faction ID
         #[tokio::test]
-        async fn returns_success_for_corporation_with_faction() -> Result<(), TestError> {
+        async fn creates_corporation_with_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -139,8 +138,7 @@ mod tests {
 
         /// Should succeed when inserting corporation into table without a faction or alliance ID
         #[tokio::test]
-        async fn returns_success_for_corporation_without_alliance_or_faction(
-        ) -> Result<(), TestError> {
+        async fn creates_corporation_without_alliance_or_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -169,7 +167,7 @@ mod tests {
 
         /// Expect Some when getting corporation present in table
         #[tokio::test]
-        async fn returns_success_with_existing_corporation() -> Result<(), TestError> {
+        async fn finds_existing_corporation() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -191,7 +189,7 @@ mod tests {
 
         /// Expect None when getting corporation not present in table
         #[tokio::test]
-        async fn returns_none_with_non_existant_corporation() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_corporation() -> Result<(), TestError> {
             let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -211,7 +209,7 @@ mod tests {
 
         /// Expect Error when required tables haven't been created
         #[tokio::test]
-        async fn returns_error_with_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let corporation_repo = CorporationRepository::new(&test.state.db);

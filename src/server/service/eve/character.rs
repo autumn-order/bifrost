@@ -76,7 +76,7 @@ mod tests {
 
         /// Expect Ok when creating character without alliance or faction
         #[tokio::test]
-        async fn create_character_ok_no_alliance_or_faction() -> Result<(), TestError> {
+        async fn creates_character_without_alliance_or_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -102,7 +102,7 @@ mod tests {
 
         /// Expect Ok when creating character with alliance
         #[tokio::test]
-        async fn create_character_ok_with_alliance() -> Result<(), TestError> {
+        async fn creates_character_with_alliance() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -128,7 +128,7 @@ mod tests {
 
         /// Expect Ok when creating character with faction
         #[tokio::test]
-        async fn create_character_ok_with_faction() -> Result<(), TestError> {
+        async fn creates_character_with_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -154,7 +154,7 @@ mod tests {
 
         /// Expect Ok when creating character with alliance & faction
         #[tokio::test]
-        async fn create_character_ok_with_alliance_and_faction() -> Result<(), TestError> {
+        async fn creates_character_with_alliance_and_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -180,7 +180,7 @@ mod tests {
 
         /// Expect Error when ESI endpoint is unavailable
         #[tokio::test]
-        async fn create_character_err_esi() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -199,7 +199,7 @@ mod tests {
 
         /// Expect Error when trying to create character that already exists
         #[tokio::test]
-        async fn create_character_err_duplicate_character() -> Result<(), TestError> {
+        async fn fails_for_duplicate_character() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -238,7 +238,7 @@ mod tests {
 
         /// Expect Ok when character is found in database
         #[tokio::test]
-        async fn get_or_create_character_ok_found() -> Result<(), TestError> {
+        async fn finds_existing_character() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -259,7 +259,7 @@ mod tests {
 
         /// Expect Ok when character is created when not found in database
         #[tokio::test]
-        async fn test_get_or_create_character_created() -> Result<(), TestError> {
+        async fn creates_character_when_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,
@@ -287,7 +287,7 @@ mod tests {
 
         /// Expect Error when attempting to access database tables that haven't been created
         #[tokio::test]
-        async fn get_or_create_character_err_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let character_id = 1;
@@ -303,7 +303,7 @@ mod tests {
 
         /// Expect Error when attempting to fetch from ESI endpoint that doesn't exist
         #[tokio::test]
-        async fn get_or_create_character_err_esi() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
                 entity::prelude::EveAlliance,

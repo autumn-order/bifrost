@@ -81,14 +81,14 @@ impl<'a> UserRepository<'a> {
 #[cfg(test)]
 mod tests {
 
-    mod create_tests {
+    mod create {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;
 
         /// Expect success when creating a new user
         #[tokio::test]
-        async fn returns_success_when_creating_user() -> Result<(), TestError> {
+        async fn creates_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
@@ -102,12 +102,12 @@ mod tests {
 
         /// Expect Error when setting user main character to character that does not exist in database
         #[tokio::test]
-        async fn returns_error_with_non_existant_main_character() -> Result<(), TestError> {
+        async fn fails_for_nonexistent_main_character() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
 
-            let non_existant_main_character_id = 2;
+            let nonexistent_main_character_id = 2;
             let user_repository = UserRepository::new(&test.state.db);
-            let result = user_repository.create(non_existant_main_character_id).await;
+            let result = user_repository.create(nonexistent_main_character_id).await;
 
             assert!(result.is_err());
 
@@ -122,7 +122,7 @@ mod tests {
 
         /// Expect Ok(Some(_)) when existing user is found
         #[tokio::test]
-        async fn get_user_ok_some_for_existing_user() -> Result<(), TestError> {
+        async fn finds_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -139,12 +139,12 @@ mod tests {
 
         /// Expect Ok(None) when user is not found
         #[tokio::test]
-        async fn get_user_ok_none_for_non_existant_user() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
 
-            let non_existant_user_id = 1;
+            let nonexistent_user_id = 1;
             let user_repo = UserRepository::new(&test.state.db);
-            let result = user_repo.get(non_existant_user_id).await;
+            let result = user_repo.get(nonexistent_user_id).await;
 
             assert!(matches!(result, Ok(None)));
 
@@ -153,7 +153,7 @@ mod tests {
 
         /// Expect Error when required database tables are not present
         #[tokio::test]
-        async fn get_user_error_with_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
             let user_repo = UserRepository::new(&test.state.db);
 
@@ -172,7 +172,7 @@ mod tests {
 
         /// Expect Ok when updating user main character with valid character ID
         #[tokio::test]
-        async fn update_user_ok_some_for_existing_user() -> Result<(), TestError> {
+        async fn updates_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model_two = test.eve().insert_mock_character(2, 1, None, None).await?;
             let (user_model, _, _) = test
@@ -194,14 +194,14 @@ mod tests {
 
         /// Expect Ok(None) when attempting to update user ID that does not exist
         #[tokio::test]
-        async fn update_user_ok_none_for_non_existant_user() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let user_repo = UserRepository::new(&test.state.db);
-            let non_existant_user_id = 1;
+            let nonexistent_user_id = 1;
             let result = user_repo
-                .update(non_existant_user_id, character_model.id)
+                .update(nonexistent_user_id, character_model.id)
                 .await;
 
             assert!(matches!(result, Ok(None)));
@@ -211,7 +211,7 @@ mod tests {
 
         /// Expect Error when attempting to update user main character with non existant character ID
         #[tokio::test]
-        async fn update_user_err_for_non_existant_main_character() -> Result<(), TestError> {
+        async fn fails_for_nonexistent_main_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, character_model) = test
                 .user()
@@ -237,7 +237,7 @@ mod tests {
 
         /// Expect success when deleting user
         #[tokio::test]
-        async fn delete_user_ok_for_existing_user() -> Result<(), TestError> {
+        async fn deletes_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
@@ -259,7 +259,7 @@ mod tests {
 
         /// Expect no rows to be affected when deleting user that does not exist
         #[tokio::test]
-        async fn delete_user_ok_no_rows_for_non_existant_user() -> Result<(), TestError> {
+        async fn returns_no_rows_for_nonexistent_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -278,7 +278,7 @@ mod tests {
 
         /// Expect Error when database tables required don't exist
         #[tokio::test]
-        async fn delete_user_err_for_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't create required tables, causing an error
             let test = test_setup_with_tables!()?;
 

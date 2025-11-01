@@ -4,7 +4,7 @@ use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
 
 #[tokio::test]
 // Test the return of a 307 temporary redirect response for login
-async fn test_login_success() -> Result<(), TestError> {
+async fn redirects_to_eve_login() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let result = login(State(test.state()), test.session).await;
@@ -18,7 +18,7 @@ async fn test_login_success() -> Result<(), TestError> {
 
 #[tokio::test]
 // Test the return of a 500 internal server error response for failed login
-async fn test_login_server_error() -> Result<(), TestError> {
+async fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
     let mut test = test_setup_with_tables!()?;
     // Build an ESI client not configured for OAuth2 to trigger internal server error
     let esi_client = eve_esi::Client::new(TEST_USER_AGENT).unwrap();

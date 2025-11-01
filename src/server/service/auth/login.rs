@@ -31,9 +31,9 @@ pub mod tests {
 
     use crate::server::{error::Error, service::auth::login::login_service};
 
-    /// Test successful login
+    /// Expect successful generation of login URL
     #[tokio::test]
-    async fn test_login_service() -> Result<(), TestError> {
+    async fn generates_login_url() -> Result<(), TestError> {
         let test = test_setup_with_tables!()?;
 
         let scopes = vec![];
@@ -44,9 +44,9 @@ pub mod tests {
         Ok(())
     }
 
-    /// Test server error when OAuth2 for ESI client is not configured
+    /// Expect Error when OAuth2 for ESI client is not configured
     #[test]
-    fn test_login_server_error() -> Result<(), TestError> {
+    fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
         let esi_client = eve_esi::Client::new(TEST_USER_AGENT).expect("Failed to build ESI client");
 
         let scopes = vec![];
