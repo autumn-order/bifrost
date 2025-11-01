@@ -11,7 +11,7 @@ use bifrost_test_utils::prelude::*;
 
 #[tokio::test]
 /// Expect 307 temprorary redirect when logging with new character
-async fn test_callback_new_user_success() -> Result<(), TestError> {
+async fn redirects_for_new_user() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
     let character_id = 1;
     let character_endpoints = test
@@ -56,7 +56,7 @@ async fn test_callback_new_user_success() -> Result<(), TestError> {
 
 #[tokio::test]
 /// Expect 307 temprorary redirect when logging with existing user
-async fn test_callback_existing_user_success() -> Result<(), TestError> {
+async fn redirects_for_existing_user() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
     let (user_model, user_character_model, character_model) = test
         .user()
@@ -102,7 +102,7 @@ async fn test_callback_existing_user_success() -> Result<(), TestError> {
 
 #[tokio::test]
 /// Expect 400 bad request when CSRF state is modified
-async fn test_callback_bad_request() -> Result<(), TestError> {
+async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
     let mut params = CallbackParams {
         state: "state".to_string(),
@@ -124,7 +124,7 @@ async fn test_callback_bad_request() -> Result<(), TestError> {
 
 #[tokio::test]
 /// Test the return of a 500 internal server error response for callback
-async fn test_callback_server_error() -> Result<(), TestError> {
+async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
     let params = CallbackParams {
         state: "state".to_string(),

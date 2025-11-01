@@ -8,7 +8,7 @@ use bifrost_test_utils::prelude::*;
 
 #[tokio::test]
 /// Expect 200 success with user information for existing user
-async fn returns_success_for_existing_user() -> Result<(), TestError> {
+async fn returns_user_information() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
     let (user_model, _, _) = test
         .user()
@@ -26,11 +26,11 @@ async fn returns_success_for_existing_user() -> Result<(), TestError> {
 
 #[tokio::test]
 /// Expect 404 not found for user that does not exist
-async fn returns_not_found_for_user_that_doesnt_exist() -> Result<(), TestError> {
+async fn returns_not_found_for_nonexistent_user() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
-    let non_existant_user_id = 1;
-    let result = get_user(State(test.state()), Path(non_existant_user_id)).await;
+    let nonexistent_user_id = 1;
+    let result = get_user(State(test.state()), Path(nonexistent_user_id)).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -41,11 +41,11 @@ async fn returns_not_found_for_user_that_doesnt_exist() -> Result<(), TestError>
 
 #[tokio::test]
 /// Expect 500 internal server error when required database tables dont exist
-async fn error_when_required_tables_dont_exist() -> Result<(), TestError> {
+async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
-    let non_existant_user_id = 1;
-    let result = get_user(State(test.state()), Path(non_existant_user_id)).await;
+    let nonexistent_user_id = 1;
+    let result = get_user(State(test.state()), Path(nonexistent_user_id)).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();

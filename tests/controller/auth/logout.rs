@@ -4,7 +4,7 @@ use bifrost_test_utils::prelude::*;
 
 #[tokio::test]
 /// Expect 307 temporary redirect after logout with a user ID in session
-async fn returns_redirect_on_logout_with_user_id() -> Result<(), TestError> {
+async fn logs_out_user_successfully() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
     let user_id = 1;
@@ -30,7 +30,7 @@ async fn returns_redirect_on_logout_with_user_id() -> Result<(), TestError> {
 /// a session without any data in it. To resolve this, the endpoint doesn't
 /// clear session unless there is actually a user ID in session, it will redirect
 /// to login regardless of clear being called.
-async fn returns_redirect_on_logout_with_no_session() -> Result<(), TestError> {
+async fn redirects_when_no_session_data() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
     let result = logout(test.session).await;
