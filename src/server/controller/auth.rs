@@ -5,15 +5,20 @@ use axum::{
 use serde::Deserialize;
 use tower_sessions::Session;
 
-use crate::server::{
-    controller::util::csrf::validate_csrf,
-    error::Error,
-    model::{
-        app::AppState,
-        session::{auth::SessionAuthCsrf, user::SessionUserId},
+use crate::{
+    model::api::ErrorDto,
+    server::{
+        controller::util::csrf::validate_csrf,
+        error::Error,
+        model::{
+            app::AppState,
+            session::{auth::SessionAuthCsrf, user::SessionUserId},
+        },
+        service::auth::{callback::CallbackService, login::login_service},
     },
-    service::auth::{callback::CallbackService, login::login_service},
 };
+
+pub static AUTH_TAG: &str = "auth";
 
 #[derive(Deserialize)]
 pub struct CallbackParams {
@@ -28,6 +33,15 @@ pub struct CallbackParams {
 /// # Responses
 /// - 307 (Temporary Redirect): Redirects user to a temporary login URL to start the EVE Online login process
 /// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
+#[utoipa::path(
+    get,
+    path = "/api/auth/login",
+    tag = AUTH_TAG,
+    responses(
+        (status = 307, description = "Redirect to EVE Online login URL"),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    )
+)]
 pub async fn login(
     State(state): State<AppState>,
     session: Session,
@@ -51,6 +65,20 @@ pub async fn login(
 /// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
 /// - 500 (Internal Server Error): An error occurred related to JWT token validation, an ESI request, or
 ///   a database-related error
+#[utoipa::path(
+    get,
+    path = "/api/auth/callback",
+    tag = AUTH_TAG,
+    responses(
+        (status = 307, description = "Redirect to user information API route"),
+        (status = 400, description = "CSRF state in URL does not match state in session", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+    params(
+        ("state" = String, Query, description = "CSRF state to be validated during callback against state stored in session"),
+        ("code" = String, Query, description = "Authorization code used to fetch a JWT token from EVE Online authentication servers")
+    )
+)]
 pub async fn callback(
     State(state): State<AppState>,
     session: Session,
@@ -70,7 +98,7 @@ pub async fn callback(
         SessionUserId::insert(&session, user_id).await?;
     }
 
-    Ok(Redirect::temporary(&format!("/user/{}", user_id)))
+    Ok(Redirect::temporary(&format!("/api/user/{}", user_id)))
 }
 
 /// Logs the user out by clearing their session
@@ -78,6 +106,15 @@ pub async fn callback(
 /// # Responses
 /// - 307 (Temporary Redirect): Successfully logged out, redirect to login route
 /// - 500 (Internal Server Error): There was an issue clearing the session
+#[utoipa::path(
+    get,
+    path = "/api/auth/logout",
+    tag = AUTH_TAG,
+    responses(
+        (status = 307, description = "Redirect to login API route after logout"),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    )
+)]
 pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
     let maybe_user_id = SessionUserId::get(&session).await?;
 
@@ -89,5 +126,5 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
         session.clear().await;
     }
 
-    Ok(Redirect::temporary("/auth/login"))
+    Ok(Redirect::temporary("/api/auth/login"))
 }

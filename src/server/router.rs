@@ -1,17 +1,26 @@
-use axum::routing::get;
 use axum::Router;
+use utoipa::OpenApi;
+use utoipa_axum::{router::OpenApiRouter, routes};
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::server::{controller, model::app::AppState};
 
 pub fn routes() -> Router<AppState> {
-    let auth_routes = Router::new()
-        .route("/auth/login", get(controller::auth::login))
-        .route("/auth/callback", get(controller::auth::callback))
-        .route("/auth/logout", get(controller::auth::logout));
+    #[derive(OpenApi)]
+    #[openapi(info(title = "Bifrost", description = "Bifrost API"), tags(
+        (name = controller::auth::AUTH_TAG, description = "Authentication API routes"),
+        (name = controller::user::USER_TAG, description = "User-related API routes")
+    ))]
+    struct ApiDoc;
 
-    let user_routes = Router::new().route("/user/{id}", get(controller::user::get_user));
+    let (routes, api) = OpenApiRouter::with_openapi(ApiDoc::openapi())
+        .routes(routes!(controller::auth::login))
+        .routes(routes!(controller::auth::callback))
+        .routes(routes!(controller::auth::logout))
+        .routes(routes!(controller::user::get_user))
+        .split_for_parts();
 
-    let routes = Router::new().merge(auth_routes).merge(user_routes);
+    let routes = routes.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api));
 
     routes
 }

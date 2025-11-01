@@ -19,7 +19,8 @@ bun i
 
 Create a developer application at <https://developers.eveonline.com/applications>
 
-- For development set callback URL to `http://localhost:8080/auth/callback`
+- For development set callback URL to `http://localhost:8080/api/auth/callback`
+- Enable all scopes for the application
 
 ### Configure Environment Variables
 
@@ -32,7 +33,7 @@ Set the following in `.env`:
 - `CONTACT_EMAIL`
 - `ESI_CLIENT_ID` (Get from <https://developers.eveonline.com/applications>)
 - `ESI_CLIENT_SECRET`(Get from from <https://developers.eveonline.com/applications>)
-- `ESI_CALLBACK_URL` (For development, this will be `http://localhost:8080/auth/callback`)
+- `ESI_CALLBACK_URL` (For development, this will be `http://localhost:8080/api/auth/callback`)
 - `POSTGRES_PASSWORD` (Set to a secure password)
 - `DATABASE_URL` (Replace the `POSTGRES_PASSWORD` within the `DATABASE_URL` to the password you set)
 
@@ -44,7 +45,7 @@ Set the following in `.env`:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-1. Start the dioxus application
+2. Start the dioxus application
 
 ```bash
 dx serve
@@ -71,6 +72,8 @@ sea-orm-cli migrate
 ```bash
 sea-orm-cli generate entity -o ./entity/src/entities/ --date-time-crate chrono
 ```
+
+You can then find the API docs at `http://localhost:8080/api/docs`
 
 ### Additionally Useful DB Commands
 
