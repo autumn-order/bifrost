@@ -81,7 +81,7 @@ impl<'a> UserRepository<'a> {
 #[cfg(test)]
 mod tests {
 
-    mod create_tests {
+    mod create {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;

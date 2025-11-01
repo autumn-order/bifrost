@@ -136,7 +136,7 @@ mod tests {
 
         /// Expect Ok when user associated with character is found
         #[tokio::test]
-        async fn get_or_create_user_ok_found() -> Result<(), TestError> {
+        async fn finds_existing_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()
@@ -160,7 +160,7 @@ mod tests {
 
         /// Expect Ok & character transfer if owner hash for character has changed, requiring a new user
         #[tokio::test]
-        async fn get_or_create_user_ok_transfer_owner_hash_change() -> Result<(), TestError> {
+        async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
@@ -193,7 +193,7 @@ mod tests {
 
         /// Expect Ok when character is found but new user is created
         #[tokio::test]
-        async fn get_or_create_user_ok_created_existing_character() -> Result<(), TestError> {
+        async fn creates_user_for_existing_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
@@ -211,7 +211,7 @@ mod tests {
 
         /// Expect Ok when new character & user is created
         #[tokio::test]
-        async fn get_or_create_user_ok_created() -> Result<(), TestError> {
+        async fn creates_user_and_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_id = 1;
             let character_endpoints =
@@ -236,7 +236,7 @@ mod tests {
 
         /// Expect Error when the required database tables haven't been created
         #[tokio::test]
-        async fn get_or_create_user_err_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             // Set character ID in claims to the mock character
@@ -253,7 +253,7 @@ mod tests {
 
         /// Expect Error when required ESI endpoints are unavailable
         #[tokio::test]
-        async fn get_or_create_user_err_esi() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
 
             // Set character ID in claims to the mock character
@@ -276,7 +276,7 @@ mod tests {
 
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
-        async fn get_user_ok_some_only_main() -> Result<(), TestError> {
+        async fn returns_user_with_only_main_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -298,7 +298,7 @@ mod tests {
 
         /// Expect Ok with Some & 1 additional characters linked for user
         #[tokio::test]
-        async fn get_user_ok_some_one_additional_character() -> Result<(), TestError> {
+        async fn returns_user_with_additional_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -323,12 +323,12 @@ mod tests {
 
         /// Expect Ok with None for user ID that does not exist
         #[tokio::test]
-        async fn get_user_ok_none_non_existant_user() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
 
-            let non_existant_user_id = 1;
+            let nonexistent_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-            let result = user_service.get_user(non_existant_user_id).await;
+            let result = user_service.get_user(nonexistent_user_id).await;
 
             assert!(result.is_ok());
             let maybe_user = result.unwrap();
@@ -339,12 +339,12 @@ mod tests {
 
         /// Expect Error when required tables are not present
         #[tokio::test]
-        async fn get_user_err_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
-            let non_existant_user_id = 1;
+            let nonexistent_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-            let result = user_service.get_user(non_existant_user_id).await;
+            let result = user_service.get_user(nonexistent_user_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
 
@@ -359,7 +359,7 @@ mod tests {
 
         /// Expect Ok with true indicating user was deleted
         #[tokio::test]
-        async fn delete_user_ok_true_deleted() -> Result<(), TestError> {
+        async fn deletes_user_successfully() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // We include the character ID as a main which must be set for every user, for this test
@@ -380,11 +380,11 @@ mod tests {
 
         /// Expect Ok with false when trying to delete a user that does not exist
         #[tokio::test]
-        async fn delete_user_ok_false_doesnt_exist() -> Result<(), TestError> {
+        async fn returns_false_for_nonexistent_user() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
-            let non_existant_user_id = 1;
+            let nonexistent_user_id = 1;
             let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-            let result = user_service.delete_user(non_existant_user_id).await;
+            let result = user_service.delete_user(nonexistent_user_id).await;
 
             assert!(result.is_ok());
             let user_deleted = result.unwrap();
@@ -397,7 +397,7 @@ mod tests {
         /// - This is due to a foreign key violation requiring a user ID to exist for
         ///   a character ownership entry.
         #[tokio::test]
-        async fn delete_user_err_has_owned_characters() -> Result<(), TestError> {
+        async fn fails_when_user_has_owned_characters() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()

@@ -81,7 +81,7 @@ impl<'a> FactionRepository<'a> {
 #[cfg(test)]
 mod tests {
 
-    mod upsert_faction {
+    mod upsert_many {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::eve::faction::FactionRepository;

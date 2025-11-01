@@ -166,7 +166,7 @@ mod tests {
 
         /// Expect no link created when finding character owned by provided user ID
         #[tokio::test]
-        async fn test_link_character_owned_success() -> Result<(), TestError> {
+        async fn skips_link_when_already_owned() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()
@@ -192,7 +192,7 @@ mod tests {
 
         /// Expect Ok & character transfer if owner hash hasn't changed but user ID is different
         #[tokio::test]
-        async fn test_link_character_owned_different_user_transfer() -> Result<(), TestError> {
+        async fn transfers_character_to_different_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
@@ -231,7 +231,7 @@ mod tests {
 
         /// Expect Ok & character transfer if ownerhash for character has changed, requiring a new user
         #[tokio::test]
-        async fn test_link_character_owned_transfer_success() -> Result<(), TestError> {
+        async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
@@ -270,7 +270,7 @@ mod tests {
 
         /// Expect link created when character is created but not owned and linked to provided user ID
         #[tokio::test]
-        async fn test_link_character_not_owned_success() -> Result<(), TestError> {
+        async fn links_unowned_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Character is set as main but there isn't actually an ownership record set
@@ -303,7 +303,7 @@ mod tests {
 
         /// Expect link created when creating a new character and linking to provided user ID
         #[tokio::test]
-        async fn test_link_character_create_character_success() -> Result<(), TestError> {
+        async fn creates_and_links_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -337,18 +337,18 @@ mod tests {
 
         /// Expect database Error when user ID provided does not exist in database
         #[tokio::test]
-        async fn test_link_character_user_id_foreign_key_database_error() -> Result<(), TestError> {
+        async fn fails_for_nonexistent_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
-            let non_existant_id = 1;
+            let nonexistent_id = 1;
             let user_character_service =
                 UserCharacterService::new(&test.state.db, &test.state.esi_client);
             let result = user_character_service
-                .link_character(non_existant_id, claims)
+                .link_character(nonexistent_id, claims)
                 .await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
@@ -358,7 +358,7 @@ mod tests {
 
         /// Expect ESI error when endpoints required to create a character are not available
         #[tokio::test]
-        async fn test_link_character_create_character_esi_error() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test = test_setup_with_user_tables!()?;
 
             let character_id = 1;
@@ -376,7 +376,7 @@ mod tests {
         }
     }
 
-    mod transfer_character_tests {
+    mod transfer_character {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::{
@@ -386,7 +386,7 @@ mod tests {
 
         /// Expect Ok with user deletion when last character is transferred
         #[tokio::test]
-        async fn test_transfer_character_with_deletion_success() -> Result<(), TestError> {
+        async fn deletes_user_when_last_character_transferred() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (_, user_character_model, character_model) = test
                 .user()
@@ -420,7 +420,7 @@ mod tests {
         /// Expect Ok with no user deletion when character is transferred from user with multiple characters
         /// - No main change
         #[tokio::test]
-        async fn transfer_character_without_deletion() -> Result<(), TestError> {
+        async fn transfers_character_without_deleting_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -466,7 +466,7 @@ mod tests {
         /// Expect Ok with no user deletion when character is transferred from user with multiple characters
         /// - change main
         #[tokio::test]
-        async fn transfer_character_with_change_main() -> Result<(), TestError> {
+        async fn changes_main_character_after_transfer() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, main_user_character_model, character_model) = test
                 .user()
@@ -511,7 +511,7 @@ mod tests {
 
         /// Expect Error transferring character to user that does not exist
         #[tokio::test]
-        async fn test_transfer_character_error() -> Result<(), TestError> {
+        async fn fails_for_nonexistent_target_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, user_character_model, character_model) = test
                 .user()

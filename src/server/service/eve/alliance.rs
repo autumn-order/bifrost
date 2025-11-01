@@ -68,7 +68,7 @@ mod tests {
 
         /// Expect Ok when fetching & creating an alliance with a faction ID
         #[tokio::test]
-        async fn returns_success_when_creating_alliance_with_faction() -> Result<(), TestError> {
+        async fn creates_alliance_with_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
@@ -88,7 +88,7 @@ mod tests {
 
         /// Expect Ok when fetching & creating an alliance without a faction ID
         #[tokio::test]
-        async fn returns_success_when_creating_alliance_without_faction() -> Result<(), TestError> {
+        async fn creates_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
@@ -108,7 +108,7 @@ mod tests {
 
         /// Expect Error when ESI endpoint for alliance is unavailable
         #[tokio::test]
-        async fn returns_error_when_endpoint_is_unavailable() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
@@ -123,7 +123,7 @@ mod tests {
 
         /// Expect Error when trying to create alliance that already exists
         #[tokio::test]
-        async fn returns_error_when_creating_duplicate_alliance() -> Result<(), TestError> {
+        async fn fails_for_duplicate_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
@@ -151,7 +151,7 @@ mod tests {
 
         // Expect Ok with found when alliance exists in database
         #[tokio::test]
-        async fn returns_success_when_alliance_exists() -> Result<(), TestError> {
+        async fn finds_existing_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
@@ -168,7 +168,7 @@ mod tests {
 
         // Expect Ok when creating new alliance which does not exist in database
         #[tokio::test]
-        async fn returns_success_when_creating_alliance() -> Result<(), TestError> {
+        async fn creates_alliance_when_missing() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_id = 1;
@@ -188,7 +188,7 @@ mod tests {
 
         /// Expect Error due to required tables not being created
         #[tokio::test]
-        async fn returns_error_due_to_missing_required_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let alliance_id = 1;
@@ -202,7 +202,7 @@ mod tests {
 
         // Expect Error when required ESI endpoint is unavailable
         #[tokio::test]
-        async fn returns_error_when_endpoint_is_unavailable() -> Result<(), TestError> {
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
             let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 

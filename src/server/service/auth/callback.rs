@@ -77,7 +77,7 @@ mod tests {
 
     /// Expect Ok when logging in with a new character
     #[tokio::test]
-    async fn test_callback_new_user_success() -> Result<(), TestError> {
+    async fn creates_new_user() -> Result<(), TestError> {
         let mut test = test_setup_with_user_tables!()?;
         let character_id = 1;
         let character_endpoints =
@@ -109,7 +109,7 @@ mod tests {
 
     /// Expect Ok when logging in with an existing character
     #[tokio::test]
-    async fn test_callback_existing_user_success() -> Result<(), TestError> {
+    async fn handles_existing_user() -> Result<(), TestError> {
         let mut test = test_setup_with_user_tables!()?;
         let (user_model, user_character_model, character_model) = test
             .user()
@@ -139,7 +139,7 @@ mod tests {
 
     /// Expect Error when ESI endpoints are unavailable
     #[tokio::test]
-    async fn test_callback_server_error() -> Result<(), TestError> {
+    async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         let test = test_setup_with_user_tables!()?;
 
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
@@ -153,9 +153,9 @@ mod tests {
         Ok(())
     }
 
-    /// Expect Error required database tables are not presents
+    /// Expect Error when required database tables are not present
     #[tokio::test]
-    async fn handle_callback_err_missing_tables() -> Result<(), TestError> {
+    async fn fails_when_tables_missing() -> Result<(), TestError> {
         let mut test = test_setup_with_tables!()?;
         let jwt_endpoints = test.auth().with_jwt_endpoints(1, "owner_hash");
 
