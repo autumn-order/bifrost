@@ -59,7 +59,7 @@ mod tests {
 
         /// Expect Ok when creating alliance entry with a related faction
         #[tokio::test]
-        async fn returns_success_creating_alliance_with_faction_id() -> Result<(), TestError> {
+        async fn creates_alliance_with_faction_id() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let faction_model = test.eve().insert_mock_faction(1).await?;
@@ -88,7 +88,7 @@ mod tests {
 
         /// Expect Ok when creating alliance entry without faction ID
         #[tokio::test]
-        async fn returns_success_creating_alliance_without_faction() -> Result<(), TestError> {
+        async fn creates_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
@@ -112,7 +112,7 @@ mod tests {
 
         /// Expect Some when getting existing alliance from table
         #[tokio::test]
-        async fn returns_some_with_existing_alliance() -> Result<(), TestError> {
+        async fn finds_existing_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
@@ -135,7 +135,7 @@ mod tests {
 
         /// Expect None when getting alliance from table that does not exist
         #[tokio::test]
-        async fn returns_none_with_non_existant_alliance() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_alliance() -> Result<(), TestError> {
             let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
@@ -153,7 +153,7 @@ mod tests {
 
         /// Expect Error when getting alliance from table that has not been created
         #[tokio::test]
-        async fn returns_error_with_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);

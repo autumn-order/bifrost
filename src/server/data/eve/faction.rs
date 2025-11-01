@@ -88,7 +88,7 @@ mod tests {
 
         /// Expect Ok when upserting a new faction
         #[tokio::test]
-        async fn returns_success_when_upserting_new_faction() -> Result<(), TestError> {
+        async fn upserts_new_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let mock_faction = test.eve().with_mock_faction(1);
 
@@ -104,7 +104,7 @@ mod tests {
 
         /// Expect Ok & update when trying to upsert an existing faction
         #[tokio::test]
-        async fn returns_successful_update_with_existing_faction() -> Result<(), TestError> {
+        async fn updates_existing_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let mock_faction = test.eve().with_mock_faction(1);
             let mock_faction_update = test.eve().with_mock_faction(1);
@@ -134,7 +134,7 @@ mod tests {
 
         /// Expect Some when faction is present in the table
         #[tokio::test]
-        async fn returns_some_with_existing_faction() -> Result<(), TestError> {
+        async fn finds_existing_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_id = 1;
             let mock_faction = test.eve().with_mock_faction(faction_id);
@@ -155,7 +155,7 @@ mod tests {
 
         /// Expect None when faction is not present in the table
         #[tokio::test]
-        async fn returns_none_with_non_existant_faction() -> Result<(), TestError> {
+        async fn returns_none_for_nonexistent_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let mock_faction = test.eve().with_mock_faction(1);
 
@@ -169,7 +169,7 @@ mod tests {
 
         /// Expect Error when trying to get faction when required tables have not been created
         #[tokio::test]
-        async fn returns_error_with_missing_tables() -> Result<(), TestError> {
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let faction_id = 1;
