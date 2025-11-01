@@ -6,9 +6,11 @@ use axum::{
 };
 
 use crate::{
-    model::api::ErrorDto,
+    model::{api::ErrorDto, user::UserDto},
     server::{error::Error, model::app::AppState, service::user::UserService},
 };
+
+pub static USER_TAG: &str = "user";
 
 /// Returns information on the user's main character and linked characters
 ///
@@ -16,6 +18,19 @@ use crate::{
 /// - 200 (Success): The user's main character and a Vec of linked characters
 /// - 404 (Not Found): The provided user ID does not exist
 /// - 500 (Internal Server Error): An error if there is a database-related issue
+#[utoipa::path(
+    get,
+    path = "/api/user/{id}",
+    tag = USER_TAG,
+    responses(
+        (status = 200, description = "Success when retrieving user information", body = UserDto),
+        (status = 404, description = "User not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+    params(
+        ("id" = i32, Path, description = "ID of user to retrieve information for")
+    )
+)]
 pub async fn get_user(
     State(state): State<AppState>,
     Path(user_id): Path<i32>,
