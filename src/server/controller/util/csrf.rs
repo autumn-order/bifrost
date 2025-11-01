@@ -29,7 +29,7 @@ pub mod tests {
     /// Tests successful validation of CSRF state
     ///
     /// 200 success
-    async fn test_validate_csrf_success() -> Result<(), TestError> {
+    async fn validates_csrf_successfully() -> Result<(), TestError> {
         let test = test_setup_with_tables!()?;
         let state = "state";
 
@@ -45,7 +45,7 @@ pub mod tests {
     /// Tests failed validation of CSRF state due to mismatch
     ///
     /// 400 bad request
-    async fn test_validate_csrf_mismatch() -> Result<(), TestError> {
+    async fn fails_for_csrf_mismatch() -> Result<(), TestError> {
         let test = test_setup_with_tables!()?;
         let state = "state";
 
@@ -65,7 +65,7 @@ pub mod tests {
     /// Tests failed validation of CSRF state due to session error
     ///
     /// 500 internal server error
-    async fn test_validate_csrf_session_error() -> Result<(), TestError> {
+    async fn fails_when_csrf_not_in_session() -> Result<(), TestError> {
         let test = test_setup_with_tables!()?;
         let state = "state";
 

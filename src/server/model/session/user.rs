@@ -34,14 +34,14 @@ impl SessionUserId {
 
 #[cfg(test)]
 mod tests {
-    mod session_insert_user_id_tests {
+    mod insert {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::model::session::user::SessionUserId;
 
         #[tokio::test]
         /// Expect success when inserting valid user ID into session
-        async fn test_insert_session_user_id_success() -> Result<(), TestError> {
+        async fn inserts_user_id_into_session() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let user_id = 1;
@@ -53,14 +53,14 @@ mod tests {
         }
     }
 
-    mod session_get_user_id_tests {
+    mod get {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::model::session::user::{SessionUserId, SESSION_USER_ID_KEY};
 
         #[tokio::test]
         /// Expect Some when user ID is present in session
-        async fn test_get_session_user_id_some() -> Result<(), TestError> {
+        async fn retrieves_user_id_from_session() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
             let user_id = 1;
             let _ = SessionUserId::insert(&test.session, user_id).await.unwrap();
@@ -80,7 +80,7 @@ mod tests {
 
         #[tokio::test]
         /// Expect None when no user ID is present in session
-        async fn test_get_session_user_id_none() -> Result<(), TestError> {
+        async fn returns_none_when_user_id_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             let result = SessionUserId::get(&test.session).await;
@@ -95,7 +95,7 @@ mod tests {
 
         #[tokio::test]
         /// Expect parse error when user ID inserted into session is not an i32
-        async fn test_get_session_user_id_parse_error() -> Result<(), TestError> {
+        async fn fails_for_invalid_user_id_format() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
             // Insert a user ID string which will fail i32 parse
