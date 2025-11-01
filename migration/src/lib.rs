@@ -6,6 +6,7 @@ mod m20251017_000003_create_eve_corporation_table;
 mod m20251017_000004_create_eve_character_table;
 mod m20251017_000005_create_bifrost_user_table;
 mod m20251017_000006_create_bifrost_user_character_table;
+mod m20251101_000007_create_bifrost_scheduler_queue;
 
 pub struct Migrator;
 
@@ -19,6 +20,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20251017_000004_create_eve_character_table::Migration),
             Box::new(m20251017_000005_create_bifrost_user_table::Migration),
             Box::new(m20251017_000006_create_bifrost_user_character_table::Migration),
+            Box::new(m20251101_000007_create_bifrost_scheduler_queue::Migration),
         ]
     }
 }
