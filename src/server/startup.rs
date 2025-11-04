@@ -9,6 +9,8 @@ use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
 use tower_sessions::SessionManagerLayer;
 use tower_sessions_redis_store::{fred::prelude::Pool, RedisStore};
 
+use crate::server::scheduler::config::eve::alliance as alliance_config;
+
 /// Build and configure the ESI client with the provided credentials
 pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, Error> {
     let esi_client = eve_esi::Client::builder()
@@ -105,17 +107,22 @@ pub async fn start_cron(
     let job_storage = job_storage.clone();
 
     sched
-        .add(Job::new_async("0 0 */3 * * *", move |_, _| {
-            let db = db.clone();
-            let mut job_storage = job_storage.clone();
+        .add(Job::new_async(
+            alliance_config::CRON_EXPRESSION,
+            move |_, _| {
+                let db = db.clone();
+                let mut job_storage = job_storage.clone();
 
-            Box::pin(async move {
-                match schedule_alliance_info_update(&db, &mut job_storage).await {
-                    Ok(count) => tracing::info!("Scheduled {} alliance info update(s)", count),
-                    Err(e) => tracing::error!("Failed to schedule alliance info updates: {:?}", e),
-                }
-            })
-        })?)
+                Box::pin(async move {
+                    match schedule_alliance_info_update(&db, &mut job_storage).await {
+                        Ok(count) => tracing::info!("Scheduled {} alliance info update(s)", count),
+                        Err(e) => {
+                            tracing::error!("Failed to schedule alliance info updates: {:?}", e)
+                        }
+                    }
+                })
+            },
+        )?)
         .await?;
 
     sched.start().await?;
