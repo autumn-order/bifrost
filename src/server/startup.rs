@@ -1,6 +1,6 @@
 use crate::server::{
-    config::Config, error::Error, model::worker::WorkerJob, task::eve::schedule_alliance_updates,
-    worker::handle_job,
+    config::Config, error::Error, model::worker::WorkerJob,
+    scheduler::eve::alliance::schedule_alliance_info_update, worker::handle_job,
 };
 use apalis_redis::RedisStorage;
 use dioxus_logger::tracing;
@@ -110,7 +110,7 @@ pub async fn start_cron(
             let mut job_storage = job_storage.clone();
 
             Box::pin(async move {
-                match schedule_alliance_updates(&db, &mut job_storage).await {
+                match schedule_alliance_info_update(&db, &mut job_storage).await {
                     Ok(count) => tracing::info!("Scheduled {} alliance info update(s)", count),
                     Err(e) => tracing::error!("Failed to schedule alliance info updates: {:?}", e),
                 }
