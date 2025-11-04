@@ -95,15 +95,26 @@ impl<'a> EntityRefreshTracker<'a> {
 
         let mut scheduled_jobs = Vec::new();
 
+        // Try to schedule each job, but stop on first error
         for (id, job, scheduled_at) in job_schedule {
-            job_storage.schedule(job, scheduled_at.timestamp()).await?;
+            match job_storage.schedule(job, scheduled_at.timestamp()).await {
+                Ok(_) => {
+                    scheduled_jobs.push((id, scheduled_at));
+                }
+                Err(e) => {
+                    // Mark the jobs that were successfully scheduled before the error
+                    if !scheduled_jobs.is_empty() {
+                        self.mark_jobs_as_scheduled::<E>(scheduled_jobs).await?;
+                    }
 
-            scheduled_jobs.push((id, scheduled_at));
+                    return Err(e.into());
+                }
+            }
         }
 
+        // All jobs scheduled successfully
         let scheduled_count = scheduled_jobs.len();
         self.mark_jobs_as_scheduled::<E>(scheduled_jobs).await?;
-
         Ok(scheduled_count)
     }
 
