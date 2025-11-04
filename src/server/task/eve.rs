@@ -44,7 +44,7 @@ pub async fn schedule_alliance_updates(
     // Create and schedule jobs
     let jobs: Vec<WorkerJob> = alliances_needing_update
         .into_iter()
-        .map(|alliance| WorkerJob::UpdateAlliance {
+        .map(|alliance| WorkerJob::UpdateAllianceInfo {
             alliance_id: alliance.alliance_id,
         })
         .collect();

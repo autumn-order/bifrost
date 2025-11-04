@@ -1,4 +1,5 @@
 use apalis::prelude::Data;
+use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -11,10 +12,21 @@ pub async fn handle_job(
     esi_client: Data<eve_esi::Client>,
 ) -> Result<(), Error> {
     match job {
-        WorkerJob::UpdateAlliance { alliance_id } => {
+        WorkerJob::UpdateAllianceInfo { alliance_id } => {
+            tracing::debug!(
+                "Processing alliance update for alliance_id: {}",
+                alliance_id
+            );
+
             AllianceService::new(&db, &esi_client)
                 .upsert_alliance(alliance_id)
-                .await?;
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to update alliance {}: {:?}", alliance_id, e);
+                    e
+                })?;
+
+            tracing::debug!("Successfully updated alliance {}", alliance_id);
         }
     }
 

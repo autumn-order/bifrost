@@ -111,7 +111,7 @@ pub async fn start_cron(
 
             Box::pin(async move {
                 match schedule_alliance_updates(&db, &mut job_storage).await {
-                    Ok(count) => tracing::info!("Scheduled {} alliance info updates", count),
+                    Ok(count) => tracing::info!("Scheduled {} alliance info update(s)", count),
                     Err(e) => tracing::error!("Failed to schedule alliance info updates: {:?}", e),
                 }
             })

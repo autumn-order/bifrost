@@ -12,7 +12,7 @@ fn main() {
 
     #[cfg(feature = "server")]
     dioxus::serve(|| async move {
-        use dioxus_logger::tracing::info;
+        use dioxus_logger::tracing;
 
         use crate::server::{config::Config, model::app::AppState, startup};
 
@@ -27,7 +27,7 @@ fn main() {
             .unwrap();
         let _ = startup::start_cron(&db, &mut worker_storage).await.unwrap();
 
-        info!("Starting server");
+        tracing::info!("Starting server");
 
         let mut router = dioxus::server::router(client::App);
         let server_routes = server::router::routes()

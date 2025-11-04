@@ -160,7 +160,7 @@ mod tests {
         /// Expect single job scheduled at current time or shortly after
         #[tokio::test]
         async fn schedules_single_job() {
-            let jobs = vec![WorkerJob::UpdateAlliance { alliance_id: 1 }];
+            let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }];
 
             let before = Utc::now().timestamp();
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -171,7 +171,10 @@ mod tests {
             assert_eq!(scheduled_jobs.len(), 1);
 
             let (job, scheduled_at) = &scheduled_jobs[0];
-            assert!(matches!(job, WorkerJob::UpdateAlliance { alliance_id: 1 }));
+            assert!(matches!(
+                job,
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 }
+            ));
             assert!(*scheduled_at >= before);
             assert!(*scheduled_at <= after + 1); // Allow 1 second for execution time
         }
@@ -180,9 +183,9 @@ mod tests {
         #[tokio::test]
         async fn staggers_job_execution_times() {
             let jobs = vec![
-                WorkerJob::UpdateAlliance { alliance_id: 1 },
-                WorkerJob::UpdateAlliance { alliance_id: 2 },
-                WorkerJob::UpdateAlliance { alliance_id: 3 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 3 },
             ];
 
             let schedule_interval = Duration::minutes(10);
@@ -209,7 +212,7 @@ mod tests {
             // Create more jobs than seconds in the schedule interval
             let mut jobs = Vec::new();
             for i in 1..=700 {
-                jobs.push(WorkerJob::UpdateAlliance { alliance_id: i });
+                jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
             }
 
             let schedule_interval = Duration::minutes(10); // 600 seconds
@@ -245,8 +248,8 @@ mod tests {
         #[tokio::test]
         async fn returns_correct_job_structure() {
             let jobs = vec![
-                WorkerJob::UpdateAlliance { alliance_id: 42 },
-                WorkerJob::UpdateAlliance { alliance_id: 99 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 42 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 99 },
             ];
 
             let before = Utc::now().timestamp();
@@ -261,7 +264,7 @@ mod tests {
             let (job1, scheduled_at1) = &scheduled_jobs[0];
             assert!(matches!(
                 job1,
-                WorkerJob::UpdateAlliance { alliance_id: 42 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 42 }
             ));
             assert!(*scheduled_at1 >= before);
             assert!(*scheduled_at1 <= after);
@@ -270,7 +273,7 @@ mod tests {
             let (job2, scheduled_at2) = &scheduled_jobs[1];
             assert!(matches!(
                 job2,
-                WorkerJob::UpdateAlliance { alliance_id: 99 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 99 }
             ));
             assert!(*scheduled_at2 >= before);
             assert!(*scheduled_at2 <= after);
@@ -283,11 +286,11 @@ mod tests {
         #[tokio::test]
         async fn schedules_within_interval_window() {
             let jobs = vec![
-                WorkerJob::UpdateAlliance { alliance_id: 1 },
-                WorkerJob::UpdateAlliance { alliance_id: 2 },
-                WorkerJob::UpdateAlliance { alliance_id: 3 },
-                WorkerJob::UpdateAlliance { alliance_id: 4 },
-                WorkerJob::UpdateAlliance { alliance_id: 5 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 3 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 4 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 5 },
             ];
 
             let schedule_interval = Duration::minutes(10);
@@ -314,10 +317,10 @@ mod tests {
         #[tokio::test]
         async fn maintains_job_order() {
             let jobs = vec![
-                WorkerJob::UpdateAlliance { alliance_id: 10 },
-                WorkerJob::UpdateAlliance { alliance_id: 20 },
-                WorkerJob::UpdateAlliance { alliance_id: 30 },
-                WorkerJob::UpdateAlliance { alliance_id: 40 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 10 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 20 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 30 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 40 },
             ];
 
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -329,19 +332,19 @@ mod tests {
             // Jobs should maintain their input order
             assert!(matches!(
                 scheduled_jobs[0].0,
-                WorkerJob::UpdateAlliance { alliance_id: 10 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 10 }
             ));
             assert!(matches!(
                 scheduled_jobs[1].0,
-                WorkerJob::UpdateAlliance { alliance_id: 20 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 20 }
             ));
             assert!(matches!(
                 scheduled_jobs[2].0,
-                WorkerJob::UpdateAlliance { alliance_id: 30 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 30 }
             ));
             assert!(matches!(
                 scheduled_jobs[3].0,
-                WorkerJob::UpdateAlliance { alliance_id: 40 }
+                WorkerJob::UpdateAllianceInfo { alliance_id: 40 }
             ));
         }
 
@@ -350,7 +353,7 @@ mod tests {
         async fn produces_monotonic_timestamps() {
             let mut jobs = Vec::new();
             for i in 1..=50 {
-                jobs.push(WorkerJob::UpdateAlliance { alliance_id: i });
+                jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
             }
 
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -383,7 +386,7 @@ mod tests {
             for (job_count, interval, expected_interval) in test_cases {
                 let mut jobs = Vec::new();
                 for i in 1..=job_count {
-                    jobs.push(WorkerJob::UpdateAlliance { alliance_id: i });
+                    jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
                 }
 
                 let result = create_job_schedule(jobs, interval).await;
