@@ -6,10 +6,11 @@ pub struct Config {
     pub database_url: String,
     pub valkey_url: String,
     pub user_agent: String,
+    pub workers: usize,
 }
 
 impl Config {
-    pub fn from_env() -> Result<Self, std::env::VarError> {
+    pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
         let contact_email = std::env::var("CONTACT_EMAIL")?;
         let user_agent = format!(
             "{}/{} ({}; +{})",
@@ -26,6 +27,7 @@ impl Config {
             esi_callback_url: std::env::var("ESI_CALLBACK_URL")?,
             database_url: std::env::var("DATABASE_URL")?,
             valkey_url: std::env::var("VALKEY_URL")?,
+            workers: std::env::var("WORKERS")?.parse()?,
             user_agent,
         })
     }
