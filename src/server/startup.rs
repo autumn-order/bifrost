@@ -105,7 +105,7 @@ pub async fn start_cron(
     let job_storage = job_storage.clone();
 
     sched
-        .add(Job::new_async("0 */10 * * * *", move |_, _| {
+        .add(Job::new_async("0 0 */3 * * *", move |_, _| {
             let db = db.clone();
             let mut job_storage = job_storage.clone();
 

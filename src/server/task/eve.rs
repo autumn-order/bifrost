@@ -12,10 +12,10 @@ use crate::server::{
     util::task::{create_job_schedule, max_update_batch_size},
 };
 
-/// ESI alliance info cache duration is 1 hour
-static ALLIANCE_CACHE: Duration = Duration::minutes(60);
+/// Cache ESI alliance information for 1 day
+static ALLIANCE_INFO_CACHE: Duration = Duration::hours(24);
 /// Interval the schedule cron task is ran
-static SCHEDULE_INTERVAL: Duration = Duration::minutes(10);
+static SCHEDULE_INTERVAL: Duration = Duration::hours(3);
 
 /// Checks for alliance information nearing expiration & schedules an update
 // We can't test this function because apalis requires an actual redis instance
@@ -25,7 +25,7 @@ pub async fn schedule_alliance_updates(
     job_storage: &mut RedisStorage<WorkerJob>,
 ) -> Result<usize, crate::server::error::Error> {
     let now = Utc::now().naive_utc();
-    let cache_expiry_threshold = now - ALLIANCE_CACHE;
+    let cache_expiry_threshold = now - ALLIANCE_INFO_CACHE;
     let stale_job_threshold = now - (SCHEDULE_INTERVAL * 2);
 
     // Find alliances that need updating
@@ -74,7 +74,8 @@ async fn find_alliances_needing_update(
         return Ok(Vec::new());
     }
 
-    let max_batch_size = max_update_batch_size(table_entries, ALLIANCE_CACHE, SCHEDULE_INTERVAL);
+    let max_batch_size =
+        max_update_batch_size(table_entries, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
     let alliances = entity::prelude::EveAlliance::find()
         // Only update alliances after their cache has expired to get fresh data
@@ -127,7 +128,7 @@ mod tests {
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -149,7 +150,7 @@ mod tests {
             test.eve().insert_mock_alliance(1, None).await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -170,7 +171,7 @@ mod tests {
             let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
             // Update the alliance to have an old updated_at timestamp
-            let old_timestamp = Utc::now().naive_utc() - Duration::hours(2);
+            let old_timestamp = Utc::now().naive_utc() - Duration::hours(25);
             entity::prelude::EveAlliance::update_many()
                 .col_expr(
                     entity::eve_alliance::Column::UpdatedAt,
@@ -181,7 +182,7 @@ mod tests {
                 .await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -203,7 +204,7 @@ mod tests {
             let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
             // Update alliance with old updated_at and null job_scheduled_at
-            let old_timestamp = Utc::now().naive_utc() - Duration::hours(2);
+            let old_timestamp = Utc::now().naive_utc() - Duration::hours(25);
             entity::prelude::EveAlliance::update_many()
                 .col_expr(
                     entity::eve_alliance::Column::UpdatedAt,
@@ -218,7 +219,7 @@ mod tests {
                 .await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -240,8 +241,8 @@ mod tests {
             let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
             // Update alliance with old updated_at and very old job_scheduled_at
-            let old_updated = Utc::now().naive_utc() - Duration::hours(2);
-            let old_job_scheduled = Utc::now().naive_utc() - Duration::minutes(30);
+            let old_updated = Utc::now().naive_utc() - Duration::hours(25);
+            let old_job_scheduled = Utc::now().naive_utc() - Duration::hours(7);
 
             entity::prelude::EveAlliance::update_many()
                 .col_expr(
@@ -257,7 +258,7 @@ mod tests {
                 .await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -279,7 +280,7 @@ mod tests {
             let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
             // Update alliance with old updated_at but recent job_scheduled_at
-            let old_updated = Utc::now().naive_utc() - Duration::hours(2);
+            let old_updated = Utc::now().naive_utc() - Duration::hours(25);
             let recent_job_scheduled = Utc::now().naive_utc() - Duration::minutes(5);
 
             entity::prelude::EveAlliance::update_many()
@@ -296,7 +297,7 @@ mod tests {
                 .await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -319,9 +320,9 @@ mod tests {
             let alliance3 = test.eve().insert_mock_alliance(3, None).await?;
 
             // Set different updated_at timestamps
-            let oldest = Utc::now().naive_utc() - Duration::hours(5);
-            let middle = Utc::now().naive_utc() - Duration::hours(3);
-            let newest = Utc::now().naive_utc() - Duration::hours(2);
+            let oldest = Utc::now().naive_utc() - Duration::hours(72);
+            let middle = Utc::now().naive_utc() - Duration::hours(48);
+            let newest = Utc::now().naive_utc() - Duration::hours(25);
 
             entity::prelude::EveAlliance::update_many()
                 .col_expr(entity::eve_alliance::Column::UpdatedAt, Expr::value(middle))
@@ -342,7 +343,7 @@ mod tests {
                 .await?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
@@ -365,7 +366,7 @@ mod tests {
             let test = test_setup_with_tables!()?;
 
             let now = Utc::now().naive_utc();
-            let cache_expiry = now - ALLIANCE_CACHE;
+            let cache_expiry = now - ALLIANCE_INFO_CACHE;
             let stale_job = now - (SCHEDULE_INTERVAL * 2);
 
             let result =
