@@ -12,6 +12,7 @@ fn main() {
 
     #[cfg(feature = "server")]
     dioxus::serve(|| async move {
+        use bifrost::server::scheduler::cron::start_scheduler;
         use dioxus_logger::tracing;
 
         use crate::server::{config::Config, model::app::AppState, startup};
@@ -25,7 +26,7 @@ fn main() {
         let mut worker_storage = startup::start_workers(&config, db.clone(), esi_client.clone())
             .await
             .unwrap();
-        let _ = startup::start_cron(&db, &mut worker_storage).await.unwrap();
+        let _ = start_scheduler(&db, &mut worker_storage).await.unwrap();
 
         tracing::info!("Starting server");
 

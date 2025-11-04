@@ -1,11 +1,6 @@
-use crate::server::{
-    config::Config, error::Error, model::worker::WorkerJob,
-    scheduler::eve::alliance::schedule_alliance_info_update, worker::handle_job,
-};
+use crate::server::{config::Config, error::Error, model::worker::WorkerJob, worker::handle_job};
 use apalis_redis::RedisStorage;
-use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
-use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
 use tower_sessions::SessionManagerLayer;
 use tower_sessions_redis_store::{fred::prelude::Pool, RedisStore};
 
@@ -93,32 +88,4 @@ pub async fn start_workers(
     });
 
     Ok(storage)
-}
-
-pub async fn start_cron(
-    db: &DatabaseConnection,
-    job_storage: &mut RedisStorage<WorkerJob>,
-) -> Result<(), JobSchedulerError> {
-    let sched = JobScheduler::new().await?;
-
-    let db = db.clone();
-    let job_storage = job_storage.clone();
-
-    sched
-        .add(Job::new_async("0 0 */3 * * *", move |_, _| {
-            let db = db.clone();
-            let mut job_storage = job_storage.clone();
-
-            Box::pin(async move {
-                match schedule_alliance_info_update(&db, &mut job_storage).await {
-                    Ok(count) => tracing::info!("Scheduled {} alliance info update(s)", count),
-                    Err(e) => tracing::error!("Failed to schedule alliance info updates: {:?}", e),
-                }
-            })
-        })?)
-        .await?;
-
-    sched.start().await?;
-
-    Ok(())
 }

@@ -9,7 +9,7 @@ use sea_orm::{
 use crate::server::{
     error::Error,
     model::worker::WorkerJob,
-    util::task::schedule::{create_job_schedule, max_schedule_batch_size},
+    util::task::schedule::{calculate_batch_limit, create_job_schedule},
 };
 
 /// Trait for entities that support scheduled cache updates
@@ -61,7 +61,7 @@ impl<'a> EntityRefreshTracker<'a> {
         let stale_job_threshold = now - (self.schedule_interval * 2);
 
         let max_batch_size =
-            max_schedule_batch_size(table_entries, self.cache_duration, self.schedule_interval);
+            calculate_batch_limit(table_entries, self.cache_duration, self.schedule_interval);
 
         let entries = E::find()
             // Only update entries after their cache has expired to get fresh data

@@ -5,7 +5,7 @@ use crate::server::model::worker::WorkerJob;
 static MIN_BATCH_LIMIT: i64 = 100;
 
 /// Determines the limit of table entries to schedule an update for based upon schedule interval
-pub fn max_schedule_batch_size(
+pub fn calculate_batch_limit(
     table_entries: u64,
     cache: Duration,
     schedule_interval: Duration,
@@ -54,13 +54,13 @@ pub async fn create_job_schedule(
 mod tests {
     use super::*;
 
-    mod max_schedule_batch_size {
+    mod calculate_batch_limit {
         use super::*;
 
         /// Expect 0 when table has no entries
         #[test]
         fn returns_zero_for_empty_table() {
-            let result = max_schedule_batch_size(0, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(0, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 0);
         }
 
@@ -68,7 +68,7 @@ mod tests {
         #[test]
         fn calculates_standard_batch_size() {
             // 600 entries, 60 min cache, 10 min schedule = 6 batches, 100 per batch
-            let result = max_schedule_batch_size(600, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(600, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 100);
         }
 
@@ -76,7 +76,7 @@ mod tests {
         #[test]
         fn returns_minimum_of_one_hundred() {
             // 5 entries, 60 min cache, 10 min schedule = 6 batches, but min MIN_BATCH_LIMIT per batch
-            let result = max_schedule_batch_size(5, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(5, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 100);
         }
 
@@ -84,7 +84,7 @@ mod tests {
         #[test]
         fn returns_all_entries_when_interval_equals_cache() {
             // 100 entries, 60 min cache, 60 min schedule = 1 batch, all entries
-            let result = max_schedule_batch_size(100, Duration::minutes(60), Duration::minutes(60));
+            let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(60));
             assert_eq!(result, 100);
         }
 
@@ -92,15 +92,14 @@ mod tests {
         #[test]
         fn returns_all_entries_when_interval_exceeds_cache() {
             // 100 entries, 60 min cache, 120 min schedule = 0 batches per period, return all
-            let result =
-                max_schedule_batch_size(100, Duration::minutes(60), Duration::minutes(120));
+            let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(120));
             assert_eq!(result, 100);
         }
 
         /// Expect minimum batch size with single entry
         #[test]
         fn handles_single_entry() {
-            let result = max_schedule_batch_size(1, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(1, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 100);
         }
 
@@ -108,8 +107,7 @@ mod tests {
         #[test]
         fn handles_large_number_of_entries() {
             // 10000 entries, 60 min cache, 10 min schedule = 6 batches, 1666 per batch
-            let result =
-                max_schedule_batch_size(10000, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(10000, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 1666);
         }
 
@@ -117,8 +115,7 @@ mod tests {
         #[test]
         fn handles_uneven_division() {
             // 1000 entries, 60 min cache, 10 min schedule = 6 batches, 166 per batch (1000/6 = 166.66)
-            let result =
-                max_schedule_batch_size(1000, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(1000, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 166);
         }
 
@@ -126,7 +123,7 @@ mod tests {
         #[test]
         fn applies_minimum_batch_limit() {
             // 50 entries, 60 min cache, 10 min schedule = 6 batches, 8 per batch, but min is MIN_BATCH_LIMIT
-            let result = max_schedule_batch_size(50, Duration::minutes(60), Duration::minutes(10));
+            let result = calculate_batch_limit(50, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 100);
         }
 
@@ -134,8 +131,7 @@ mod tests {
         #[test]
         fn works_with_different_time_units() {
             // 1000 entries, 120 min cache, 30 min schedule = 4 batches, 250 per batch
-            let result =
-                max_schedule_batch_size(1000, Duration::minutes(120), Duration::minutes(30));
+            let result = calculate_batch_limit(1000, Duration::minutes(120), Duration::minutes(30));
             assert_eq!(result, 250);
         }
 
@@ -143,7 +139,7 @@ mod tests {
         #[test]
         fn handles_small_cache_to_schedule_ratio() {
             // 100 entries, 15 min cache, 10 min schedule = 1 batch, 100 per batch
-            let result = max_schedule_batch_size(100, Duration::minutes(15), Duration::minutes(10));
+            let result = calculate_batch_limit(100, Duration::minutes(15), Duration::minutes(10));
             assert_eq!(result, 100);
         }
     }

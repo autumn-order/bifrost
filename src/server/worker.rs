@@ -3,7 +3,9 @@ use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    error::Error, model::worker::WorkerJob, service::eve::alliance::AllianceService,
+    error::Error,
+    model::worker::WorkerJob,
+    service::eve::{alliance::AllianceService, corporation::CorporationService},
 };
 
 pub struct WorkerJobHandler<'a> {
@@ -22,6 +24,9 @@ pub async fn handle_job(
         WorkerJob::UpdateAllianceInfo { alliance_id } => {
             handler.update_alliance_info(alliance_id).await?
         }
+        WorkerJob::UpdateCorporationInfo { corporation_id } => {
+            handler.update_corporation_info(corporation_id).await?
+        }
     }
 
     Ok(())
@@ -34,7 +39,7 @@ impl<'a> WorkerJobHandler<'a> {
 
     async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
         tracing::debug!(
-            "Processing alliance update for alliance_id: {}",
+            "Processing alliance info update for alliance_id: {}",
             alliance_id
         );
 
@@ -42,11 +47,41 @@ impl<'a> WorkerJobHandler<'a> {
             .upsert_alliance(alliance_id)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to update alliance {}: {:?}", alliance_id, e);
+                tracing::error!(
+                    "Failed to update info for alliance {}: {:?}",
+                    alliance_id,
+                    e
+                );
                 e
             })?;
 
-        tracing::debug!("Successfully updated alliance {}", alliance_id);
+        tracing::debug!("Successfully updated info for alliance {}", alliance_id);
+
+        Ok(())
+    }
+
+    async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), Error> {
+        tracing::debug!(
+            "Processing corporation info update for corporation_id: {}",
+            corporation_id
+        );
+
+        CorporationService::new(&self.db, &self.esi_client)
+            .upsert_corporation(corporation_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to update info for corporation {}: {:?}",
+                    corporation_id,
+                    e
+                );
+                e
+            })?;
+
+        tracing::debug!(
+            "Successfully updated info for corporation {}",
+            corporation_id
+        );
 
         Ok(())
     }
