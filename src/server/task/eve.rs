@@ -9,7 +9,7 @@ use sea_orm::{
 
 use crate::server::{
     model::worker::WorkerJob,
-    util::task::{create_job_schedule, max_update_batch_size},
+    util::task::schedule::{create_job_schedule, max_schedule_batch_size},
 };
 
 /// Cache ESI alliance information for 1 day
@@ -73,7 +73,7 @@ async fn find_alliances_needing_update(
     }
 
     let max_batch_size =
-        max_update_batch_size(table_entries, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
+        max_schedule_batch_size(table_entries, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
     let alliances = entity::prelude::EveAlliance::find()
         // Only update alliances after their cache has expired to get fresh data
