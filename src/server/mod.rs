@@ -6,4 +6,6 @@ pub mod model;
 pub mod router;
 pub mod service;
 pub mod startup;
+pub mod task;
 pub mod util;
+pub mod worker;

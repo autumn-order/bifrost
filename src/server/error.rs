@@ -40,6 +40,8 @@ pub enum Error {
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
     SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
+    #[error(transparent)]
+    ApalisRedisError(#[from] apalis_redis::RedisError),
 }
 
 impl IntoResponse for Error {
@@ -99,6 +101,11 @@ impl IntoResponse for Error {
             }
             Error::SessionRedisError(err) => {
                 error!("Session-related internal server error: {}", err);
+
+                internal_server_error.into_response()
+            }
+            Error::ApalisRedisError(err) => {
+                error!("Apalis-related internal server error: {}", err);
 
                 internal_server_error.into_response()
             }

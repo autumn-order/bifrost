@@ -56,15 +56,44 @@ impl<'a> AllianceService<'a> {
 
         Ok(alliance)
     }
+
+    /// Updates or creates an entry for provided alliance ID
+    pub async fn upsert_alliance(
+        &self,
+        alliance_id: i64,
+    ) -> Result<entity::eve_alliance::Model, Error> {
+        let alliance_repo = AllianceRepository::new(&self.db);
+        let faction_service = FactionService::new(&self.db, &self.esi_client);
+
+        // Get alliance information from ESI
+        let alliance = self
+            .esi_client
+            .alliance()
+            .get_alliance_information(alliance_id)
+            .await?;
+
+        // Ensure faction exists in database or create it if applicable to prevent foreign key error
+        let faction_id = match alliance.faction_id {
+            Some(faction_id) => Some(faction_service.get_or_update_factions(faction_id).await?.id),
+            None => None,
+        };
+
+        // Update or create alliance in database
+        let alliance = alliance_repo
+            .upsert(alliance_id, alliance, faction_id)
+            .await?;
+
+        Ok(alliance)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use bifrost_test_utils::prelude::*;
 
     mod create_alliance {
-        use bifrost_test_utils::prelude::*;
-
-        use crate::server::{error::Error, service::eve::alliance::AllianceService};
+        use super::*;
 
         /// Expect Ok when fetching & creating an alliance with a faction ID
         #[tokio::test]
@@ -145,9 +174,7 @@ mod tests {
     }
 
     mod get_or_create_alliance {
-        use bifrost_test_utils::prelude::*;
-
-        use crate::server::{error::Error, service::eve::alliance::AllianceService};
+        use super::*;
 
         // Expect Ok with found when alliance exists in database
         #[tokio::test]
@@ -211,6 +238,239 @@ mod tests {
             let result = alliance_service.get_or_create_alliance(alliance_id).await;
 
             assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+    }
+
+    mod upsert_alliance {
+        use chrono::{Duration, Utc};
+        use sea_orm::{ActiveValue, EntityTrait, IntoActiveModel};
+
+        use super::*;
+
+        /// Expect Ok when upserting a new alliance with a faction ID
+        #[tokio::test]
+        async fn creates_new_alliance_with_faction() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
+
+            let alliance_id = 1;
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.upsert_alliance(alliance_id).await;
+
+            assert!(result.is_ok());
+            let created = result.unwrap();
+            assert_eq!(created.alliance_id, alliance_id);
+            assert!(created.faction_id.is_some());
+
+            // Assert 1 request was made to each mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting a new alliance without a faction ID
+        #[tokio::test]
+        async fn creates_new_alliance_without_faction() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let alliance_id = 1;
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.upsert_alliance(alliance_id).await;
+
+            assert!(result.is_ok());
+            let created = result.unwrap();
+            assert_eq!(created.alliance_id, alliance_id);
+            assert_eq!(created.faction_id, None);
+
+            // Assert 1 request was made to mock alliance endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting an existing alliance and verify it updates
+        #[tokio::test]
+        async fn updates_existing_alliance() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
+            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .upsert_alliance(alliance_model.alliance_id)
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            // Verify the ID remains the same (it's an update, not a new insert)
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_eq!(upserted.alliance_id, alliance_model.alliance_id);
+
+            // Assert 1 request was made to mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting an existing alliance with a new faction ID
+        #[tokio::test]
+        async fn updates_alliance_faction_relationship() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let faction_model1 = test.eve().insert_mock_faction(1).await?;
+
+            // Set faction last updated before today's faction update window to allow for updating
+            // the faction from ESI
+            let mut faction_model_am = entity::prelude::EveFaction::find_by_id(faction_model1.id)
+                .one(&test.state.db)
+                .await?
+                .unwrap()
+                .into_active_model();
+
+            faction_model_am.updated_at =
+                ActiveValue::Set((Utc::now() - Duration::hours(24)).naive_utc());
+
+            entity::prelude::EveFaction::update(faction_model_am)
+                .exec(&test.state.db)
+                .await?;
+
+            let alliance_model = test
+                .eve()
+                .insert_mock_alliance(1, Some(faction_model1.faction_id))
+                .await?;
+
+            // Mock endpoint returns alliance with different faction
+            let endpoints = test.eve().with_alliance_endpoint(1, Some(2), 1);
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .upsert_alliance(alliance_model.alliance_id)
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_ne!(upserted.faction_id, alliance_model.faction_id);
+
+            // Assert 1 request was made to each mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting removes faction relationship
+        #[tokio::test]
+        async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let alliance_model = test
+                .eve()
+                .insert_mock_alliance(1, Some(faction_model.faction_id))
+                .await?;
+
+            assert!(alliance_model.faction_id.is_some());
+
+            // Mock endpoint returns alliance without faction
+            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .upsert_alliance(alliance_model.alliance_id)
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_eq!(upserted.faction_id, None);
+
+            // Assert 1 request was made to mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting adds faction relationship
+        #[tokio::test]
+        async fn adds_faction_relationship_on_upsert() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
+
+            assert_eq!(alliance_model.faction_id, None);
+
+            // Mock endpoint returns alliance with faction
+            let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .upsert_alliance(alliance_model.alliance_id)
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, alliance_model.id);
+            assert!(upserted.faction_id.is_some());
+
+            // Assert 1 request was made to each mock endpoint
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI endpoint for alliance is unavailable
+        #[tokio::test]
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
+            let test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_id = 1;
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.upsert_alliance(alliance_id).await;
+
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error due to required tables not being created
+        #[tokio::test]
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!()?;
+            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let alliance_id = 1;
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.upsert_alliance(alliance_id).await;
+
+            assert!(matches!(result, Err(Error::DbErr(_))));
+
+            // Assert 1 request was made to mock endpoint before DB error
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }

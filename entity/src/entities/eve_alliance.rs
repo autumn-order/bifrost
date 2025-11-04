@@ -18,6 +18,7 @@ pub struct Model {
     pub ticker: String,
     pub created_at: DateTime,
     pub updated_at: DateTime,
+    pub job_scheduled_at: Option<DateTime>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
