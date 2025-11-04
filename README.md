@@ -101,5 +101,5 @@ cargo test --features server
 
 Generate code coverage report with [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov):
 ```bash
-cargo llvm-cov --open --features server --ignore-filename-regex "client\/|entity\/|migration\/"
+cargo llvm-cov --open --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/"
 ```
