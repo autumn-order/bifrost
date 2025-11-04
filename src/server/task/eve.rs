@@ -36,9 +36,7 @@ pub async fn schedule_alliance_updates(
         return Ok(0);
     }
 
-    // Mark alliances as having jobs scheduled
     let alliance_ids: Vec<i32> = alliances_needing_update.iter().map(|a| a.id).collect();
-    mark_jobs_as_scheduled(db, &alliance_ids, now).await?;
 
     // Create and schedule jobs
     let jobs: Vec<WorkerJob> = alliances_needing_update
@@ -50,9 +48,14 @@ pub async fn schedule_alliance_updates(
 
     let job_schedule = create_job_schedule(jobs, SCHEDULE_INTERVAL).await?;
 
+    // Schedule all jobs to Redis first - if this fails, we won't mark the database
+    // This prevents a race condition where DB is marked but jobs aren't actually scheduled
     for (job, scheduled_at) in job_schedule {
         job_storage.schedule(job, scheduled_at).await?;
     }
+
+    // Only mark alliances as scheduled after ALL jobs are successfully queued
+    mark_jobs_as_scheduled(db, &alliance_ids, now).await?;
 
     Ok(alliance_ids.len())
 }
