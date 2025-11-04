@@ -1,11 +1,16 @@
-use chrono::{Duration, Utc};
+use apalis_redis::RedisStorage;
+use chrono::{DateTime, Duration, Utc};
 use migration::{Expr, ExprTrait};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, IntoSimpleExpr, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
 
-use crate::server::util::task::schedule::max_schedule_batch_size;
+use crate::server::{
+    error::Error,
+    model::worker::WorkerJob,
+    util::task::schedule::{create_job_schedule, max_schedule_batch_size},
+};
 
 /// Trait for entities that support scheduled cache updates
 pub trait SchedulableEntity: EntityTrait {
@@ -76,19 +81,66 @@ impl<'a> EntityRefreshTracker<'a> {
         Ok(entries)
     }
 
-    /// Marks entries as having update jobs scheduled
-    pub async fn mark_jobs_as_scheduled<E, I>(
+    pub async fn schedule_jobs<E>(
         &self,
-        db_entry_ids: &[I],
-        scheduled_at: chrono::NaiveDateTime,
+        job_storage: &mut RedisStorage<WorkerJob>,
+        jobs: Vec<(i32, WorkerJob)>,
+    ) -> Result<usize, Error>
+    where
+        E: SchedulableEntity + Send + Sync,
+    {
+        use apalis::prelude::Storage;
+
+        let job_schedule = create_job_schedule(jobs, self.schedule_interval).await?;
+
+        let mut scheduled_jobs = Vec::new();
+
+        for (id, job, scheduled_at) in job_schedule {
+            job_storage.schedule(job, scheduled_at.timestamp()).await?;
+
+            scheduled_jobs.push((id, scheduled_at));
+        }
+
+        let scheduled_count = scheduled_jobs.len();
+        self.mark_jobs_as_scheduled::<E>(scheduled_jobs).await?;
+
+        Ok(scheduled_count)
+    }
+
+    /// Marks entries as having update jobs scheduled
+    pub(self) async fn mark_jobs_as_scheduled<E>(
+        &self,
+        scheduled_jobs: Vec<(i32, DateTime<Utc>)>,
     ) -> Result<(), crate::server::error::Error>
     where
         E: SchedulableEntity + Send + Sync,
-        I: Into<sea_orm::Value> + Clone,
     {
+        if scheduled_jobs.is_empty() {
+            return Ok(());
+        }
+
+        let db_entry_ids: Vec<i32> = scheduled_jobs.iter().map(|(id, _)| *id).collect();
+
+        // Build CASE WHEN id = x THEN timestamp_x ... END expression
+        // Start with the first case, then chain the rest
+        let mut scheduled_iter = scheduled_jobs.into_iter();
+        let (first_id, first_scheduled_at) = scheduled_iter.next().unwrap(); // Safe because we checked is_empty
+
+        let mut case_stmt = Expr::case(
+            E::id_column().eq(first_id).into_simple_expr(),
+            Expr::value(first_scheduled_at),
+        );
+
+        for (id, scheduled_at) in scheduled_iter {
+            case_stmt = case_stmt.case(
+                E::id_column().eq(id).into_simple_expr(),
+                Expr::value(scheduled_at),
+            );
+        }
+
         E::update_many()
-            .col_expr(E::job_scheduled_at_column(), Expr::value(scheduled_at))
-            .filter(E::id_column().is_in(db_entry_ids.to_vec()))
+            .col_expr(E::job_scheduled_at_column(), case_stmt.into())
+            .filter(E::id_column().is_in(db_entry_ids))
             .exec(self.db)
             .await?;
 
@@ -375,16 +427,16 @@ mod tests {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance = test.eve().insert_mock_alliance(1, None).await?;
-            let scheduled_time = Utc::now().naive_utc();
+            let scheduled_time = Utc::now();
 
             let scheduler =
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-                    &[alliance.id],
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(vec![(
+                    alliance.id,
                     scheduled_time,
-                )
+                )])
                 .await;
 
             assert!(result.is_ok());
@@ -398,7 +450,12 @@ mod tests {
             assert!(updated_alliance.job_scheduled_at.is_some());
             let scheduled_at = updated_alliance.job_scheduled_at.unwrap();
             // Allow for small time differences in test execution
-            assert!((scheduled_at - scheduled_time).num_seconds().abs() < 2);
+            assert!(
+                (scheduled_at - scheduled_time.naive_utc())
+                    .num_seconds()
+                    .abs()
+                    < 2
+            );
 
             Ok(())
         }
@@ -412,17 +469,18 @@ mod tests {
             let alliance2 = test.eve().insert_mock_alliance(2, None).await?;
             let alliance3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let scheduled_time = Utc::now().naive_utc();
-            let alliance_ids = vec![alliance1.id, alliance2.id, alliance3.id];
+            let scheduled_time = Utc::now();
+            let scheuled_jobs = vec![
+                (alliance1.id, scheduled_time),
+                (alliance2.id, scheduled_time),
+                (alliance3.id, scheduled_time),
+            ];
 
             let scheduler =
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-                    &alliance_ids,
-                    scheduled_time,
-                )
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(scheuled_jobs)
                 .await;
 
             assert!(result.is_ok());
@@ -445,13 +503,11 @@ mod tests {
         async fn handles_empty_entry_list() -> Result<(), TestError> {
             let test = test_setup_with_tables!(entity::prelude::EveAlliance)?;
 
-            let scheduled_time = Utc::now().naive_utc();
-
             let scheduler =
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(&[], scheduled_time)
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(Vec::new())
                 .await;
 
             assert!(result.is_ok());
@@ -468,17 +524,18 @@ mod tests {
             let alliance2 = test.eve().insert_mock_alliance(2, None).await?;
             let alliance3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let scheduled_time = Utc::now().naive_utc();
+            let scheduled_time = Utc::now();
+            let scheduled_jobs = vec![
+                (alliance1.id, scheduled_time),
+                (alliance3.id, scheduled_time),
+            ];
 
             let scheduler =
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             // Only mark alliance1 and alliance3
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-                    &[alliance1.id, alliance3.id],
-                    scheduled_time,
-                )
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(scheduled_jobs)
                 .await;
 
             assert!(result.is_ok());
@@ -528,12 +585,12 @@ mod tests {
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             // Update with new scheduled time
-            let new_scheduled_time = Utc::now().naive_utc();
+            let new_scheduled_time = Utc::now();
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-                    &[alliance.id],
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(vec![(
+                    alliance.id,
                     new_scheduled_time,
-                )
+                )])
                 .await;
 
             assert!(result.is_ok());
@@ -545,7 +602,12 @@ mod tests {
                 .unwrap();
 
             let scheduled_at = updated_alliance.job_scheduled_at.unwrap();
-            assert!((scheduled_at - new_scheduled_time).num_seconds().abs() < 2);
+            assert!(
+                (scheduled_at - new_scheduled_time.naive_utc())
+                    .num_seconds()
+                    .abs()
+                    < 2
+            );
             assert!((scheduled_at - initial_time).num_seconds() > 3500); // Should be ~1 hour apart
 
             Ok(())
@@ -556,16 +618,13 @@ mod tests {
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
-            let scheduled_time = Utc::now().naive_utc();
+            let scheduled_time = Utc::now();
 
             let scheduler =
                 EntityRefreshTracker::new(&test.state.db, ALLIANCE_INFO_CACHE, SCHEDULE_INTERVAL);
 
             let result = scheduler
-                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-                    &[1, 2, 3],
-                    scheduled_time,
-                )
+                .mark_jobs_as_scheduled::<entity::prelude::EveAlliance>(vec![(1, scheduled_time)])
                 .await;
 
             assert!(result.is_err());

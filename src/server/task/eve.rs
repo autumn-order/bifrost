@@ -1,14 +1,10 @@
-use apalis::prelude::*;
 use apalis_redis::RedisStorage;
-use chrono::{Duration, Utc};
+use chrono::Duration;
 use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 
 use crate::server::{
     model::worker::WorkerJob,
-    util::task::{
-        entity_refresh::{EntityRefreshTracker, SchedulableEntity},
-        schedule::create_job_schedule,
-    },
+    util::task::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
 };
 
 /// Cache ESI alliance information for 1 day
@@ -32,34 +28,25 @@ pub async fn schedule_alliance_updates(
         return Ok(0);
     }
 
-    let db_entry_ids: Vec<i32> = alliances_needing_update.iter().map(|a| a.id).collect();
-
     // Create and schedule jobs
-    let jobs: Vec<WorkerJob> = alliances_needing_update
+    let jobs: Vec<(i32, WorkerJob)> = alliances_needing_update
         .into_iter()
-        .map(|alliance| WorkerJob::UpdateAllianceInfo {
-            // Provide EVE alliance ID for ESI request, not the database entry ID
-            alliance_id: alliance.alliance_id,
+        .map(|alliance| {
+            (
+                alliance.id,
+                WorkerJob::UpdateAllianceInfo {
+                    // Provide EVE alliance ID for ESI request, not the database entry ID
+                    alliance_id: alliance.alliance_id,
+                },
+            )
         })
         .collect();
 
-    let job_schedule = create_job_schedule(jobs, SCHEDULE_INTERVAL).await?;
-
-    // Schedule all jobs to Redis first - if this fails, we won't mark the database
-    // This prevents a race condition where DB is marked but jobs aren't actually scheduled
-    for (job, scheduled_at) in job_schedule {
-        job_storage.schedule(job, scheduled_at).await?;
-    }
-
-    // Only mark alliances as scheduled after ALL jobs are successfully queued
-    refresh_tracker
-        .mark_jobs_as_scheduled::<entity::prelude::EveAlliance, i32>(
-            &db_entry_ids,
-            Utc::now().naive_local(),
-        )
+    let scheduled_job_count = refresh_tracker
+        .schedule_jobs::<entity::prelude::EveAlliance>(job_storage, jobs)
         .await?;
 
-    Ok(db_entry_ids.len())
+    Ok(scheduled_job_count)
 }
 
 impl SchedulableEntity for entity::eve_alliance::Entity {
