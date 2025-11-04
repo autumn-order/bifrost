@@ -63,7 +63,6 @@ impl<'a> AllianceRepository<'a> {
             .on_conflict(
                 OnConflict::column(entity::eve_alliance::Column::AllianceId)
                     .update_columns([
-                        entity::eve_alliance::Column::AllianceId,
                         entity::eve_alliance::Column::FactionId,
                         entity::eve_alliance::Column::CreatorCorporationId,
                         entity::eve_alliance::Column::ExecutorCorporationId,
