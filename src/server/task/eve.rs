@@ -36,13 +36,16 @@ pub async fn schedule_alliance_updates(
         return Ok(0);
     }
 
-    let alliance_ids: Vec<i32> = alliances_needing_update.iter().map(|a| a.id).collect();
+    let alliance_ids: Vec<i64> = alliances_needing_update
+        .iter()
+        .map(|a| a.alliance_id)
+        .collect();
 
     // Create and schedule jobs
     let jobs: Vec<WorkerJob> = alliances_needing_update
         .into_iter()
         .map(|alliance| WorkerJob::UpdateAlliance {
-            alliance_id: alliance.id,
+            alliance_id: alliance.alliance_id,
         })
         .collect();
 
@@ -93,7 +96,7 @@ async fn find_alliances_needing_update(
 /// Marks alliances as having update jobs scheduled
 async fn mark_jobs_as_scheduled(
     db: &DatabaseConnection,
-    alliance_ids: &[i32],
+    alliance_ids: &[i64],
     scheduled_at: chrono::NaiveDateTime,
 ) -> Result<(), crate::server::error::Error> {
     entity::prelude::EveAlliance::update_many()
@@ -386,7 +389,8 @@ mod tests {
             let scheduled_time = Utc::now().naive_utc();
 
             let result =
-                mark_jobs_as_scheduled(&test.state.db, &[alliance.id], scheduled_time).await;
+                mark_jobs_as_scheduled(&test.state.db, &[alliance.alliance_id], scheduled_time)
+                    .await;
 
             assert!(result.is_ok());
 
@@ -414,7 +418,11 @@ mod tests {
             let alliance3 = test.eve().insert_mock_alliance(3, None).await?;
 
             let scheduled_time = Utc::now().naive_utc();
-            let alliance_ids = vec![alliance1.id, alliance2.id, alliance3.id];
+            let alliance_ids = vec![
+                alliance1.alliance_id,
+                alliance2.alliance_id,
+                alliance3.alliance_id,
+            ];
 
             let result =
                 mark_jobs_as_scheduled(&test.state.db, &alliance_ids, scheduled_time).await;
@@ -422,7 +430,7 @@ mod tests {
             assert!(result.is_ok());
 
             // Verify all alliances were updated
-            for id in alliance_ids {
+            for id in [alliance1.id, alliance2.id, alliance3.id] {
                 let updated_alliance = entity::prelude::EveAlliance::find_by_id(id)
                     .one(&test.state.db)
                     .await?
@@ -462,7 +470,7 @@ mod tests {
             // Only mark alliance1 and alliance3
             let result = mark_jobs_as_scheduled(
                 &test.state.db,
-                &[alliance1.id, alliance3.id],
+                &[alliance1.alliance_id, alliance3.alliance_id],
                 scheduled_time,
             )
             .await;
@@ -513,7 +521,8 @@ mod tests {
             // Update with new scheduled time
             let new_scheduled_time = Utc::now().naive_utc();
             let result =
-                mark_jobs_as_scheduled(&test.state.db, &[alliance.id], new_scheduled_time).await;
+                mark_jobs_as_scheduled(&test.state.db, &[alliance.alliance_id], new_scheduled_time)
+                    .await;
 
             assert!(result.is_ok());
 
