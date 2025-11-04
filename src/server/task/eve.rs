@@ -9,7 +9,7 @@ use sea_orm::{
 
 use crate::server::{
     model::worker::WorkerJob,
-    task::util::{create_job_schedule, max_update_batch_size},
+    util::task::{create_job_schedule, max_update_batch_size},
 };
 
 /// ESI alliance info cache duration is 1 hour
