@@ -5,7 +5,9 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     error::Error,
     model::worker::WorkerJob,
-    service::eve::{alliance::AllianceService, corporation::CorporationService},
+    service::eve::{
+        alliance::AllianceService, character::CharacterService, corporation::CorporationService,
+    },
 };
 
 pub struct WorkerJobHandler<'a> {
@@ -26,6 +28,9 @@ pub async fn handle_job(
         }
         WorkerJob::UpdateCorporationInfo { corporation_id } => {
             handler.update_corporation_info(corporation_id).await?
+        }
+        WorkerJob::UpdateCharacterInfo { character_id } => {
+            handler.update_character_info(character_id).await?
         }
     }
 
@@ -82,6 +87,29 @@ impl<'a> WorkerJobHandler<'a> {
             "Successfully updated info for corporation {}",
             corporation_id
         );
+
+        Ok(())
+    }
+
+    async fn update_character_info(&self, character_id: i64) -> Result<(), Error> {
+        tracing::debug!(
+            "Processing character info update for character_id: {}",
+            character_id
+        );
+
+        CharacterService::new(&self.db, &self.esi_client)
+            .upsert_character(character_id)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to update info for character {}: {:?}",
+                    character_id,
+                    e
+                );
+                e
+            })?;
+
+        tracing::debug!("Successfully updated info for character {}", character_id);
 
         Ok(())
     }
