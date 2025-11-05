@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use dioxus_logger::tracing;
 use eve_esi::model::character::CharacterAffiliation;
 use sea_orm::DatabaseConnection;
@@ -8,7 +10,9 @@ use crate::server::{
         faction::FactionRepository,
     },
     error::Error,
-    service::eve::faction::FactionService,
+    service::eve::{
+        alliance::AllianceService, corporation::CorporationService, faction::FactionService,
+    },
 };
 
 pub struct AffiliationService<'a> {
@@ -25,6 +29,8 @@ impl<'a> AffiliationService<'a> {
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_repo = AllianceRepository::new(&self.db);
+        let corporation_service = CorporationService::new(&self.db, &self.esi_client);
+        let alliance_service = AllianceService::new(&self.db, &self.esi_client);
 
         // If the database were to have any invalid IDs inserted in the character table, this will fail
         // for the entirety of the provided character IDs. No sanitization is added for IDs as all IDs
@@ -41,67 +47,131 @@ impl<'a> AffiliationService<'a> {
             .character_affiliation(character_ids)
             .await?;
 
-        // Get a list of all character affiliation IDs returned
-        let alliance_ids: Vec<i64> = affiliations.iter().filter_map(|a| a.alliance_id).collect();
-        let corporation_ids: Vec<i64> = affiliations.iter().map(|a| a.corporation_id).collect();
+        let corporation_ids: HashSet<i64> = affiliations.iter().map(|a| a.corporation_id).collect();
+        let mut alliance_ids: HashSet<i64> =
+            affiliations.iter().filter_map(|a| a.alliance_id).collect();
+        let mut faction_ids: HashSet<i64> =
+            affiliations.iter().filter_map(|a| a.faction_id).collect();
 
-        // Find which factions, alliances, and corporations don't exist in database if applicable
-        let affiliations = self.resolve_faction_information(affiliations).await?;
-
-        let missing_alliance_ids = alliance_repo
-            .find_missing_ids(alliance_ids.as_slice())
-            .await?;
+        // Find & fetch missing corporations
         let missing_corporation_ids = corporation_repo
-            .find_missing_ids(corporation_ids.as_slice())
+            .find_missing_ids(&corporation_ids.iter().copied().collect::<Vec<_>>())
             .await?;
+
+        let fetched_corporations = corporation_service
+            .get_many_corporations(missing_corporation_ids.clone())
+            .await?;
+
+        // From the fetched corporations, insert any missing alliances/factions to ID list
+        for (_, corporation) in &fetched_corporations {
+            if let Some(alliance_id) = corporation.alliance_id {
+                alliance_ids.insert(alliance_id);
+            }
+            if let Some(faction_id) = corporation.faction_id {
+                faction_ids.insert(faction_id);
+            }
+        }
+
+        // Find & fetch missing alliances
+        let missing_alliance_ids = alliance_repo
+            .find_missing_ids(&alliance_ids.iter().copied().collect::<Vec<_>>())
+            .await?;
+
+        let fetched_alliances = alliance_service
+            .get_many_alliances(missing_alliance_ids)
+            .await?;
+
+        // From the fetched alliances, insert any missing factions to ID list
+        for (_, alliance) in &fetched_alliances {
+            if let Some(faction_id) = alliance.faction_id {
+                faction_ids.insert(faction_id);
+            }
+        }
+
+        // Update factions if any factions are missing
+        let affiliations = self
+            .resolve_faction_information(affiliations, faction_ids)
+            .await?;
+
+        // Update list:
+        //
+        // Fetched entities
+        //
+        // - alliance, faction
+        // - corporation, alliance, faction
+        //
+        // Affiliation only
+        //
+        // - corporation, alliance
+        // - character, corporation, faction
+
+        // Upsert many fetched alliances
+        // Upsert many fetched corporations
+
+        // From affiliations, extract list of unique sets of corporation, alliance pairs
+        let corp_alliance_pairs: HashSet<(i64, Option<i64>)> = affiliations
+            .iter()
+            // Exclude fetched corporations to avoid redundant updates
+            .filter(|a| !missing_corporation_ids.contains(&a.corporation_id))
+            .map(|a| (a.corporation_id, a.alliance_id))
+            .collect();
+
+        // Update affiliations for corporations (alliance)
+
+        // Update affiliations for character (corporation, faction)
 
         Ok(())
     }
 
     /// Fetches and stores information for any factions missing from affiliations
+    ///
+    /// If a faction isn't found even after an update, then the affiliation entry for
+    /// the character's faction will be set as none for the time being.
     async fn resolve_faction_information(
         &self,
         mut affiliations: Vec<CharacterAffiliation>,
+        faction_ids: HashSet<i64>,
     ) -> Result<Vec<CharacterAffiliation>, Error> {
         let faction_repo = FactionRepository::new(&self.db);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
-        let faction_ids: Vec<i64> = affiliations.iter().filter_map(|a| a.faction_id).collect();
-
         let missing_faction_ids = faction_repo
-            .find_missing_ids(faction_ids.as_slice())
+            .find_missing_ids(&faction_ids.iter().copied().collect::<Vec<_>>())
             .await?;
 
+        if missing_faction_ids.is_empty() {
+            return Ok(affiliations);
+        }
+
         // Fetch any factions, alliances, & corporations which don't exist from ESI and insert them into database
-        if !missing_faction_ids.is_empty() {
-            // This should rarely occur unless an update had just happened which added a new faction.
-            // In which case we should be able to retrieve it from ESI if we haven't already updated factions
-            // since downtime at 11:05 EVE time
-            //
-            // This returns an empty array if factions stored are still within 24 hour cache period.
-            let updated_factions = faction_service.update_factions().await?;
+        // This should rarely occur unless an update had just happened which added a new faction.
+        // In which case we should be able to retrieve it from ESI if we haven't already updated factions
+        // since downtime at 11:05 EVE time
+        //
+        // This returns an empty array if factions stored are still within 24 hour cache period.
+        let updated_factions = faction_service.update_factions().await?;
 
-            // Check if update_factions returned the missing faction IDs
-            let updated_faction_ids: Vec<i64> =
-                updated_factions.iter().map(|f| f.faction_id).collect();
-            let still_missing_faction_ids: Vec<i64> = missing_faction_ids
-                .into_iter()
-                .filter(|id| !updated_faction_ids.contains(id))
-                .collect();
+        // Check if update_factions returned the missing faction IDs
+        let updated_faction_ids: Vec<i64> = updated_factions.iter().map(|f| f.faction_id).collect();
+        let still_missing_faction_ids: Vec<i64> = missing_faction_ids
+            .into_iter()
+            .filter(|id| !updated_faction_ids.contains(id))
+            .collect();
 
-            if !still_missing_faction_ids.is_empty() {
-                // Set faction_id to None for affiliations with missing factions
-                for affiliation in affiliations.iter_mut() {
-                    if let Some(faction_id) = affiliation.faction_id {
-                        if still_missing_faction_ids.contains(&faction_id) {
-                            tracing::warn!(
+        if still_missing_faction_ids.is_empty() {
+            return Ok(affiliations);
+        }
+
+        // Set faction_id to None for affiliations with missing factions
+        for affiliation in affiliations.iter_mut() {
+            if let Some(faction_id) = affiliation.faction_id {
+                if still_missing_faction_ids.contains(&faction_id) {
+                    tracing::warn!(
                                 character_id = affiliation.character_id,
                                 faction_id = faction_id,
                                 "Character's faction ID could not be found in ESI; temporarily setting to None"
                             );
-                            affiliation.faction_id = None;
-                        }
-                    }
+                    affiliation.faction_id = None;
                 }
             }
         }
@@ -147,10 +217,13 @@ mod tests {
                 },
             ];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -191,10 +264,13 @@ mod tests {
                 },
             ];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -245,10 +321,13 @@ mod tests {
                 },
             ];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -280,10 +359,13 @@ mod tests {
                 faction_id: Some(2), // This faction won't be in ESI response
             }];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -322,10 +404,13 @@ mod tests {
                 faction_id: Some(2), // Missing faction
             }];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -391,10 +476,13 @@ mod tests {
                 },
             ];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -426,10 +514,13 @@ mod tests {
                 faction_id: Some(1),
             }];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_err());
@@ -444,10 +535,13 @@ mod tests {
 
             let affiliations: Vec<CharacterAffiliation> = vec![];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
@@ -482,10 +576,13 @@ mod tests {
                 faction_id: Some(2), // Missing faction that won't be in ESI response
             }];
 
+            let faction_ids: HashSet<i64> =
+                affiliations.iter().filter_map(|a| a.faction_id).collect();
+
             let affiliation_service =
                 AffiliationService::new(&test.state.db, &test.state.esi_client);
             let result = affiliation_service
-                .resolve_faction_information(affiliations)
+                .resolve_faction_information(affiliations, faction_ids)
                 .await;
 
             assert!(result.is_ok());
