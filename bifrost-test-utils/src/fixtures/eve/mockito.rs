@@ -97,13 +97,6 @@ impl<'a> EveFixtures<'a> {
             endpoints.push(self.with_faction_endpoint(faction_id, expected_requests));
         }
 
-        endpoints.extend(self.with_corporation_endpoint(
-            corporation_id,
-            alliance_id,
-            None,
-            expected_requests,
-        ));
-
         endpoints.push(
             self.setup
                 .server
@@ -114,6 +107,13 @@ impl<'a> EveFixtures<'a> {
                 .expect(expected_requests)
                 .create(),
         );
+
+        endpoints.extend(self.with_corporation_endpoint(
+            corporation_id,
+            alliance_id,
+            None,
+            expected_requests,
+        ));
 
         endpoints
     }

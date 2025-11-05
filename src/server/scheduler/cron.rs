@@ -1,7 +1,8 @@
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::eve::{
-        alliance::schedule_alliance_info_update, corporation::schedule_corporation_info_update,
+        alliance::schedule_alliance_info_update, character::schedule_character_info_update,
+        corporation::schedule_corporation_info_update,
     },
 };
 use apalis_redis::RedisStorage;
@@ -10,6 +11,7 @@ use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
 
 use super::config::eve::alliance as alliance_config;
+use super::config::eve::character as character_config;
 use super::config::eve::corporation as corporation_config;
 
 macro_rules! add_cron_job {
@@ -56,6 +58,15 @@ pub async fn start_scheduler(
         job_storage,
         schedule_corporation_info_update,
         "corporation info"
+    );
+
+    add_cron_job!(
+        sched,
+        character_config::CRON_EXPRESSION,
+        db,
+        job_storage,
+        schedule_character_info_update,
+        "character info"
     );
 
     sched.start().await?;

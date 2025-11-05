@@ -1,5 +1,6 @@
 use chrono::Utc;
 use eve_esi::model::character::Character;
+use migration::OnConflict;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
 };
@@ -40,6 +41,52 @@ impl<'a> CharacterRepository<'a> {
         character.insert(self.db).await
     }
 
+    pub async fn upsert(
+        &self,
+        character_id: i64,
+        character: Character,
+        corporation_id: i32,
+        faction_id: Option<i32>,
+    ) -> Result<entity::eve_character::Model, DbErr> {
+        Ok(
+            entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {
+                character_id: ActiveValue::Set(character_id),
+                corporation_id: ActiveValue::Set(corporation_id),
+                faction_id: ActiveValue::Set(faction_id),
+                birthday: ActiveValue::Set(character.birthday.naive_utc()),
+                bloodline_id: ActiveValue::Set(character.bloodline_id),
+                description: ActiveValue::Set(character.description),
+                gender: ActiveValue::Set(character.gender),
+                name: ActiveValue::Set(character.name),
+                race_id: ActiveValue::Set(character.race_id),
+                security_status: ActiveValue::Set(character.security_status),
+                title: ActiveValue::Set(character.title),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                ..Default::default()
+            })
+            .on_conflict(
+                OnConflict::column(entity::eve_character::Column::CharacterId)
+                    .update_columns([
+                        entity::eve_character::Column::CorporationId,
+                        entity::eve_character::Column::FactionId,
+                        entity::eve_character::Column::Birthday,
+                        entity::eve_character::Column::BloodlineId,
+                        entity::eve_character::Column::Description,
+                        entity::eve_character::Column::Gender,
+                        entity::eve_character::Column::Name,
+                        entity::eve_character::Column::RaceId,
+                        entity::eve_character::Column::SecurityStatus,
+                        entity::eve_character::Column::Title,
+                        entity::eve_character::Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec_with_returning(self.db)
+            .await?,
+        )
+    }
+
     pub async fn get_by_character_id(
         &self,
         character_id: i64,
@@ -53,12 +100,13 @@ impl<'a> CharacterRepository<'a> {
 
 #[cfg(test)]
 mod tests {
+    use bifrost_test_utils::prelude::*;
+    use sea_orm::{DbErr, RuntimeErr};
+
+    use super::*;
 
     mod create {
-        use bifrost_test_utils::prelude::*;
-        use sea_orm::{DbErr, RuntimeErr};
-
-        use crate::server::data::eve::character::CharacterRepository;
+        use super::*;
 
         /// Expect success when creating character with a faction ID set
         #[tokio::test]
@@ -152,10 +200,253 @@ mod tests {
         }
     }
 
-    mod get_by_character_id {
-        use bifrost_test_utils::prelude::*;
+    mod upsert {
+        use super::*;
 
-        use crate::server::data::eve::character::CharacterRepository;
+        /// Expect Ok when upserting a new character with faction
+        #[tokio::test]
+        async fn creates_new_character_with_faction() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(
+                    character_id,
+                    character,
+                    corporation_model.id,
+                    Some(faction_model.id),
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let created = result.unwrap();
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
+            assert_eq!(created.character_id, character_id);
+            assert_eq!(created.name, character.name);
+            assert_eq!(created.faction_id, Some(faction_model.id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting a new character without faction
+        #[tokio::test]
+        async fn creates_new_character_without_faction() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(character_id, character, corporation_model.id, None)
+                .await;
+
+            assert!(result.is_ok());
+            let created = result.unwrap();
+            assert_eq!(created.faction_id, None);
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting an existing character and verify it updates
+        #[tokio::test]
+        async fn updates_existing_character() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
+
+            // Create updated character data with different values
+            let corporation_model = test.eve().insert_mock_corporation(2, None, None).await?;
+            let (character_id, mut updated_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_model.corporation_id, None, None);
+            updated_character.name = "Updated Character Name".to_string();
+            updated_character.description = Some("Updated description".to_string());
+            updated_character.security_status = Some(5.0);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(
+                    character_id,
+                    updated_character,
+                    character_model.corporation_id,
+                    None,
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            // Verify the ID remains the same (it's an update, not a new insert)
+            assert_eq!(upserted.id, character_model.id);
+            assert_eq!(upserted.character_id, character_model.character_id);
+            assert_eq!(upserted.name, "Updated Character Name");
+            assert_eq!(
+                upserted.description,
+                Some("Updated description".to_string())
+            );
+            assert_eq!(upserted.security_status, Some(5.0));
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting an existing character with a new corporation ID
+        #[tokio::test]
+        async fn updates_character_corporation_relationship() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let corporation_model1 = test.eve().insert_mock_corporation(1, None, None).await?;
+            let corporation_model2 = test.eve().insert_mock_corporation(2, None, None).await?;
+            let character_model = test
+                .eve()
+                .insert_mock_character(1, corporation_model1.corporation_id, None, None)
+                .await?;
+
+            // Update character with new corporation
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(1, corporation_model2.corporation_id, None, None);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(character_id, character, corporation_model2.id, None)
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, character_model.id);
+            assert_eq!(upserted.corporation_id, corporation_model2.id);
+            assert_ne!(upserted.corporation_id, corporation_model1.id);
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting an existing character with a new faction ID
+        #[tokio::test]
+        async fn updates_character_faction_relationship() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let faction_model1 = test.eve().insert_mock_faction(1).await?;
+            let faction_model2 = test.eve().insert_mock_faction(2).await?;
+            let character_model = test
+                .eve()
+                .insert_mock_character(1, 1, None, Some(faction_model1.faction_id))
+                .await?;
+
+            // Update character with new faction
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(1, 1, None, Some(faction_model2.faction_id));
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(
+                    character_id,
+                    character,
+                    character_model.corporation_id,
+                    Some(faction_model2.id),
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, character_model.id);
+            assert_eq!(upserted.faction_id, Some(faction_model2.id));
+            assert_ne!(upserted.faction_id, Some(faction_model1.id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when upserting removes faction relationship
+        #[tokio::test]
+        async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let character_model = test
+                .eve()
+                .insert_mock_character(1, 1, None, Some(faction_model.faction_id))
+                .await?;
+
+            assert!(character_model.faction_id.is_some());
+
+            // Update character without faction
+            let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(
+                    character_id,
+                    character,
+                    character_model.corporation_id,
+                    None,
+                )
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, character_model.id);
+            assert_eq!(upserted.faction_id, None);
+
+            Ok(())
+        }
+
+        /// Expect Error when upserting to a table that doesn't exist
+        #[tokio::test]
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!()?;
+            let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
+
+            let character_repo = CharacterRepository::new(&test.state.db);
+            let result = character_repo
+                .upsert(character_id, character, 1, None)
+                .await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod get_by_character_id {
+        use super::*;
 
         /// Expect Some when character is present in database
         #[tokio::test]

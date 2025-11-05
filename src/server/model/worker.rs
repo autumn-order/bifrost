@@ -4,4 +4,5 @@ use serde::{Deserialize, Serialize};
 pub enum WorkerJob {
     UpdateAllianceInfo { alliance_id: i64 },
     UpdateCorporationInfo { corporation_id: i64 },
+    UpdateCharacterInfo { character_id: i64 },
 }

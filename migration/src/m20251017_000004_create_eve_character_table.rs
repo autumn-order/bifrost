@@ -35,6 +35,7 @@ impl MigrationTrait for Migration {
                     .col(string_null(EveCharacter::Title))
                     .col(timestamp(EveCharacter::CreatedAt))
                     .col(timestamp(EveCharacter::UpdatedAt))
+                    .col(timestamp_null(EveCharacter::JobScheduledAt))
                     .to_owned(),
             )
             .await?;
@@ -148,4 +149,5 @@ pub enum EveCharacter {
     Title,
     CreatedAt,
     UpdatedAt,
+    JobScheduledAt,
 }

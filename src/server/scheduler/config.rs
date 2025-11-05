@@ -30,4 +30,18 @@ pub mod eve {
         /// Runs every 3 hours at the top of the hour (00:00, 03:00, 06:00, etc.)
         pub const CRON_EXPRESSION: &str = "0 0 */3 * * *";
     }
+
+    pub mod character {
+        use super::*;
+
+        /// Cache ESI character information for 30 days
+        pub const CACHE_DURATION: Duration = Duration::days(30);
+
+        /// Interval the schedule cron task is run (12 hours)
+        pub const SCHEDULE_INTERVAL: Duration = Duration::hours(12);
+
+        /// Cron expression for corporation update scheduling
+        /// Runs every 12 hours at the top of the hour (00:00, 12:00)
+        pub const CRON_EXPRESSION: &str = "0 0 */12 * * *";
+    }
 }
