@@ -1,3 +1,4 @@
+use eve_esi::model::corporation::Corporation;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -47,6 +48,26 @@ impl<'a> CorporationService<'a> {
             .await?;
 
         Ok(corporation)
+    }
+
+    /// Fetches a list of corporations from ESI using their corporation IDs
+    pub async fn get_many_corporations(
+        &self,
+        corporation_ids: Vec<i64>,
+    ) -> Result<Vec<(i64, Corporation)>, Error> {
+        let mut corporations = Vec::new();
+
+        for corporation_id in corporation_ids {
+            let corporation = self
+                .esi_client
+                .corporation()
+                .get_corporation_information(corporation_id)
+                .await?;
+
+            corporations.push((corporation_id, corporation))
+        }
+
+        Ok(corporations)
     }
 
     /// Get corporation from database or create an entry for it from ESI
@@ -361,6 +382,318 @@ mod tests {
                 .await;
 
             assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+    }
+
+    mod get_many_corporations {
+        use bifrost_test_utils::prelude::*;
+
+        use crate::server::{error::Error, service::eve::corporation::CorporationService};
+
+        /// Expect Ok when fetching multiple corporations successfully
+        #[tokio::test]
+        async fn fetches_multiple_corporations() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for 3 different corporations
+            let corporation_ids = vec![1, 2, 3];
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 3);
+
+            // Verify all corporations were returned
+            for (corporation_id, _corporation) in corporations.iter() {
+                assert!(corporation_ids.contains(&corporation_id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when given empty corporation IDs list
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service.get_many_corporations(vec![]).await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching single corporation
+        #[tokio::test]
+        async fn fetches_single_corporation() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            let corporation_id = 1;
+            let endpoints = test
+                .eve()
+                .with_corporation_endpoint(corporation_id, None, None, 1);
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(vec![corporation_id])
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 1);
+            assert_eq!(corporations[0].0, corporation_id);
+
+            // Assert request was made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching corporations with alliances
+        // Need to implement test endpoint builder to test this properly, unfortunately this will
+        // error due to the alliance endpoint created by `with_corporation_endpoint` not getting any
+        // requests despite expecting 1.
+        //
+        // More fine-grained control over endpoints is necessary for this test.
+        #[tokio::test]
+        #[ignore]
+        async fn fetches_corporations_with_alliances() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for corporations with alliances
+            let corporation_ids = vec![1, 2];
+            let mut endpoints = Vec::new();
+            endpoints.extend(test.eve().with_corporation_endpoint(1, Some(1), None, 1));
+            endpoints.extend(test.eve().with_corporation_endpoint(2, Some(2), None, 1));
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 2);
+            assert_eq!(corporations[0].1.alliance_id, Some(1));
+            assert_eq!(corporations[1].1.alliance_id, Some(2));
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching corporations with factions
+        // Need to implement test endpoint builder to test this properly, unfortunately this will
+        // error due to the faction endpoint created by `with_corporation_endpoint` not getting any
+        // requests despite expecting 1.
+        //
+        // More fine-grained control over endpoints is necessary for this test.
+        #[tokio::test]
+        #[ignore]
+        async fn fetches_corporations_with_factions() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for corporations with factions
+            let corporation_ids = vec![1, 2];
+            let mut endpoints = Vec::new();
+            endpoints.extend(test.eve().with_corporation_endpoint(1, None, Some(1), 1));
+            endpoints.extend(test.eve().with_corporation_endpoint(2, None, Some(2), 1));
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 2);
+            assert_eq!(corporations[0].1.faction_id, Some(1));
+            assert_eq!(corporations[1].1.faction_id, Some(2));
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching corporations with both alliance and faction
+        // Need to implement test endpoint builder to test this properly, unfortunately this will
+        // error due to the alliance & faction endpoint created by `with_corporation_endpoint`
+        // not getting any requests despite expecting 1.
+        //
+        // More fine-grained control over endpoints is necessary for this test.
+        #[tokio::test]
+        #[ignore]
+        async fn fetches_corporations_with_alliance_and_faction() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoint for corporation with alliance and faction
+            let corporation_id = 1;
+            let endpoints =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(vec![corporation_id])
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 1);
+            assert_eq!(corporations[0].1.alliance_id, Some(1));
+            assert_eq!(corporations[0].1.faction_id, Some(1));
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI endpoint is unavailable for any corporation
+        #[tokio::test]
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            let corporation_ids = vec![1, 2, 3];
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids)
+                .await;
+
+            // Should fail on first unavailable corporation
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI fails partway through batch
+        #[tokio::test]
+        async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoint for first corporation only
+            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+
+            let corporation_ids = vec![1, 2, 3];
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids)
+                .await;
+
+            // Should succeed on first, fail on second (no mock)
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            // Assert first request was made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching many corporations (stress test)
+        #[tokio::test]
+        async fn fetches_many_corporations() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for 10 corporations
+            let corporation_ids: Vec<i64> = (1..=10).collect();
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 10);
+
+            // Verify all corporation IDs are present
+            for (corporation_id, _corporation) in corporations.iter() {
+                assert!(corporation_ids.contains(&corporation_id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
