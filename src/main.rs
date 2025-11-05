@@ -26,7 +26,9 @@ fn main() {
         let mut worker_storage = startup::start_workers(&config, db.clone(), esi_client.clone())
             .await
             .unwrap();
-        let _ = start_scheduler(&db, &mut worker_storage).await.unwrap();
+        let _ = start_scheduler(&db, &esi_client, &mut worker_storage)
+            .await
+            .unwrap();
 
         tracing::info!("Starting server");
 

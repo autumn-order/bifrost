@@ -3,6 +3,20 @@ use chrono::Duration;
 pub mod eve {
     use super::*;
 
+    pub mod faction {
+        use super::*;
+
+        /// Cache ESI faction information for 1 day
+        pub const CACHE_DURATION: Duration = Duration::hours(24);
+
+        /// Interval the schedule cron task is run (12 hours)
+        pub const SCHEDULE_INTERVAL: Duration = Duration::hours(12);
+
+        /// Cron expression for faction update scheduling
+        /// Runs every 12 hours at the top of the hour (00:00, 12:00)
+        pub const CRON_EXPRESSION: &str = "0 0 */12 * * *";
+    }
+
     pub mod alliance {
         use super::*;
 
