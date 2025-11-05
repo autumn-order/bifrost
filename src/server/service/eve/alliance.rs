@@ -1,3 +1,4 @@
+use eve_esi::model::alliance::Alliance;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -39,6 +40,26 @@ impl<'a> AllianceService<'a> {
             .await?;
 
         Ok(alliance)
+    }
+
+    /// Fetches a list of alliances from ESI using their alliance IDs
+    pub async fn get_many_alliances(
+        &self,
+        alliance_ids: Vec<i64>,
+    ) -> Result<Vec<(i64, Alliance)>, Error> {
+        let mut alliances = Vec::new();
+
+        for alliance_id in alliance_ids {
+            let alliance = self
+                .esi_client
+                .alliance()
+                .get_alliance_information(alliance_id)
+                .await?;
+
+            alliances.push((alliance_id, alliance))
+        }
+
+        Ok(alliances)
     }
 
     /// Gets an alliance from database or creates an entry for it from ESI
@@ -238,6 +259,196 @@ mod tests {
             let result = alliance_service.get_or_create_alliance(alliance_id).await;
 
             assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+    }
+
+    mod get_many_alliances {
+        use super::*;
+
+        /// Expect Ok when fetching multiple alliances successfully
+        #[tokio::test]
+        async fn fetches_multiple_alliances() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            // Setup mock endpoints for 3 different alliances
+            let alliance_ids = vec![1, 2, 3];
+            let mut endpoints = Vec::new();
+            for id in &alliance_ids {
+                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+            }
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .get_many_alliances(alliance_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let alliances = result.unwrap();
+            assert_eq!(alliances.len(), 3);
+
+            // Verify all alliance IDs are present
+            for (idx, (alliance_id, _)) in alliances.iter().enumerate() {
+                assert_eq!(alliance_id, &alliance_ids[idx]);
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when given empty alliance IDs list
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.get_many_alliances(vec![]).await;
+
+            assert!(result.is_ok());
+            let alliances = result.unwrap();
+            assert_eq!(alliances.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching single alliance
+        #[tokio::test]
+        async fn fetches_single_alliance() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_id = 1;
+            let endpoints = test.eve().with_alliance_endpoint(alliance_id, None, 1);
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.get_many_alliances(vec![alliance_id]).await;
+
+            assert!(result.is_ok());
+            let alliances = result.unwrap();
+            assert_eq!(alliances.len(), 1);
+            assert_eq!(alliances[0].0, alliance_id);
+
+            // Assert request was made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching alliances with factions
+        // Need to implement test endpoint builder to test this properly, unfortunately this will
+        // error due to the faction endpoint created by `with_alliance_endpoint` not getting any
+        // requests despite expecting 1.
+        //
+        // More fine-grained control over endpoints is necessary for this test.
+        #[tokio::test]
+        #[ignore]
+        async fn fetches_alliances_with_factions() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            // Setup mock endpoints for alliances with factions
+            let alliance_ids = vec![1, 2];
+            let mut endpoints = Vec::new();
+            endpoints.extend(test.eve().with_alliance_endpoint(1, Some(1), 1));
+            endpoints.extend(test.eve().with_alliance_endpoint(2, Some(2), 1));
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.get_many_alliances(alliance_ids).await;
+
+            assert!(result.is_ok());
+            let alliances = result.unwrap();
+            assert_eq!(alliances.len(), 2);
+            assert_eq!(alliances[0].1.faction_id, Some(1));
+            assert_eq!(alliances[1].1.faction_id, Some(1));
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI endpoint is unavailable for any alliance
+        #[tokio::test]
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
+            let test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_ids = vec![1, 2, 3];
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.get_many_alliances(alliance_ids).await;
+
+            // Should fail on first unavailable alliance
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI fails partway through batch
+        #[tokio::test]
+        async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            // Setup mock endpoint for first alliance only
+            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let alliance_ids = vec![1, 2, 3];
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service.get_many_alliances(alliance_ids).await;
+
+            // Should succeed on first, fail on second (no mock)
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            // Assert first request was made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching many alliances (stress test)
+        #[tokio::test]
+        async fn fetches_many_alliances() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            // Setup mock endpoints for 10 alliances
+            let alliance_ids: Vec<i64> = (1..=10).collect();
+            let mut endpoints = Vec::new();
+            for id in &alliance_ids {
+                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+            }
+
+            let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+            let result = alliance_service
+                .get_many_alliances(alliance_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let alliances = result.unwrap();
+            assert_eq!(alliances.len(), 10);
+
+            // Verify all alliance IDs are present in order
+            for (idx, (alliance_id, _)) in alliances.iter().enumerate() {
+                assert_eq!(alliance_id, &alliance_ids[idx]);
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
 
             Ok(())
         }
