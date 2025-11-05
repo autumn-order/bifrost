@@ -122,6 +122,32 @@ impl<'a> CorporationRepository<'a> {
             .one(self.db)
             .await
     }
+
+    /// Find corporation IDs that don't exist in the database
+    pub async fn find_missing_ids(&self, corporation_ids: &[i64]) -> Result<Vec<i64>, DbErr> {
+        if corporation_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let existing_corporations: Vec<i64> = entity::prelude::EveCorporation::find()
+            .filter(
+                entity::eve_corporation::Column::CorporationId
+                    .is_in(corporation_ids.iter().copied()),
+            )
+            .all(self.db)
+            .await?
+            .into_iter()
+            .map(|c| c.corporation_id)
+            .collect();
+
+        let missing_ids: Vec<i64> = corporation_ids
+            .iter()
+            .filter(|id| !existing_corporations.contains(id))
+            .copied()
+            .collect();
+
+        Ok(missing_ids)
+    }
 }
 
 #[cfg(test)]
@@ -559,6 +585,135 @@ mod tests {
             let corporation_repo = CorporationRepository::new(&test.state.db);
             let corporation_id = 1;
             let result = corporation_repo.get_by_corporation_id(corporation_id).await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod find_missing_ids {
+        use super::*;
+
+        /// Expect empty vector when all corporations exist
+        #[tokio::test]
+        async fn returns_empty_when_all_exist() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corp1 = test.eve().insert_mock_corporation(1, None, None).await?;
+            let corp2 = test.eve().insert_mock_corporation(2, None, None).await?;
+            let corp3 = test.eve().insert_mock_corporation(3, None, None).await?;
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+
+            let corporation_ids = vec![
+                corp1.corporation_id,
+                corp2.corporation_id,
+                corp3.corporation_id,
+            ];
+            let result = corporation_repo.find_missing_ids(&corporation_ids).await;
+
+            assert!(result.is_ok());
+            let missing = result.unwrap();
+            assert!(missing.is_empty());
+
+            Ok(())
+        }
+
+        /// Expect missing IDs when some corporations don't exist
+        #[tokio::test]
+        async fn returns_missing_ids() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let corp1 = test.eve().insert_mock_corporation(1, None, None).await?;
+            let corp3 = test.eve().insert_mock_corporation(3, None, None).await?;
+
+            // Query for corporations 1, 2, 3, 4, 5 where only 1 and 3 exist
+            let (corp2_id, _) = test.eve().with_mock_corporation(2, None, None);
+            let (corp4_id, _) = test.eve().with_mock_corporation(4, None, None);
+            let (corp5_id, _) = test.eve().with_mock_corporation(5, None, None);
+
+            let corporation_ids = vec![
+                corp1.corporation_id,
+                corp2_id,
+                corp3.corporation_id,
+                corp4_id,
+                corp5_id,
+            ];
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+            let result = corporation_repo.find_missing_ids(&corporation_ids).await;
+
+            assert!(result.is_ok());
+            let missing = result.unwrap();
+            assert_eq!(missing.len(), 3);
+            assert!(missing.contains(&corp2_id));
+            assert!(missing.contains(&corp4_id));
+            assert!(missing.contains(&corp5_id));
+            assert!(!missing.contains(&corp1.corporation_id));
+            assert!(!missing.contains(&corp3.corporation_id));
+
+            Ok(())
+        }
+
+        /// Expect all IDs returned when no corporations exist
+        #[tokio::test]
+        async fn returns_all_when_none_exist() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+
+            let corporation_ids = vec![1000001, 1000002, 1000003];
+            let result = corporation_repo.find_missing_ids(&corporation_ids).await;
+
+            assert!(result.is_ok());
+            let missing = result.unwrap();
+            assert_eq!(missing.len(), 3);
+            assert_eq!(missing, corporation_ids);
+
+            Ok(())
+        }
+
+        /// Expect empty vector when querying with empty input
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+
+            let corporation_ids: Vec<i64> = vec![];
+            let result = corporation_repo.find_missing_ids(&corporation_ids).await;
+
+            assert!(result.is_ok());
+            let missing = result.unwrap();
+            assert!(missing.is_empty());
+
+            Ok(())
+        }
+
+        /// Expect Error when querying table that doesn't exist
+        #[tokio::test]
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+
+            let corporation_ids = vec![1000001, 1000002];
+            let result = corporation_repo.find_missing_ids(&corporation_ids).await;
 
             assert!(result.is_err());
 
