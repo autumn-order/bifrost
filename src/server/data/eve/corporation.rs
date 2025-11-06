@@ -2,7 +2,8 @@ use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, QuerySelect,
 };
 
 pub struct CorporationRepository<'a> {
@@ -182,6 +183,23 @@ impl<'a> CorporationRepository<'a> {
         entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
             .one(self.db)
+            .await
+    }
+
+    pub async fn get_entry_ids_by_corporation_ids(
+        &self,
+        corporation_ids: &[i64],
+    ) -> Result<Vec<(i32, i64)>, DbErr> {
+        entity::prelude::EveCorporation::find()
+            .select_only()
+            .column(entity::eve_corporation::Column::Id)
+            .column(entity::eve_corporation::Column::CorporationId)
+            .filter(
+                entity::eve_corporation::Column::CorporationId
+                    .is_in(corporation_ids.iter().copied()),
+            )
+            .into_tuple::<(i32, i64)>()
+            .all(self.db)
             .await
     }
 

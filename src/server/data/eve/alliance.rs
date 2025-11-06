@@ -2,7 +2,8 @@ use chrono::Utc;
 use eve_esi::model::alliance::Alliance;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, QuerySelect,
 };
 
 pub struct AllianceRepository<'a> {
@@ -132,6 +133,20 @@ impl<'a> AllianceRepository<'a> {
         entity::prelude::EveAlliance::find()
             .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
             .one(self.db)
+            .await
+    }
+
+    pub async fn get_entry_ids_by_alliance_ids(
+        &self,
+        alliance_ids: &[i64],
+    ) -> Result<Vec<(i32, i64)>, DbErr> {
+        entity::prelude::EveAlliance::find()
+            .select_only()
+            .column(entity::eve_alliance::Column::Id)
+            .column(entity::eve_alliance::Column::AllianceId)
+            .filter(entity::eve_alliance::Column::AllianceId.is_in(alliance_ids.iter().copied()))
+            .into_tuple::<(i32, i64)>()
+            .all(self.db)
             .await
     }
 

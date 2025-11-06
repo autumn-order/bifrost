@@ -3,7 +3,7 @@ use eve_esi::model::universe::Faction;
 use migration::OnConflict;
 use sea_orm::{
     ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, Order, QueryFilter,
-    QueryOrder,
+    QueryOrder, QuerySelect,
 };
 
 pub struct FactionRepository<'a> {
@@ -66,6 +66,20 @@ impl<'a> FactionRepository<'a> {
         entity::prelude::EveFaction::find()
             .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
             .one(self.db)
+            .await
+    }
+
+    pub async fn get_entry_ids_by_faction_ids(
+        &self,
+        faction_ids: &[i64],
+    ) -> Result<Vec<(i32, i64)>, DbErr> {
+        entity::prelude::EveFaction::find()
+            .select_only()
+            .column(entity::eve_faction::Column::Id)
+            .column(entity::eve_faction::Column::FactionId)
+            .filter(entity::eve_faction::Column::FactionId.is_in(faction_ids.iter().copied()))
+            .into_tuple::<(i32, i64)>()
+            .all(self.db)
             .await
     }
 

@@ -29,6 +29,7 @@ impl<'a> AffiliationService<'a> {
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_repo = AllianceRepository::new(&self.db);
+        let faction_repo = FactionRepository::new(&self.db);
         let corporation_service = CorporationService::new(&self.db, &self.esi_client);
         let alliance_service = AllianceService::new(&self.db, &self.esi_client);
 
@@ -47,16 +48,35 @@ impl<'a> AffiliationService<'a> {
             .character_affiliation(character_ids)
             .await?;
 
+        // Create HashSets of all IDs to ensure we only retrieve unique IDs
         let corporation_ids: HashSet<i64> = affiliations.iter().map(|a| a.corporation_id).collect();
         let mut alliance_ids: HashSet<i64> =
             affiliations.iter().filter_map(|a| a.alliance_id).collect();
         let mut faction_ids: HashSet<i64> =
             affiliations.iter().filter_map(|a| a.faction_id).collect();
 
-        // Find & fetch missing corporations
-        let missing_corporation_ids = corporation_repo
-            .find_missing_ids(&corporation_ids.iter().copied().collect::<Vec<_>>())
+        // Get all faction, alliance, and corporation IDs present in the database
+        let faction_ids_vec: Vec<i64> = faction_ids.iter().copied().collect();
+        let faction_table_ids = faction_repo
+            .get_entry_ids_by_faction_ids(&faction_ids_vec)
             .await?;
+        let alliance_ids_vec: Vec<i64> = alliance_ids.iter().copied().collect();
+        let alliance_table_ids = alliance_repo
+            .get_entry_ids_by_alliance_ids(&alliance_ids_vec)
+            .await?;
+        let corporation_ids_vec: Vec<i64> = alliance_ids.iter().copied().collect();
+        let corporation_table_ids = corporation_repo
+            .get_entry_ids_by_corporation_ids(&corporation_ids_vec)
+            .await?;
+
+        // Fetch corporations
+        let existing_corporation_ids: HashSet<i64> =
+            corporation_table_ids.iter().map(|(_, id)| *id).collect();
+        let missing_corporation_ids: Vec<i64> = corporation_ids
+            .iter()
+            .filter(|id| !existing_corporation_ids.contains(id))
+            .copied()
+            .collect();
 
         let fetched_corporations = corporation_service
             .get_many_corporations(missing_corporation_ids.clone())
@@ -72,10 +92,14 @@ impl<'a> AffiliationService<'a> {
             }
         }
 
-        // Find & fetch missing alliances
-        let missing_alliance_ids = alliance_repo
-            .find_missing_ids(&alliance_ids.iter().copied().collect::<Vec<_>>())
-            .await?;
+        // Fetch alliances
+        let existing_alliance_ids: HashSet<i64> =
+            alliance_table_ids.iter().map(|(_, id)| *id).collect();
+        let missing_alliance_ids: Vec<i64> = alliance_ids
+            .iter()
+            .filter(|id| !existing_alliance_ids.contains(id))
+            .copied()
+            .collect();
 
         let fetched_alliances = alliance_service
             .get_many_alliances(missing_alliance_ids)
@@ -88,37 +112,18 @@ impl<'a> AffiliationService<'a> {
             }
         }
 
-        // Update factions if any factions are missing
-        let affiliations = self
-            .resolve_faction_information(affiliations, faction_ids)
-            .await?;
-
-        // Update list:
-        //
-        // Fetched entities
-        //
-        // - alliance, faction
-        // - corporation, alliance, faction
-        //
-        // Affiliation only
-        //
-        // - corporation, alliance
-        // - character, corporation, faction
-
-        // Upsert many fetched alliances
-        // Upsert many fetched corporations
-
-        // From affiliations, extract list of unique sets of corporation, alliance pairs
-        let corp_alliance_pairs: HashSet<(i64, Option<i64>)> = affiliations
+        // Fetch factions, if any missing ids
+        let existing_faction_ids: HashSet<i64> =
+            faction_table_ids.iter().map(|(_, id)| *id).collect();
+        let missing_faction_ids: Vec<i64> = faction_ids
             .iter()
-            // Exclude fetched corporations to avoid redundant updates
-            .filter(|a| !missing_corporation_ids.contains(&a.corporation_id))
-            .map(|a| (a.corporation_id, a.alliance_id))
+            .filter(|id| !existing_faction_ids.contains(id))
+            .copied()
             .collect();
 
-        // Update affiliations for corporations (alliance)
+        // Insert all missing entries to database
 
-        // Update affiliations for character (corporation, faction)
+        // Update all affiliations
 
         Ok(())
     }
