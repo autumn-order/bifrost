@@ -1,7 +1,9 @@
 use std::collections::HashSet;
 
 use dioxus_logger::tracing;
-use eve_esi::model::character::CharacterAffiliation;
+use eve_esi::model::{
+    alliance::Alliance, character::CharacterAffiliation, corporation::Corporation,
+};
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -30,8 +32,6 @@ impl<'a> AffiliationService<'a> {
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_repo = AllianceRepository::new(&self.db);
         let faction_repo = FactionRepository::new(&self.db);
-        let corporation_service = CorporationService::new(&self.db, &self.esi_client);
-        let alliance_service = AllianceService::new(&self.db, &self.esi_client);
 
         // If the database were to have any invalid IDs inserted in the character table, this will fail
         // for the entirety of the provided character IDs. No sanitization is added for IDs as all IDs
@@ -64,22 +64,18 @@ impl<'a> AffiliationService<'a> {
         let alliance_table_ids = alliance_repo
             .get_entry_ids_by_alliance_ids(&alliance_ids_vec)
             .await?;
-        let corporation_ids_vec: Vec<i64> = alliance_ids.iter().copied().collect();
+        let corporation_ids_vec: Vec<i64> = corporation_ids.iter().copied().collect();
         let corporation_table_ids = corporation_repo
             .get_entry_ids_by_corporation_ids(&corporation_ids_vec)
             .await?;
 
         // Fetch corporations
-        let existing_corporation_ids: HashSet<i64> =
-            corporation_table_ids.iter().map(|(_, id)| *id).collect();
-        let missing_corporation_ids: Vec<i64> = corporation_ids
+        let existing_corporation_ids: Vec<i64> = corporation_table_ids
             .iter()
-            .filter(|id| !existing_corporation_ids.contains(id))
-            .copied()
+            .map(|(_, corporation_id)| *corporation_id)
             .collect();
-
-        let fetched_corporations = corporation_service
-            .get_many_corporations(missing_corporation_ids.clone())
+        let fetched_corporations = self
+            .fetch_missing_corporations(&corporation_ids_vec, &existing_corporation_ids)
             .await?;
 
         // From the fetched corporations, insert any missing alliances/factions to ID list
@@ -93,16 +89,12 @@ impl<'a> AffiliationService<'a> {
         }
 
         // Fetch alliances
-        let existing_alliance_ids: HashSet<i64> =
-            alliance_table_ids.iter().map(|(_, id)| *id).collect();
-        let missing_alliance_ids: Vec<i64> = alliance_ids
+        let existing_alliance_ids: Vec<i64> = alliance_table_ids
             .iter()
-            .filter(|id| !existing_alliance_ids.contains(id))
-            .copied()
+            .map(|(_, alliance_id)| *alliance_id)
             .collect();
-
-        let fetched_alliances = alliance_service
-            .get_many_alliances(missing_alliance_ids)
+        let fetched_alliances = self
+            .fetch_missing_alliances(&alliance_ids_vec, &existing_alliance_ids)
             .await?;
 
         // From the fetched alliances, insert any missing factions to ID list
@@ -126,6 +118,38 @@ impl<'a> AffiliationService<'a> {
         // Update all affiliations
 
         Ok(())
+    }
+
+    async fn fetch_missing_corporations(
+        &self,
+        corporation_ids: &[i64],
+        existing_corporation_ids: &[i64],
+    ) -> Result<Vec<(i64, Corporation)>, Error> {
+        let missing_ids = get_missing_ids(corporation_ids, existing_corporation_ids);
+
+        if missing_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        CorporationService::new(&self.db, &self.esi_client)
+            .get_many_corporations(missing_ids)
+            .await
+    }
+
+    async fn fetch_missing_alliances(
+        &self,
+        alliance_ids: &[i64],
+        existing_alliance_ids: &[i64],
+    ) -> Result<Vec<(i64, Alliance)>, Error> {
+        let missing_ids = get_missing_ids(alliance_ids, existing_alliance_ids);
+
+        if missing_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        AllianceService::new(&self.db, &self.esi_client)
+            .get_many_alliances(missing_ids)
+            .await
     }
 
     /// Fetches and stores information for any factions missing from affiliations
@@ -182,6 +206,15 @@ impl<'a> AffiliationService<'a> {
 
         Ok(affiliations)
     }
+}
+
+// Option 1: Extract the filtering logic as a helper function
+fn get_missing_ids(all_ids: &[i64], existing_ids: &[i64]) -> Vec<i64> {
+    all_ids
+        .iter()
+        .filter(|id| !existing_ids.contains(id))
+        .copied()
+        .collect()
 }
 
 #[cfg(test)]
