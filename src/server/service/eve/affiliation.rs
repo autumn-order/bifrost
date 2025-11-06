@@ -140,9 +140,8 @@ impl<'a> AffiliationService<'a> {
         let faction_repo = FactionRepository::new(&self.db);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
-        let missing_faction_ids = faction_repo
-            .find_missing_ids(&faction_ids.iter().copied().collect::<Vec<_>>())
-            .await?;
+        // TEMP: This function will be refactored
+        let missing_faction_ids = Vec::new();
 
         if missing_faction_ids.is_empty() {
             return Ok(affiliations);
