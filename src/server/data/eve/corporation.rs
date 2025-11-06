@@ -112,6 +112,68 @@ impl<'a> CorporationRepository<'a> {
         )
     }
 
+    pub async fn upsert_many(
+        &self,
+        corporations: Vec<(i64, Corporation, Option<i32>, Option<i32>)>,
+    ) -> Result<Vec<entity::eve_corporation::Model>, DbErr> {
+        let corporations = corporations.into_iter().map(
+            |(corporation_id, corporation, alliance_id, faction_id)| {
+                let date_founded = match corporation.date_founded {
+                    Some(date) => Some(date.naive_utc()),
+                    None => None,
+                };
+
+                entity::eve_corporation::ActiveModel {
+                    corporation_id: ActiveValue::Set(corporation_id),
+                    alliance_id: ActiveValue::Set(alliance_id),
+                    faction_id: ActiveValue::Set(faction_id),
+                    ceo_id: ActiveValue::Set(corporation.ceo_id),
+                    creator_id: ActiveValue::Set(corporation.creator_id),
+                    date_founded: ActiveValue::Set(date_founded),
+                    description: ActiveValue::Set(corporation.description),
+                    home_station_id: ActiveValue::Set(corporation.home_station_id),
+                    member_count: ActiveValue::Set(corporation.member_count),
+                    name: ActiveValue::Set(corporation.name),
+                    shares: ActiveValue::Set(corporation.shares),
+                    tax_rate: ActiveValue::Set(corporation.tax_rate),
+                    ticker: ActiveValue::Set(corporation.ticker),
+                    url: ActiveValue::Set(corporation.url),
+                    war_eligible: ActiveValue::Set(corporation.war_eligible),
+                    created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                    updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                    job_scheduled_at: ActiveValue::Set(None),
+                    ..Default::default()
+                }
+            },
+        );
+
+        entity::prelude::EveCorporation::insert_many(corporations)
+            .on_conflict(
+                OnConflict::column(entity::eve_corporation::Column::CorporationId)
+                    .update_columns([
+                        entity::eve_corporation::Column::AllianceId,
+                        entity::eve_corporation::Column::FactionId,
+                        entity::eve_corporation::Column::CeoId,
+                        entity::eve_corporation::Column::CreatorId,
+                        entity::eve_corporation::Column::DateFounded,
+                        entity::eve_corporation::Column::Description,
+                        entity::eve_corporation::Column::HomeStationId,
+                        entity::eve_corporation::Column::MemberCount,
+                        entity::eve_corporation::Column::Name,
+                        entity::eve_corporation::Column::Shares,
+                        entity::eve_corporation::Column::TaxRate,
+                        entity::eve_corporation::Column::Ticker,
+                        entity::eve_corporation::Column::Url,
+                        entity::eve_corporation::Column::WarEligible,
+                        entity::eve_corporation::Column::UpdatedAt,
+                        entity::eve_corporation::Column::JobScheduledAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec_with_returning(self.db)
+            .await
+    }
+
     /// Get a corporation from database using EVE Online corporation ID
     pub async fn get_by_corporation_id(
         &self,
@@ -527,6 +589,98 @@ mod tests {
                 .await;
 
             assert!(result.is_err());
+
+            Ok(())
+        }
+    }
+
+    mod upsert_many {
+        use super::*;
+
+        /// Expect Ok when upserting new corporations
+        #[tokio::test]
+        async fn upserts_new_corporations() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
+            let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+            let result = corporation_repo
+                .upsert_many(vec![
+                    (corporation_id_1, corporation_1, None, None),
+                    (corporation_id_2, corporation_2, None, None),
+                ])
+                .await;
+
+            assert!(result.is_ok(), "Error: {:?}", result);
+            let created_corporations = result.unwrap();
+            assert_eq!(created_corporations.len(), 2);
+
+            Ok(())
+        }
+
+        /// Expect Ok & update when trying to upsert existing corporations
+        #[tokio::test]
+        async fn updates_existing_corporations() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+            let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
+            let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
+            let (corporation_id_1_update, corporation_1_update) =
+                test.eve().with_mock_corporation(1, None, None);
+            let (corporation_id_2_update, corporation_2_update) =
+                test.eve().with_mock_corporation(2, None, None);
+
+            let corporation_repo = CorporationRepository::new(&test.state.db);
+            let initial = corporation_repo
+                .upsert_many(vec![
+                    (corporation_id_1, corporation_1, None, None),
+                    (corporation_id_2, corporation_2, None, None),
+                ])
+                .await?;
+
+            let initial_entry_1 = initial
+                .iter()
+                .find(|c| c.corporation_id == corporation_id_1)
+                .expect("corporation 1 not found");
+            let initial_entry_2 = initial
+                .iter()
+                .find(|c| c.corporation_id == corporation_id_2)
+                .expect("corporation 2 not found");
+
+            let initial_created_at_1 = initial_entry_1.created_at;
+            let initial_updated_at_1 = initial_entry_1.updated_at;
+            let initial_created_at_2 = initial_entry_2.created_at;
+            let initial_updated_at_2 = initial_entry_2.updated_at;
+
+            let latest = corporation_repo
+                .upsert_many(vec![
+                    (corporation_id_1_update, corporation_1_update, None, None),
+                    (corporation_id_2_update, corporation_2_update, None, None),
+                ])
+                .await?;
+
+            let latest_entry_1 = latest
+                .iter()
+                .find(|c| c.corporation_id == corporation_id_1_update)
+                .expect("corporation 1 not found");
+            let latest_entry_2 = latest
+                .iter()
+                .find(|c| c.corporation_id == corporation_id_2_update)
+                .expect("corporation 2 not found");
+
+            // created_at should not change and updated_at should increase for both corporations
+            assert_eq!(latest_entry_1.created_at, initial_created_at_1);
+            assert!(latest_entry_1.updated_at > initial_updated_at_1);
+            assert_eq!(latest_entry_2.created_at, initial_created_at_2);
+            assert!(latest_entry_2.updated_at > initial_updated_at_2);
 
             Ok(())
         }
