@@ -88,6 +88,54 @@ impl<'a> CharacterRepository<'a> {
         )
     }
 
+    pub async fn upsert_many(
+        &self,
+        characters: Vec<(i64, Character, i32, Option<i32>)>,
+    ) -> Result<Vec<entity::eve_character::Model>, DbErr> {
+        let characters =
+            characters
+                .into_iter()
+                .map(|(character_id, character, corporation_id, faction_id)| {
+                    entity::eve_character::ActiveModel {
+                        character_id: ActiveValue::Set(character_id),
+                        corporation_id: ActiveValue::Set(corporation_id),
+                        faction_id: ActiveValue::Set(faction_id),
+                        birthday: ActiveValue::Set(character.birthday.naive_utc()),
+                        bloodline_id: ActiveValue::Set(character.bloodline_id),
+                        description: ActiveValue::Set(character.description),
+                        gender: ActiveValue::Set(character.gender),
+                        name: ActiveValue::Set(character.name),
+                        race_id: ActiveValue::Set(character.race_id),
+                        security_status: ActiveValue::Set(character.security_status),
+                        title: ActiveValue::Set(character.title),
+                        created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                        updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                        ..Default::default()
+                    }
+                });
+
+        entity::prelude::EveCharacter::insert_many(characters)
+            .on_conflict(
+                OnConflict::column(entity::eve_character::Column::CharacterId)
+                    .update_columns([
+                        entity::eve_character::Column::CorporationId,
+                        entity::eve_character::Column::FactionId,
+                        entity::eve_character::Column::Birthday,
+                        entity::eve_character::Column::BloodlineId,
+                        entity::eve_character::Column::Description,
+                        entity::eve_character::Column::Gender,
+                        entity::eve_character::Column::Name,
+                        entity::eve_character::Column::RaceId,
+                        entity::eve_character::Column::SecurityStatus,
+                        entity::eve_character::Column::Title,
+                        entity::eve_character::Column::UpdatedAt,
+                    ])
+                    .to_owned(),
+            )
+            .exec_with_returning(self.db)
+            .await
+    }
+
     pub async fn get_by_character_id(
         &self,
         character_id: i64,
