@@ -152,16 +152,6 @@ impl<'a> AffiliationService<'a> {
                 .await?;
         }
 
-        // If we have any missing faction IDs and the faction update didn't return the IDs we are missing,
-        // we can still update the character's affiliation but we can't have them linked to the faction
-        // that doesn't exist in database.
-        let affiliations = remove_invalid_faction_affiliations(
-            affiliations,
-            &updated_faction_ids,
-            &faction_ids_vec,
-            &existing_faction_ids,
-        );
-
         // Create hashmaps to lookup faction, alliance, and corporation table IDs
         let faction_id_to_table_id: HashMap<i64, i32> = faction_table_ids
             .iter()
@@ -174,6 +164,10 @@ impl<'a> AffiliationService<'a> {
         let mut corporation_id_to_table_id: HashMap<i64, i32> = corporation_table_ids
             .iter()
             .map(|(table_id, corporation_id)| (*corporation_id, *table_id))
+            .collect();
+        let character_id_to_table_id: HashMap<i64, i32> = character_table_ids
+            .iter()
+            .map(|(table_id, character_id)| (*character_id, *table_id))
             .collect();
 
         // Insert fetched alliances
@@ -237,7 +231,7 @@ impl<'a> AffiliationService<'a> {
                         tracing::warn!(
                             character_id = character_id,
                             corporation_id = character.corporation_id,
-                            "Character's corporation ID not found in database; skipping character affiliation update"
+                            "Character's corporation ID not found in database; skipping character creation"
                         );
                         return None;
                     }
@@ -257,9 +251,9 @@ impl<'a> AffiliationService<'a> {
             .collect();
         character_repo.upsert_many(character_entries).await?;
 
-        // Update all affiliations
-
-        // 1. Corporation
+        // Update only the corporation's alliance
+        //
+        // The corporation information update job handles the faction affiliation update
         let corporation_alliance_affiliations: Vec<(i32, Option<i32>)> = affiliations.iter()
             .map(|a| (a.corporation_id, a.alliance_id))
             .collect::<HashSet<_>>() // Deduplicate
@@ -303,12 +297,76 @@ impl<'a> AffiliationService<'a> {
                     None => None,
                 };
 
-
                 Some((corporation_table_id, alliance_table_id))
             })
             .collect();
 
-        // 2. Character
+        let character_affiliations: Vec<(i32, i32, Option<i32>)> = affiliations
+            .iter()
+            .map(|a| (a.character_id, a.corporation_id, a.faction_id))
+            .collect::<HashSet<_>>() // Deduplicate
+            .into_iter()
+            .filter_map(
+                |(character_id, corporation_id, faction_id)| {
+                    let character_table_id = character_id_to_table_id
+                        .get(&character_id)
+                        .copied();
+
+                    let corporation_table_id = corporation_id_to_table_id
+                        .get(&corporation_id)
+                        .copied();
+
+                    // Skip if character not found
+                    let character_table_id = match character_table_id {
+                        Some(id) => id,
+                        None => {
+                            tracing::warn!(
+                                character_id = character_id,
+                                corporation_id = corporation_id,
+                                "Character's ID not found in database; skipping character affiliation update"
+                            );
+                            return None;
+                        }
+                    };
+
+                    // Skip if corporation not found
+                    let corporation_table_id = match corporation_table_id {
+                        Some(id) => id,
+                        None => {
+                            tracing::warn!(
+                                character_id = character_id,
+                                corporation_id = corporation_id,
+                                "Character's corporation ID not found in database; skipping character affiliation update"
+                            );
+                            return None;
+                        }
+                    };
+
+                    let faction_table_id = match faction_id {
+                        Some(faction_id) => {
+                            let faction_table_id = faction_id_to_table_id
+                                .get(&faction_id)
+                                .copied();
+
+                            // Set faction to None if faction is not found
+                            match faction_table_id {
+                                Some(id) => Some(id),
+                                None => {
+                                    tracing::warn!(
+                                        character_id = character_id,
+                                        faction_id = faction_id,
+                                        "Character's faction ID not found in database; character's faction will be set as none for now"
+                                    );
+                                    None
+                                }
+                            }
+                        }
+                        None => None,
+                    };
+
+                    Some((character_table_id, corporation_table_id, faction_table_id))
+                }
+            ).collect();
 
         Ok(())
     }
@@ -394,37 +452,4 @@ fn get_missing_ids(all_ids: &[i64], existing_ids: &[i64]) -> Vec<i64> {
         .filter(|id| !existing_ids.contains(id))
         .copied()
         .collect()
-}
-
-fn remove_invalid_faction_affiliations(
-    mut affiliations: Vec<CharacterAffiliation>,
-    updated_faction_ids: &[i64],
-    faction_ids: &[i64],
-    existing_faction_ids: &[i64],
-) -> Vec<CharacterAffiliation> {
-    let missing_ids = get_missing_ids(faction_ids, existing_faction_ids);
-    let still_missing_faction_ids: Vec<i64> = missing_ids
-        .into_iter()
-        .filter(|id| !updated_faction_ids.contains(id))
-        .collect();
-
-    if still_missing_faction_ids.is_empty() {
-        return affiliations;
-    }
-
-    // Set faction_id to None for affiliations with missing factions
-    for affiliation in affiliations.iter_mut() {
-        if let Some(faction_id) = affiliation.faction_id {
-            if still_missing_faction_ids.contains(&faction_id) {
-                tracing::warn!(
-                    character_id = affiliation.character_id,
-                    faction_id = faction_id,
-                    "Character's faction ID could not be found in ESI; temporarily setting to None"
-                );
-                affiliation.faction_id = None;
-            }
-        }
-    }
-
-    return affiliations;
 }
