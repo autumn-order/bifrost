@@ -2,18 +2,21 @@ use std::collections::HashSet;
 
 use dioxus_logger::tracing;
 use eve_esi::model::{
-    alliance::Alliance, character::CharacterAffiliation, corporation::Corporation,
+    alliance::Alliance,
+    character::{Character, CharacterAffiliation},
+    corporation::Corporation,
 };
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::{
-        alliance::AllianceRepository, corporation::CorporationRepository,
-        faction::FactionRepository,
+        alliance::AllianceRepository, character::CharacterRepository,
+        corporation::CorporationRepository, faction::FactionRepository,
     },
     error::Error,
     service::eve::{
-        alliance::AllianceService, corporation::CorporationService, faction::FactionService,
+        alliance::AllianceService, character::CharacterService, corporation::CorporationService,
+        faction::FactionService,
     },
 };
 
@@ -29,14 +32,14 @@ impl<'a> AffiliationService<'a> {
     }
 
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+        let character_repo = CharacterRepository::new(&self.db);
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_repo = AllianceRepository::new(&self.db);
         let faction_repo = FactionRepository::new(&self.db);
 
         // If the database were to have any invalid IDs inserted in the character table, this will fail
         // for the entirety of the provided character IDs. No sanitization is added for IDs as all IDs
-        // present in the database *should* be directly from ESI unless a user were to insert garbage IDs
-        // themselves.
+        // present in the database *should* be directly from ESI.
         //
         // Unfortunately the error won't actually tell you which provided ID caused the error. We'll add
         // character ID sanitization later as a shared utility if this proves to be an issue.
@@ -49,7 +52,9 @@ impl<'a> AffiliationService<'a> {
             .await?;
 
         // Create HashSets of all IDs to ensure we only retrieve unique IDs
-        let corporation_ids: HashSet<i64> = affiliations.iter().map(|a| a.corporation_id).collect();
+        let character_ids: HashSet<i64> = affiliations.iter().map(|a| a.character_id).collect();
+        let mut corporation_ids: HashSet<i64> =
+            affiliations.iter().map(|a| a.corporation_id).collect();
         let mut alliance_ids: HashSet<i64> =
             affiliations.iter().filter_map(|a| a.alliance_id).collect();
         let mut faction_ids: HashSet<i64> =
@@ -68,8 +73,30 @@ impl<'a> AffiliationService<'a> {
         let corporation_table_ids = corporation_repo
             .get_entry_ids_by_corporation_ids(&corporation_ids_vec)
             .await?;
+        let character_ids_vec: Vec<i64> = character_ids.iter().copied().collect();
+        let character_table_ids = character_repo
+            .get_entry_ids_by_character_ids(&character_ids_vec)
+            .await?;
 
-        // Fetch corporations
+        // Fetch any missing characters that are missing from database
+        let existing_character_ids: Vec<i64> = character_table_ids
+            .iter()
+            .map(|(_, character_id)| *character_id)
+            .collect();
+        let fetched_characters = self
+            .fetch_missing_characters(&character_ids_vec, &existing_character_ids)
+            .await?;
+
+        // From the fetched characters, insert any missing corporation/factions to ID list
+        for (_, character) in &fetched_characters {
+            corporation_ids.insert(character.corporation_id);
+
+            if let Some(faction_id) = character.faction_id {
+                faction_ids.insert(faction_id);
+            }
+        }
+
+        // Fetch any corporations that are missing from database
         let existing_corporation_ids: Vec<i64> = corporation_table_ids
             .iter()
             .map(|(_, corporation_id)| *corporation_id)
@@ -88,7 +115,7 @@ impl<'a> AffiliationService<'a> {
             }
         }
 
-        // Fetch alliances
+        // Fetch any alliances that are missing from database
         let existing_alliance_ids: Vec<i64> = alliance_table_ids
             .iter()
             .map(|(_, alliance_id)| *alliance_id)
@@ -104,7 +131,7 @@ impl<'a> AffiliationService<'a> {
             }
         }
 
-        // Fetch factions, if any missing ids
+        // Attempt to update factions if any are missing from database
         let existing_faction_ids: Vec<i64> = faction_table_ids
             .iter()
             .map(|(_, faction_id)| *faction_id)
@@ -114,6 +141,10 @@ impl<'a> AffiliationService<'a> {
             .await?;
 
         let updated_faction_ids: Vec<i64> = updated_factions.iter().map(|f| f.faction_id).collect();
+
+        // If we have any missing faction IDs and the faction update didn't return the IDs we are missing,
+        // we can still update the character's affiliation but we can't have them linked to the faction
+        // that doesn't exist in database.
         let affiliations = remove_invalid_faction_affiliations(
             affiliations,
             &updated_faction_ids,
@@ -126,6 +157,22 @@ impl<'a> AffiliationService<'a> {
         // Update all affiliations
 
         Ok(())
+    }
+
+    async fn fetch_missing_characters(
+        &self,
+        character_ids: &[i64],
+        existing_character_ids: &[i64],
+    ) -> Result<Vec<(i64, Character)>, Error> {
+        let missing_ids = get_missing_ids(character_ids, existing_character_ids);
+
+        if missing_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        CharacterService::new(&self.db, &self.esi_client)
+            .get_many_characters(missing_ids)
+            .await
     }
 
     async fn fetch_missing_corporations(

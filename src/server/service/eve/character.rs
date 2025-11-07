@@ -1,3 +1,4 @@
+use eve_esi::model::character::Character;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -63,6 +64,26 @@ impl<'a> CharacterService<'a> {
         let character = self.create_character(character_id).await?;
 
         Ok(character)
+    }
+
+    /// Fetches a list of characters from ESI using their character IDs
+    pub async fn get_many_characters(
+        &self,
+        character_ids: Vec<i64>,
+    ) -> Result<Vec<(i64, Character)>, Error> {
+        let mut characters = Vec::new();
+
+        for character_id in character_ids {
+            let character = self
+                .esi_client
+                .character()
+                .get_character_public_information(character_id)
+                .await?;
+
+            characters.push((character_id, character))
+        }
+
+        Ok(characters)
     }
 
     /// Fetches a character from EVE Online's ESI and upserts to database

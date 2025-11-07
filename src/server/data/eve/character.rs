@@ -2,7 +2,8 @@ use chrono::Utc;
 use eve_esi::model::character::Character;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter,
+    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    QueryFilter, QuerySelect,
 };
 
 pub struct CharacterRepository<'a> {
@@ -94,6 +95,20 @@ impl<'a> CharacterRepository<'a> {
         entity::prelude::EveCharacter::find()
             .filter(entity::eve_character::Column::CharacterId.eq(character_id))
             .one(self.db)
+            .await
+    }
+
+    pub async fn get_entry_ids_by_character_ids(
+        &self,
+        character_ids: &[i64],
+    ) -> Result<Vec<(i32, i64)>, DbErr> {
+        entity::prelude::EveCharacter::find()
+            .select_only()
+            .column(entity::eve_character::Column::Id)
+            .column(entity::eve_character::Column::CharacterId)
+            .filter(entity::eve_character::Column::CharacterId.is_in(character_ids.iter().copied()))
+            .into_tuple::<(i32, i64)>()
+            .all(self.db)
             .await
     }
 }
