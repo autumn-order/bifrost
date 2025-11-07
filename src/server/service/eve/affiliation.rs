@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use chrono::Utc;
 use dioxus_logger::tracing;
 use eve_esi::model::{
     alliance::Alliance,
@@ -257,6 +258,57 @@ impl<'a> AffiliationService<'a> {
         character_repo.upsert_many(character_entries).await?;
 
         // Update all affiliations
+
+        // 1. Corporation
+        let corporation_alliance_affiliations: Vec<(i32, Option<i32>)> = affiliations.iter()
+            .map(|a| (a.corporation_id, a.alliance_id))
+            .collect::<HashSet<_>>() // Deduplicate
+            .into_iter()
+            .filter_map(|(corporation_id, alliance_id)| {
+                let corporation_table_id = corporation_id_to_table_id
+                    .get(&corporation_id)
+                    .copied();
+
+                // Skip if corporation not found
+                let corporation_table_id = match corporation_table_id {
+                    Some(id) => id,
+                    None => {
+                        tracing::warn!(
+                            corporation_id = corporation_id,
+                            "Corporation's ID not found in database; skipping corporation affiliation update"
+                        );
+                        return None;
+                    }
+                };
+
+                let alliance_table_id = match alliance_id {
+                    Some(alliance_id) => {
+                        let alliance_table_id = alliance_id_to_table_id
+                            .get(&alliance_id)
+                            .copied();
+
+                        // Skip if alliance not found
+                        match alliance_table_id {
+                            Some(id) => Some(id),
+                            None => {
+                                tracing::warn!(
+                                    corporation_id = corporation_id,
+                                    alliance_id = alliance_id,
+                                    "Corporation's alliance ID not found in database; skipping corporation affiliation update"
+                                );
+                                return None;
+                            }
+                        }
+                    }
+                    None => None,
+                };
+
+
+                Some((corporation_table_id, alliance_table_id))
+            })
+            .collect();
+
+        // 2. Character
 
         Ok(())
     }
