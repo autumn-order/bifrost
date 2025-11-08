@@ -460,6 +460,7 @@ dependencies = [
  "dotenvy",
  "entity",
  "eve_esi",
+ "futures",
  "migration",
  "oauth2",
  "sea-orm",

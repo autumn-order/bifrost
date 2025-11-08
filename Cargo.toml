@@ -24,7 +24,7 @@ tower-sessions = { version = "0.14.0" }
 
 [dependencies]
 apalis = { version = "0.7.3", features = ["limit"], optional = true }
-apalis-redis = {  version = "0.7.3", optional = true }
+apalis-redis = { version = "0.7.3", optional = true }
 axum = { version = "0.8.6", optional = true }
 chrono = { workspace = true }
 dioxus = { version = "0.7.0", features = ["fullstack", "router"] }
@@ -33,6 +33,7 @@ dioxus-logger = "0.7.0"
 dotenvy = { version = "0.15.7", optional = true }
 entity = { workspace = true, optional = true }
 eve_esi = { workspace = true, optional = true }
+futures = { version = "0.3", optional = true }
 migration = { path = "migration", optional = true }
 oauth2 = { version = "5.0.0", optional = true }
 sea-orm = { workspace = true, features = [
@@ -62,19 +63,20 @@ mobile = ["dioxus/mobile"]
 server = [
   "apalis",
   "apalis-redis",
-  "tokio-cron-scheduler",
   "axum",
   "dioxus-cli-config",
   "dioxus/server",
   "dotenvy",
   "entity",
   "eve_esi",
+  "futures",
   "migration",
   "oauth2",
   "sea-orm",
   "thiserror",
   "time",
   "tokio",
+  "tokio-cron-scheduler",
   "tower",
   "tower-sessions",
   "tower-sessions-redis-store",
