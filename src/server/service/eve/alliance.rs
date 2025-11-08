@@ -134,17 +134,22 @@ mod tests {
         async fn creates_alliance_with_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
 
-            let alliance_id = 1;
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.create_alliance(alliance_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -154,17 +159,18 @@ mod tests {
         async fn creates_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
 
-            let alliance_id = 1;
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.create_alliance(alliance_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to mock alliance endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -190,7 +196,14 @@ mod tests {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let (_, mock_alliance) = test
+                .eve()
+                .with_mock_alliance(alliance_model.alliance_id, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -198,10 +211,7 @@ mod tests {
                 .await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -232,17 +242,18 @@ mod tests {
         async fn creates_alliance_when_missing() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_id = 1;
-            let endpoints = test.eve().with_alliance_endpoint(alliance_id, None, 1);
+
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.get_or_create_alliance(alliance_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to alliance endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -290,7 +301,11 @@ mod tests {
             let alliance_ids = vec![1, 2, 3];
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -338,8 +353,11 @@ mod tests {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
-            let alliance_id = 1;
-            let endpoints = test.eve().with_alliance_endpoint(alliance_id, None, 1);
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.get_many_alliances(vec![alliance_id]).await;
@@ -349,45 +367,42 @@ mod tests {
             assert_eq!(alliances.len(), 1);
             assert_eq!(alliances[0].0, alliance_id);
 
-            // Assert request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
 
         /// Expect Ok when fetching alliances with factions
-        // Need to implement test endpoint builder to test this properly, unfortunately this will
-        // error due to the faction endpoint created by `with_alliance_endpoint` not getting any
-        // requests despite expecting 1.
-        //
-        // More fine-grained control over endpoints is necessary for this test.
         #[tokio::test]
-        #[ignore]
         async fn fetches_alliances_with_factions() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
             // Setup mock endpoints for alliances with factions
-            let alliance_ids = vec![1, 2];
-            let mut endpoints = Vec::new();
-            endpoints.extend(test.eve().with_alliance_endpoint(1, Some(1), 1));
-            endpoints.extend(test.eve().with_alliance_endpoint(2, Some(2), 1));
+            // Pre-insert factions so they don't need to be fetched from ESI
+            let _ = test.eve().insert_mock_faction(1).await?;
+            let _ = test.eve().insert_mock_faction(2).await?;
 
+            let (alliance_id_1, mock_alliance_1) = test.eve().with_mock_alliance(1, Some(1));
+            let (alliance_id_2, mock_alliance_2) = test.eve().with_mock_alliance(2, Some(2));
+
+            let alliance_endpoint_1 =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id_1, mock_alliance_1, 1);
+            let alliance_endpoint_2 =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id_2, mock_alliance_2, 1);
+
+            let alliance_ids = vec![alliance_id_1, alliance_id_2];
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.get_many_alliances(alliance_ids).await;
 
             assert!(result.is_ok());
             let alliances = result.unwrap();
             assert_eq!(alliances.len(), 2);
-            assert_eq!(alliances[0].1.faction_id, Some(1));
-            assert_eq!(alliances[1].1.faction_id, Some(1));
 
-            // Assert all requests were made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint_1.assert();
+            alliance_endpoint_2.assert();
 
             Ok(())
         }
@@ -415,7 +430,11 @@ mod tests {
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
             // Setup mock endpoint for first alliance only
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
             let alliance_ids = vec![1, 2, 3];
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -424,10 +443,7 @@ mod tests {
             // Should succeed on first, fail on second (no mock)
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            // Assert first request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -442,7 +458,11 @@ mod tests {
             let alliance_ids: Vec<i64> = (1..=10).collect();
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -478,7 +498,11 @@ mod tests {
             let alliance_ids: Vec<i64> = (1..=25).collect();
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -514,7 +538,11 @@ mod tests {
             let alliance_ids: Vec<i64> = (1..=5).collect();
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -547,7 +575,11 @@ mod tests {
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
             // Setup mock endpoints for only some alliances in the batch
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
             let alliance_ids = vec![1, 2, 3, 4, 5];
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -556,10 +588,7 @@ mod tests {
             // Should fail when any request in the batch fails
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            // Assert first request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -574,7 +603,11 @@ mod tests {
             let alliance_ids: Vec<i64> = (1..=10).collect();
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -610,7 +643,11 @@ mod tests {
             let alliance_ids: Vec<i64> = (1..=11).collect();
             let mut endpoints = Vec::new();
             for id in &alliance_ids {
-                endpoints.extend(test.eve().with_alliance_endpoint(*id, None, 1));
+                let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(*id, None);
+                endpoints.push(
+                    test.eve()
+                        .with_alliance_endpoint(alliance_id, mock_alliance, 1),
+                );
             }
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
@@ -648,9 +685,16 @@ mod tests {
         async fn creates_new_alliance_with_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
 
-            let alliance_id = 1;
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.upsert_alliance(alliance_id).await;
 
@@ -659,10 +703,8 @@ mod tests {
             assert_eq!(created.alliance_id, alliance_id);
             assert!(created.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -672,9 +714,13 @@ mod tests {
         async fn creates_new_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
 
-            let alliance_id = 1;
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.upsert_alliance(alliance_id).await;
 
@@ -683,10 +729,7 @@ mod tests {
             assert_eq!(created.alliance_id, alliance_id);
             assert_eq!(created.faction_id, None);
 
-            // Assert 1 request was made to mock alliance endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -697,7 +740,14 @@ mod tests {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+
+            let (_, mock_alliance) = test
+                .eve()
+                .with_mock_alliance(alliance_model.alliance_id, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -711,10 +761,7 @@ mod tests {
             assert_eq!(upserted.id, alliance_model.id);
             assert_eq!(upserted.alliance_id, alliance_model.alliance_id);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -747,7 +794,16 @@ mod tests {
                 .await?;
 
             // Mock endpoint returns alliance with different faction
-            let endpoints = test.eve().with_alliance_endpoint(1, Some(2), 1);
+            let faction_id_2 = 2;
+            let mock_faction_2 = test.eve().with_mock_faction(faction_id_2);
+            let (_, mock_alliance) = test
+                .eve()
+                .with_mock_alliance(alliance_model.alliance_id, Some(faction_id_2));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction_2], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -760,10 +816,8 @@ mod tests {
             assert_eq!(upserted.id, alliance_model.id);
             assert_ne!(upserted.faction_id, alliance_model.faction_id);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -782,7 +836,13 @@ mod tests {
             assert!(alliance_model.faction_id.is_some());
 
             // Mock endpoint returns alliance without faction
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
+            let (_, mock_alliance) = test
+                .eve()
+                .with_mock_alliance(alliance_model.alliance_id, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -795,10 +855,7 @@ mod tests {
             assert_eq!(upserted.id, alliance_model.id);
             assert_eq!(upserted.faction_id, None);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -813,7 +870,16 @@ mod tests {
             assert_eq!(alliance_model.faction_id, None);
 
             // Mock endpoint returns alliance with faction
-            let endpoints = test.eve().with_alliance_endpoint(1, Some(1), 1);
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_alliance) = test
+                .eve()
+                .with_mock_alliance(alliance_model.alliance_id, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service
@@ -826,10 +892,8 @@ mod tests {
             assert_eq!(upserted.id, alliance_model.id);
             assert!(upserted.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
 
             Ok(())
         }
@@ -853,18 +917,19 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!()?;
-            let endpoints = test.eve().with_alliance_endpoint(1, None, 1);
 
-            let alliance_id = 1;
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
             let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
             let result = alliance_service.upsert_alliance(alliance_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
 
-            // Assert 1 request was made to mock endpoint before DB error
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
 
             Ok(())
         }

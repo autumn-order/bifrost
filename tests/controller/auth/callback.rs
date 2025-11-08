@@ -13,10 +13,19 @@ use bifrost_test_utils::prelude::*;
 /// Expect 307 temprorary redirect when logging with new character
 async fn redirects_for_new_user() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
-    let character_id = 1;
-    let character_endpoints = test
+
+    let corporation_id = 1;
+    let (_, mock_corporation) = test.eve().with_mock_corporation(corporation_id, None, None);
+    let (character_id, mock_character) =
+        test.eve()
+            .with_mock_character(1, corporation_id, None, None);
+
+    let corporation_endpoint =
+        test.eve()
+            .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+    let character_endpoint = test
         .eve()
-        .with_character_endpoint(character_id, 1, None, None, 1);
+        .with_character_endpoint(character_id, mock_character, 1);
     let jwt_endpoints = test.auth().with_jwt_endpoints(character_id, "owner_hash");
     let params = CallbackParams {
         state: "state".to_string(),
@@ -47,9 +56,8 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
     }
 
     // Assert character endpoints were fetched during callback when creating character entry
-    for endpoint in character_endpoints {
-        endpoint.assert();
-    }
+    corporation_endpoint.assert();
+    character_endpoint.assert();
 
     Ok(())
 }

@@ -164,20 +164,20 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_id = 1;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, None, None, 1);
+
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -190,20 +190,26 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_id = 1;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, Some(1), None, 1);
+
+            let alliance_id = 1;
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, None);
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, Some(alliance_id), None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -216,21 +222,24 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_id = 1;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, None, Some(1), 1);
+
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -243,20 +252,31 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_id = 1;
-            let endpoints =
+
+            let faction_id = 1;
+            let alliance_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
+            let (corporation_id, mock_corporation) =
                 test.eve()
-                    .with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
+                    .with_mock_corporation(1, Some(alliance_id), Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.create_corporation(corporation_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -288,24 +308,26 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation,
             )?;
-            let corporation_id = 1;
-            let _ = test
-                .eve()
-                .insert_mock_corporation(corporation_id, None, None)
-                .await?;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, None, None, 1);
+            let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
+
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_model.corporation_id, None, None);
+
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
-            let result = corporation_service.create_corporation(corporation_id).await;
+            let result = corporation_service
+                .create_corporation(corporation_model.corporation_id)
+                .await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -345,10 +367,13 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let corporation_id = 1;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, None, None, 1);
+
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -357,10 +382,7 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to corporation endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -422,7 +444,11 @@ mod tests {
             let corporation_ids = vec![1, 2, 3];
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -477,10 +503,12 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            let corporation_id = 1;
-            let endpoints = test
-                .eve()
-                .with_corporation_endpoint(corporation_id, None, None, 1);
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -493,22 +521,13 @@ mod tests {
             assert_eq!(corporations.len(), 1);
             assert_eq!(corporations[0].0, corporation_id);
 
-            // Assert request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
 
         /// Expect Ok when fetching corporations with alliances
-        // Need to implement test endpoint builder to test this properly, unfortunately this will
-        // error due to the alliance endpoint created by `with_corporation_endpoint` not getting any
-        // requests despite expecting 1.
-        //
-        // More fine-grained control over endpoints is necessary for this test.
         #[tokio::test]
-        #[ignore]
         async fn fetches_corporations_with_alliances() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
@@ -516,12 +535,27 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoints for corporations with alliances
-            let corporation_ids = vec![1, 2];
-            let mut endpoints = Vec::new();
-            endpoints.extend(test.eve().with_corporation_endpoint(1, Some(1), None, 1));
-            endpoints.extend(test.eve().with_corporation_endpoint(2, Some(2), None, 1));
+            // Pre-insert alliances to avoid ESI fetches
+            let alliance_id_1 = 1;
+            let alliance_id_2 = 2;
+            let _ = test.eve().insert_mock_alliance(alliance_id_1, None).await?;
+            let _ = test.eve().insert_mock_alliance(alliance_id_2, None).await?;
 
+            let (corporation_id_1, mock_corporation_1) =
+                test.eve()
+                    .with_mock_corporation(1, Some(alliance_id_1), None);
+            let (corporation_id_2, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(2, Some(alliance_id_2), None);
+
+            let corporation_endpoint_1 =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_1, mock_corporation_1, 1);
+            let corporation_endpoint_2 =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+
+            let corporation_ids = vec![corporation_id_1, corporation_id_2];
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service
@@ -531,25 +565,15 @@ mod tests {
             assert!(result.is_ok());
             let corporations = result.unwrap();
             assert_eq!(corporations.len(), 2);
-            assert_eq!(corporations[0].1.alliance_id, Some(1));
-            assert_eq!(corporations[1].1.alliance_id, Some(2));
 
-            // Assert all requests were made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint_1.assert();
+            corporation_endpoint_2.assert();
 
             Ok(())
         }
 
         /// Expect Ok when fetching corporations with factions
-        // Need to implement test endpoint builder to test this properly, unfortunately this will
-        // error due to the faction endpoint created by `with_corporation_endpoint` not getting any
-        // requests despite expecting 1.
-        //
-        // More fine-grained control over endpoints is necessary for this test.
         #[tokio::test]
-        #[ignore]
         async fn fetches_corporations_with_factions() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
@@ -557,12 +581,27 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoints for corporations with factions
-            let corporation_ids = vec![1, 2];
-            let mut endpoints = Vec::new();
-            endpoints.extend(test.eve().with_corporation_endpoint(1, None, Some(1), 1));
-            endpoints.extend(test.eve().with_corporation_endpoint(2, None, Some(2), 1));
+            // Pre-insert factions to avoid ESI fetches
+            let faction_id_1 = 1;
+            let faction_id_2 = 2;
+            let _ = test.eve().insert_mock_faction(faction_id_1).await?;
+            let _ = test.eve().insert_mock_faction(faction_id_2).await?;
 
+            let (corporation_id_1, mock_corporation_1) =
+                test.eve()
+                    .with_mock_corporation(1, None, Some(faction_id_1));
+            let (corporation_id_2, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(2, None, Some(faction_id_2));
+
+            let corporation_endpoint_1 =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_1, mock_corporation_1, 1);
+            let corporation_endpoint_2 =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+
+            let corporation_ids = vec![corporation_id_1, corporation_id_2];
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service
@@ -572,25 +611,15 @@ mod tests {
             assert!(result.is_ok());
             let corporations = result.unwrap();
             assert_eq!(corporations.len(), 2);
-            assert_eq!(corporations[0].1.faction_id, Some(1));
-            assert_eq!(corporations[1].1.faction_id, Some(2));
 
-            // Assert all requests were made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint_1.assert();
+            corporation_endpoint_2.assert();
 
             Ok(())
         }
 
         /// Expect Ok when fetching corporations with both alliance and faction
-        // Need to implement test endpoint builder to test this properly, unfortunately this will
-        // error due to the alliance & faction endpoint created by `with_corporation_endpoint`
-        // not getting any requests despite expecting 1.
-        //
-        // More fine-grained control over endpoints is necessary for this test.
         #[tokio::test]
-        #[ignore]
         async fn fetches_corporations_with_alliance_and_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(
                 entity::prelude::EveFaction,
@@ -598,11 +627,22 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoint for corporation with alliance and faction
-            let corporation_id = 1;
-            let endpoints =
+            // Pre-insert faction and alliance to avoid ESI fetches
+            let faction_id = 1;
+            let alliance_id = 1;
+            let _ = test.eve().insert_mock_faction(faction_id).await?;
+            let _ = test
+                .eve()
+                .insert_mock_alliance(alliance_id, Some(faction_id))
+                .await?;
+
+            let (corporation_id, mock_corporation) =
                 test.eve()
-                    .with_corporation_endpoint(corporation_id, Some(1), Some(1), 1);
+                    .with_mock_corporation(1, Some(alliance_id), Some(faction_id));
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -613,13 +653,10 @@ mod tests {
             assert!(result.is_ok());
             let corporations = result.unwrap();
             assert_eq!(corporations.len(), 1);
-            assert_eq!(corporations[0].1.alliance_id, Some(1));
-            assert_eq!(corporations[0].1.faction_id, Some(1));
+            assert_eq!(corporations[0].1.alliance_id, Some(alliance_id));
+            assert_eq!(corporations[0].1.faction_id, Some(faction_id));
 
-            // Assert all requests were made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -656,7 +693,12 @@ mod tests {
             )?;
 
             // Setup mock endpoint for first corporation only
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_ids = vec![1, 2, 3];
             let corporation_service =
@@ -668,10 +710,7 @@ mod tests {
             // Should succeed on first, fail on second (no mock)
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            // Assert first request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -689,7 +728,11 @@ mod tests {
             let corporation_ids: Vec<i64> = (1..=10).collect();
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -728,7 +771,11 @@ mod tests {
             let corporation_ids: Vec<i64> = (1..=25).collect();
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -768,7 +815,11 @@ mod tests {
             let corporation_ids: Vec<i64> = (1..=5).collect();
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -805,7 +856,12 @@ mod tests {
             )?;
 
             // Setup mock endpoints for only some corporations in the batch
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
             let corporation_ids = vec![1, 2, 3, 4, 5];
             let corporation_service =
@@ -817,10 +873,7 @@ mod tests {
             // Should fail when any request in the batch fails
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            // Assert first request was made
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -838,7 +891,11 @@ mod tests {
             let corporation_ids: Vec<i64> = (1..=10).collect();
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -878,7 +935,11 @@ mod tests {
             let corporation_ids: Vec<i64> = (1..=11).collect();
             let mut endpoints = Vec::new();
             for id in &corporation_ids {
-                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+                let (corp_id, mock_corporation) = test.eve().with_mock_corporation(*id, None, None);
+                endpoints.push(
+                    test.eve()
+                        .with_corporation_endpoint(corp_id, mock_corporation, 1),
+                );
             }
 
             let corporation_service =
@@ -922,9 +983,23 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let endpoints = test.eve().with_corporation_endpoint(1, Some(1), Some(1), 1);
 
-            let corporation_id = 1;
+            let faction_id = 1;
+            let alliance_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
+            let (corporation_id, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(1, Some(alliance_id), Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.upsert_corporation(corporation_id).await;
@@ -935,10 +1010,9 @@ mod tests {
             assert!(created.alliance_id.is_some());
             assert!(created.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -951,9 +1025,14 @@ mod tests {
                 entity::prelude::EveAlliance,
                 entity::prelude::EveCorporation
             )?;
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
 
-            let corporation_id = 1;
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.upsert_corporation(corporation_id).await;
@@ -964,10 +1043,7 @@ mod tests {
             assert_eq!(created.alliance_id, None);
             assert_eq!(created.faction_id, None);
 
-            // Assert 1 request was made to mock corporation endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -981,7 +1057,16 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
             let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_model.corporation_id, None, None);
+
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -996,10 +1081,7 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert_eq!(upserted.corporation_id, corporation_model.corporation_id);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1019,7 +1101,22 @@ mod tests {
                 .await?;
 
             // Mock endpoint returns corporation with different alliance
-            let endpoints = test.eve().with_corporation_endpoint(1, Some(2), None, 1);
+            let alliance_id_2 = 2;
+            let (_, mock_alliance_2) = test.eve().with_mock_alliance(alliance_id_2, None);
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_model.corporation_id,
+                Some(alliance_id_2),
+                None,
+            );
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id_2, mock_alliance_2, 1);
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1033,10 +1130,8 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert_ne!(upserted.alliance_id, corporation_model.alliance_id);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1072,7 +1167,20 @@ mod tests {
                 .await?;
 
             // Mock endpoint returns corporation with different faction
-            let endpoints = test.eve().with_corporation_endpoint(1, None, Some(2), 1);
+            let faction_id_2 = 2;
+            let mock_faction_2 = test.eve().with_mock_faction(faction_id_2);
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_model.corporation_id,
+                None,
+                Some(faction_id_2),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction_2], 1);
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1086,10 +1194,8 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert_ne!(upserted.faction_id, corporation_model.faction_id);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1111,7 +1217,15 @@ mod tests {
             assert!(corporation_model.alliance_id.is_some());
 
             // Mock endpoint returns corporation without alliance
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_model.corporation_id, None, None);
+
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1125,10 +1239,7 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert_eq!(upserted.alliance_id, None);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1150,7 +1261,15 @@ mod tests {
             assert!(corporation_model.faction_id.is_some());
 
             // Mock endpoint returns corporation without faction
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_model.corporation_id, None, None);
+
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1164,10 +1283,7 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert_eq!(upserted.faction_id, None);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1185,7 +1301,22 @@ mod tests {
             assert_eq!(corporation_model.alliance_id, None);
 
             // Mock endpoint returns corporation with alliance
-            let endpoints = test.eve().with_corporation_endpoint(1, Some(1), None, 1);
+            let alliance_id = 1;
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, None);
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_model.corporation_id,
+                Some(alliance_id),
+                None,
+            );
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1199,10 +1330,8 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert!(upserted.alliance_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1220,7 +1349,20 @@ mod tests {
             assert_eq!(corporation_model.faction_id, None);
 
             // Mock endpoint returns corporation with faction
-            let endpoints = test.eve().with_corporation_endpoint(1, None, Some(1), 1);
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_model.corporation_id,
+                None,
+                Some(faction_id),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let corporation_endpoint = test.eve().with_corporation_endpoint(
+                corporation_model.corporation_id,
+                mock_corporation,
+                1,
+            );
 
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
@@ -1234,10 +1376,8 @@ mod tests {
             assert_eq!(upserted.id, corporation_model.id);
             assert!(upserted.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
 
             Ok(())
         }
@@ -1265,19 +1405,21 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!()?;
-            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
 
-            let corporation_id = 1;
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(1, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
             let corporation_service =
                 CorporationService::new(&test.state.db, &test.state.esi_client);
             let result = corporation_service.upsert_corporation(corporation_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
 
-            // Assert 1 request was made to mock endpoint before DB error
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
 
             Ok(())
         }

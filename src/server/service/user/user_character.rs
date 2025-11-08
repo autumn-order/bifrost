@@ -309,10 +309,20 @@ mod tests {
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
-            let second_character_id = 2;
-            let endpoints =
+
+            let corporation_id = 2;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (second_character_id, mock_character) =
                 test.eve()
-                    .with_character_endpoint(second_character_id, 2, None, None, 1);
+                    .with_mock_character(2, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(second_character_id, mock_character, 1);
 
             let mut claims = EveJwtClaims::mock();
             claims.sub = format!("CHARACTER:EVE:{}", second_character_id);
@@ -327,10 +337,8 @@ mod tests {
             let link_created = result.unwrap();
             assert!(link_created);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert()
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
