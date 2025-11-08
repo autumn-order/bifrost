@@ -18,6 +18,7 @@ use crate::server::{
         alliance::AllianceService, character::CharacterService, corporation::CorporationService,
         faction::FactionService,
     },
+    util::eve::is_valid_character_id,
 };
 
 struct TableIds {
@@ -41,7 +42,20 @@ pub struct AffiliationService<'a> {
 
 impl<'a> AffiliationService<'a> {
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
-        // TODO: sanitize character IDs to acceptable ID ranges before affiliations request
+        // Sanitize character IDs to valid ranges as an invalid ID causes entire affiliation request to fail
+        let character_ids = character_ids
+            .into_iter()
+            .filter(|&id| {
+                let valid = is_valid_character_id(id);
+                if !valid {
+                    tracing::warn!(
+                        character_id = id,
+                        "Encountered invalid character ID while updating affiliations; skipping character"
+                    );
+                }
+                valid
+            })
+            .collect();
 
         let affiliations = self
             .esi_client
