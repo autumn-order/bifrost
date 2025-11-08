@@ -1,17 +1,22 @@
+use eve_esi::model::{
+    alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
+};
 use mockito::Mock;
 
 use crate::fixtures::eve::EveFixtures;
 
 impl<'a> EveFixtures<'a> {
-    pub fn with_faction_endpoint(&mut self, faction_id: i64, expected_requests: usize) -> Mock {
-        let faction = self.with_mock_faction(faction_id);
-
+    pub fn with_faction_endpoint(
+        &mut self,
+        mock_factions: Vec<Faction>,
+        expected_requests: usize,
+    ) -> Mock {
         self.setup
             .server
             .mock("GET", "/universe/factions")
             .with_status(200)
             .with_header("content-type", "application/json")
-            .with_body(serde_json::to_string(&vec![faction]).unwrap())
+            .with_body(serde_json::to_string(&mock_factions).unwrap())
             .expect(expected_requests)
             .create()
     }
@@ -19,102 +24,54 @@ impl<'a> EveFixtures<'a> {
     pub fn with_alliance_endpoint(
         &mut self,
         alliance_id: i64,
-        faction_id: Option<i64>,
+        mock_alliance: Alliance,
         expected_requests: usize,
-    ) -> Vec<Mock> {
-        let (_, alliance) = self.with_mock_alliance(alliance_id, faction_id);
+    ) -> Mock {
         let url = format!("/alliances/{}", alliance_id);
 
-        let mut endpoints = Vec::new();
-
-        if let Some(faction_id) = faction_id {
-            endpoints.push(self.with_faction_endpoint(faction_id, expected_requests));
-        }
-
-        endpoints.push(
-            self.setup
-                .server
-                .mock("GET", url.as_str())
-                .with_status(200)
-                .with_header("content-type", "application/json")
-                .with_body(serde_json::to_string(&alliance).unwrap())
-                .expect(expected_requests)
-                .create(),
-        );
-
-        endpoints
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::to_string(&mock_alliance).unwrap())
+            .expect(expected_requests)
+            .create()
     }
 
     pub fn with_corporation_endpoint(
         &mut self,
         corporation_id: i64,
-        alliance_id: Option<i64>,
-        faction_id: Option<i64>,
+        mock_corporation: Corporation,
         expected_requests: usize,
-    ) -> Vec<Mock> {
-        let (_, corporation) = self.with_mock_corporation(corporation_id, alliance_id, faction_id);
+    ) -> Mock {
         let url = format!("/corporations/{}", corporation_id);
 
-        let mut endpoints = Vec::new();
-
-        if let Some(faction_id) = faction_id {
-            endpoints.push(self.with_faction_endpoint(faction_id, expected_requests));
-        }
-
-        if let Some(alliance_id) = alliance_id {
-            endpoints.extend(self.with_alliance_endpoint(alliance_id, None, expected_requests))
-        }
-
-        endpoints.push(
-            self.setup
-                .server
-                .mock("GET", url.as_str())
-                .with_status(200)
-                .with_header("content-type", "application/json")
-                .with_body(serde_json::to_string(&corporation).unwrap())
-                .expect(expected_requests)
-                .create(),
-        );
-
-        endpoints
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::to_string(&mock_corporation).unwrap())
+            .expect(expected_requests)
+            .create()
     }
 
     pub fn with_character_endpoint(
         &mut self,
         character_id: i64,
-        corporation_id: i64,
-        alliance_id: Option<i64>,
-        faction_id: Option<i64>,
+        mock_character: Character,
         expected_requests: usize,
-    ) -> Vec<Mock> {
-        let (_, character) =
-            self.with_mock_character(character_id, corporation_id, alliance_id, faction_id);
+    ) -> Mock {
         let url = format!("/characters/{}", character_id);
 
-        let mut endpoints = Vec::new();
-
-        if let Some(faction_id) = faction_id {
-            endpoints.push(self.with_faction_endpoint(faction_id, expected_requests));
-        }
-
-        endpoints.push(
-            self.setup
-                .server
-                .mock("GET", url.as_str())
-                .with_status(200)
-                .with_header("content-type", "application/json")
-                .with_body(serde_json::to_string(&character).unwrap())
-                .expect(expected_requests)
-                .create(),
-        );
-
-        endpoints.extend(self.with_corporation_endpoint(
-            corporation_id,
-            alliance_id,
-            None,
-            expected_requests,
-        ));
-
-        endpoints
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::to_string(&mock_character).unwrap())
+            .expect(expected_requests)
+            .create()
     }
 }
