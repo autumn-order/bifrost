@@ -502,4 +502,145 @@ mod tests {
             Ok(())
         }
     }
+
+    mod get_entry_ids_by_alliance_ids {
+        use super::*;
+
+        /// Expect Ok with correct mappings when alliances exist in database
+        #[tokio::test]
+        async fn returns_entry_ids_for_existing_alliances() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
+            let alliance_2 = test.eve().insert_mock_alliance(2, None).await?;
+            let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_ids = vec![
+                alliance_1.alliance_id,
+                alliance_2.alliance_id,
+                alliance_3.alliance_id,
+            ];
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let entry_ids = result.unwrap();
+            assert_eq!(entry_ids.len(), 3);
+
+            // Verify the mappings are correct
+            let mut found_ids = std::collections::HashSet::new();
+            for (entry_id, alliance_id) in entry_ids {
+                match alliance_id {
+                    _ if alliance_id == alliance_1.alliance_id => {
+                        assert_eq!(entry_id, alliance_1.id);
+                    }
+                    _ if alliance_id == alliance_2.alliance_id => {
+                        assert_eq!(entry_id, alliance_2.id);
+                    }
+                    _ if alliance_id == alliance_3.alliance_id => {
+                        assert_eq!(entry_id, alliance_3.id);
+                    }
+                    _ => panic!("Unexpected alliance_id: {}", alliance_id),
+                }
+                found_ids.insert(alliance_id);
+            }
+            assert_eq!(found_ids.len(), 3);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty Vec when no alliances match
+        #[tokio::test]
+        async fn returns_empty_for_nonexistent_alliances() -> Result<(), TestError> {
+            let test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_ids = vec![1, 2, 3];
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let entry_ids = result.unwrap();
+            assert_eq!(entry_ids.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty Vec when input is empty
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_ids: Vec<i64> = vec![];
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let entry_ids = result.unwrap();
+            assert_eq!(entry_ids.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok with partial results when only some alliances exist
+        #[tokio::test]
+        async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
+            let mut test =
+                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
+            let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_ids = vec![
+                alliance_1.alliance_id,
+                999, // Non-existent
+                alliance_3.alliance_id,
+                888, // Non-existent
+            ];
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let entry_ids = result.unwrap();
+            assert_eq!(entry_ids.len(), 2);
+
+            // Verify only existing alliances are returned
+            for (entry_id, alliance_id) in entry_ids {
+                assert!(
+                    alliance_id == alliance_1.alliance_id || alliance_id == alliance_3.alliance_id
+                );
+                if alliance_id == alliance_1.alliance_id {
+                    assert_eq!(entry_id, alliance_1.id);
+                } else if alliance_id == alliance_3.alliance_id {
+                    assert_eq!(entry_id, alliance_3.id);
+                }
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when required tables haven't been created
+        #[tokio::test]
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
+            let test = test_setup_with_tables!()?;
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_ids = vec![1, 2, 3];
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
 }
