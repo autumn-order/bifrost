@@ -1,4 +1,5 @@
 use eve_esi::model::character::Character;
+use futures::future::join_all;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -67,23 +68,40 @@ impl<'a> CharacterService<'a> {
     }
 
     /// Fetches a list of characters from ESI using their character IDs
+    /// Makes concurrent requests in batches of up to 10 at a time
+    // TODO: unit tests, need to fix some bifrost-test-utils mock endpoint issues first
     pub async fn get_many_characters(
         &self,
         character_ids: Vec<i64>,
     ) -> Result<Vec<(i64, Character)>, Error> {
-        let mut characters = Vec::new();
+        const BATCH_SIZE: usize = 10;
+        let mut all_characters = Vec::new();
 
-        for character_id in character_ids {
-            let character = self
-                .esi_client
-                .character()
-                .get_character_public_information(character_id)
-                .await?;
+        // Process character IDs in chunks of BATCH_SIZE
+        for chunk in character_ids.chunks(BATCH_SIZE) {
+            // Create futures for all requests in this batch
+            let futures: Vec<_> = chunk
+                .iter()
+                .map(|&character_id| async move {
+                    let character = self
+                        .esi_client
+                        .character()
+                        .get_character_public_information(character_id)
+                        .await?;
+                    Ok::<(i64, Character), Error>((character_id, character))
+                })
+                .collect();
 
-            characters.push((character_id, character))
+            // Execute all futures in this batch concurrently
+            let results = join_all(futures).await;
+
+            // Collect results, propagating any errors
+            for result in results {
+                all_characters.push(result?);
+            }
         }
 
-        Ok(characters)
+        Ok(all_characters)
     }
 
     /// Fetches a character from EVE Online's ESI and upserts to database

@@ -1,4 +1,5 @@
 use eve_esi::model::corporation::Corporation;
+use futures::future::join_all;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -51,23 +52,39 @@ impl<'a> CorporationService<'a> {
     }
 
     /// Fetches a list of corporations from ESI using their corporation IDs
+    /// Makes concurrent requests in batches of up to 10 at a time
     pub async fn get_many_corporations(
         &self,
         corporation_ids: Vec<i64>,
     ) -> Result<Vec<(i64, Corporation)>, Error> {
-        let mut corporations = Vec::new();
+        const BATCH_SIZE: usize = 10;
+        let mut all_corporations = Vec::new();
 
-        for corporation_id in corporation_ids {
-            let corporation = self
-                .esi_client
-                .corporation()
-                .get_corporation_information(corporation_id)
-                .await?;
+        // Process corporation IDs in chunks of BATCH_SIZE
+        for chunk in corporation_ids.chunks(BATCH_SIZE) {
+            // Create futures for all requests in this batch
+            let futures: Vec<_> = chunk
+                .iter()
+                .map(|&corporation_id| async move {
+                    let corporation = self
+                        .esi_client
+                        .corporation()
+                        .get_corporation_information(corporation_id)
+                        .await?;
+                    Ok::<(i64, Corporation), Error>((corporation_id, corporation))
+                })
+                .collect();
 
-            corporations.push((corporation_id, corporation))
+            // Execute all futures in this batch concurrently
+            let results = join_all(futures).await;
+
+            // Collect results, propagating any errors
+            for result in results {
+                all_corporations.push(result?);
+            }
         }
 
-        Ok(corporations)
+        Ok(all_corporations)
     }
 
     /// Get corporation from database or create an entry for it from ESI
@@ -688,6 +705,196 @@ mod tests {
             // Verify all corporation IDs are present
             for (corporation_id, _corporation) in corporations.iter() {
                 assert!(corporation_ids.contains(&corporation_id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching more than 10 corporations (tests batching)
+        #[tokio::test]
+        async fn fetches_many_corporations_with_batching() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for 25 corporations to test multiple batches
+            let corporation_ids: Vec<i64> = (1..=25).collect();
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 25);
+
+            // Verify all corporation IDs are present (order may vary due to concurrency)
+            let returned_ids: Vec<i64> = corporations.iter().map(|(id, _)| *id).collect();
+            for id in &corporation_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when verifying concurrent execution within a batch
+        #[tokio::test]
+        async fn executes_requests_concurrently() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for 5 corporations (within one batch)
+            let corporation_ids: Vec<i64> = (1..=5).collect();
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 5);
+
+            // Verify all corporation IDs are present
+            let returned_ids: Vec<i64> = corporations.iter().map(|(id, _)| *id).collect();
+            for id in &corporation_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI fails in middle of concurrent batch
+        #[tokio::test]
+        async fn fails_on_concurrent_batch_error() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for only some corporations in the batch
+            let endpoints = test.eve().with_corporation_endpoint(1, None, None, 1);
+
+            let corporation_ids = vec![1, 2, 3, 4, 5];
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids)
+                .await;
+
+            // Should fail when any request in the batch fails
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            // Assert first request was made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect correct batching behavior with exactly 10 items
+        #[tokio::test]
+        async fn handles_exact_batch_size() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for exactly 10 corporations (one full batch)
+            let corporation_ids: Vec<i64> = (1..=10).collect();
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 10);
+
+            // Verify all corporation IDs are present
+            let returned_ids: Vec<i64> = corporations.iter().map(|(id, _)| *id).collect();
+            for id in &corporation_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            // Assert all requests were made
+            for endpoint in endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect correct batching behavior with 11 items (tests partial second batch)
+        #[tokio::test]
+        async fn handles_batch_size_plus_one() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation
+            )?;
+
+            // Setup mock endpoints for 11 corporations (one full batch + one item)
+            let corporation_ids: Vec<i64> = (1..=11).collect();
+            let mut endpoints = Vec::new();
+            for id in &corporation_ids {
+                endpoints.extend(test.eve().with_corporation_endpoint(*id, None, None, 1));
+            }
+
+            let corporation_service =
+                CorporationService::new(&test.state.db, &test.state.esi_client);
+            let result = corporation_service
+                .get_many_corporations(corporation_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let corporations = result.unwrap();
+            assert_eq!(corporations.len(), 11);
+
+            // Verify all corporation IDs are present
+            let returned_ids: Vec<i64> = corporations.iter().map(|(id, _)| *id).collect();
+            for id in &corporation_ids {
+                assert!(returned_ids.contains(id));
             }
 
             // Assert all requests were made
