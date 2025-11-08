@@ -939,4 +939,1378 @@ mod tests {
             Ok(())
         }
     }
+
+    mod fetch_missing_characters {
+        use super::*;
+
+        /// Expect Ok with fetched characters when characters are missing from database
+        #[tokio::test]
+        async fn fetches_missing_characters_from_esi() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            // Insert corporation so character can reference it
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            // Setup mock ESI endpoints
+            let (character_id, mock_character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![98000001].into_iter().collect(),
+                character_ids: vec![character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_missing_characters(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 1);
+            assert_eq!(fetched[0].0, character_id);
+
+            character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when no characters are missing
+        #[tokio::test]
+        async fn returns_empty_when_no_characters_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let character = test
+                .eve()
+                .insert_mock_character(2114794365, 98000001, None, None)
+                .await?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: vec![(character.character_id, character.id)]
+                    .into_iter()
+                    .collect(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: vec![character.character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_missing_characters(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when input is empty
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_characters(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify corporation_ids are added to unique_ids
+        #[tokio::test]
+        async fn adds_corporation_ids_to_unique_ids() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let (character_id, mock_character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+            let _character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: vec![character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_missing_characters(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(unique_ids.corporation_ids.contains(&98000001));
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify faction_ids are added to unique_ids when present
+        #[tokio::test]
+        async fn adds_faction_ids_to_unique_ids_when_present() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(2114794365, 98000001, None, Some(500001));
+            let _character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: vec![character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_missing_characters(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(unique_ids.faction_ids.contains(&500001));
+
+            Ok(())
+        }
+    }
+
+    mod fetch_missing_corporations {
+        use super::*;
+
+        /// Expect Ok with fetched corporations when corporations are missing from database
+        #[tokio::test]
+        async fn fetches_missing_corporations_from_esi() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(98000001, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![corporation_id].into_iter().collect(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_corporations(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 1);
+            assert_eq!(fetched[0].0, corporation_id);
+
+            corporation_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when no corporations are missing
+        #[tokio::test]
+        async fn returns_empty_when_no_corporations_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(corporation.corporation_id, corporation.id)]
+                    .into_iter()
+                    .collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![corporation.corporation_id].into_iter().collect(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_corporations(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when input is empty
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_corporations(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify alliance_ids are added to unique_ids when present
+        #[tokio::test]
+        async fn adds_alliance_ids_to_unique_ids_when_present() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (corporation_id, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(98000001, Some(99000001), None);
+            let _corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![corporation_id].into_iter().collect(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_corporations(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(unique_ids.alliance_ids.contains(&99000001));
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify faction_ids are added to unique_ids when present
+        #[tokio::test]
+        async fn adds_faction_ids_to_unique_ids_when_present() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (corporation_id, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(98000001, None, Some(500001));
+            let _corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![corporation_id].into_iter().collect(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_corporations(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(unique_ids.faction_ids.contains(&500001));
+
+            Ok(())
+        }
+    }
+
+    mod fetch_missing_alliances {
+        use super::*;
+
+        /// Expect Ok with fetched alliances when alliances are missing from database
+        #[tokio::test]
+        async fn fetches_missing_alliances_from_esi() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(99000001, None);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: vec![alliance_id].into_iter().collect(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_alliances(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 1);
+            assert_eq!(fetched[0].0, alliance_id);
+
+            alliance_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when no alliances are missing
+        #[tokio::test]
+        async fn returns_empty_when_no_alliances_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let alliance = test.eve().insert_mock_alliance(99000001, None).await?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: vec![(alliance.alliance_id, alliance.id)]
+                    .into_iter()
+                    .collect(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: vec![alliance.alliance_id].into_iter().collect(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_alliances(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when input is empty
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_alliances(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            let fetched = result.unwrap();
+            assert_eq!(fetched.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify faction_ids are added to unique_ids when present
+        #[tokio::test]
+        async fn adds_faction_ids_to_unique_ids_when_present() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (alliance_id, mock_alliance) =
+                test.eve().with_mock_alliance(99000001, Some(500001));
+            let _alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: vec![alliance_id].into_iter().collect(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_missing_alliances(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(unique_ids.faction_ids.contains(&500001));
+
+            Ok(())
+        }
+    }
+
+    mod attempt_update_missing_factions {
+        use super::*;
+
+        /// Expect Ok when no factions are missing
+        #[tokio::test]
+        async fn returns_ok_when_no_factions_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let faction = test.eve().insert_mock_faction(500001).await?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: vec![(faction.faction_id, faction.id)].into_iter().collect(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: vec![faction.faction_id].into_iter().collect(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .attempt_update_missing_factions(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok when input is empty
+        #[tokio::test]
+        async fn returns_ok_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .attempt_update_missing_factions(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok and verify table_ids are updated when factions are fetched
+        #[tokio::test]
+        async fn updates_table_ids_when_factions_fetched() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let mock_faction = test.eve().with_mock_faction(500001);
+            let _faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: vec![500001].into_iter().collect(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .attempt_update_missing_factions(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert_eq!(table_ids.faction_ids.len(), 1);
+            assert!(table_ids.faction_ids.contains_key(&500001));
+
+            Ok(())
+        }
+    }
+
+    mod store_fetched_characters {
+        use super::*;
+
+        /// Expect Ok when storing fetched characters with valid corporation references
+        #[tokio::test]
+        async fn stores_characters_with_valid_corporation() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let (character_id, character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_characters = vec![(character_id, character)];
+
+            let result = service
+                .store_fetched_characters(fetched_characters, &table_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok but skip characters when corporation reference is missing
+        #[tokio::test]
+        async fn skips_characters_with_missing_corporation() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (character_id, character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(), // No corporation mapping
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_characters = vec![(character_id, character)];
+
+            let result = service
+                .store_fetched_characters(fetched_characters, &table_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok when storing characters with faction references
+        #[tokio::test]
+        async fn stores_characters_with_faction_reference() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let faction = test.eve().insert_mock_faction(500001).await?;
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let (character_id, character) =
+                test.eve()
+                    .with_mock_character(2114794365, 98000001, None, Some(500001));
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let table_ids = TableIds {
+                faction_ids: vec![(500001, faction.id)].into_iter().collect(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_characters = vec![(character_id, character)];
+
+            let result = service
+                .store_fetched_characters(fetched_characters, &table_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+    }
+
+    mod store_fetched_corporations {
+        use super::*;
+
+        /// Expect Ok when storing fetched corporations
+        #[tokio::test]
+        async fn stores_corporations_and_updates_table_ids() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (corporation_id, corporation) =
+                test.eve().with_mock_corporation(98000001, None, None);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_corporations = vec![(corporation_id, corporation)];
+
+            let result = service
+                .store_fetched_corporations(fetched_corporations, &mut table_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert_eq!(table_ids.corporation_ids.len(), 1);
+            assert!(table_ids.corporation_ids.contains_key(&corporation_id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when storing corporations with alliance references
+        #[tokio::test]
+        async fn stores_corporations_with_alliance_reference() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let alliance = test.eve().insert_mock_alliance(99000001, None).await?;
+
+            let (corporation_id, corporation) =
+                test.eve()
+                    .with_mock_corporation(98000001, Some(99000001), None);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: vec![(99000001, alliance.id)].into_iter().collect(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_corporations = vec![(corporation_id, corporation)];
+
+            let result = service
+                .store_fetched_corporations(fetched_corporations, &mut table_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(table_ids.corporation_ids.contains_key(&corporation_id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when storing corporations with faction references
+        #[tokio::test]
+        async fn stores_corporations_with_faction_reference() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let faction = test.eve().insert_mock_faction(500001).await?;
+
+            let (corporation_id, corporation) =
+                test.eve()
+                    .with_mock_corporation(98000001, None, Some(500001));
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: vec![(500001, faction.id)].into_iter().collect(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_corporations = vec![(corporation_id, corporation)];
+
+            let result = service
+                .store_fetched_corporations(fetched_corporations, &mut table_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(table_ids.corporation_ids.contains_key(&corporation_id));
+
+            Ok(())
+        }
+    }
+
+    mod store_fetched_alliances {
+        use super::*;
+
+        /// Expect Ok when storing fetched alliances
+        #[tokio::test]
+        async fn stores_alliances_and_updates_table_ids() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(99000001, None);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_alliances = vec![(alliance_id, alliance)];
+
+            let result = service
+                .store_fetched_alliances(fetched_alliances, &mut table_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert_eq!(table_ids.alliance_ids.len(), 1);
+            assert!(table_ids.alliance_ids.contains_key(&alliance_id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when storing alliances with faction references
+        #[tokio::test]
+        async fn stores_alliances_with_faction_reference() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let faction = test.eve().insert_mock_faction(500001).await?;
+
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(99000001, Some(500001));
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: vec![(500001, faction.id)].into_iter().collect(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let fetched_alliances = vec![(alliance_id, alliance)];
+
+            let result = service
+                .store_fetched_alliances(fetched_alliances, &mut table_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(table_ids.alliance_ids.contains_key(&alliance_id));
+
+            Ok(())
+        }
+    }
+
+    mod fetch_and_store_missing_entities {
+        use super::*;
+
+        /// Expect Ok when all entities are already present
+        #[tokio::test]
+        async fn returns_ok_when_no_entities_missing() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let faction = test.eve().insert_mock_faction(500001).await?;
+            let alliance = test.eve().insert_mock_alliance(99000001, None).await?;
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+            let character = test
+                .eve()
+                .insert_mock_character(2114794365, 98000001, None, None)
+                .await?;
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: vec![(faction.faction_id, faction.id)].into_iter().collect(),
+                alliance_ids: vec![(alliance.alliance_id, alliance.id)]
+                    .into_iter()
+                    .collect(),
+                corporation_ids: vec![(corporation.corporation_id, corporation.id)]
+                    .into_iter()
+                    .collect(),
+                character_ids: vec![(character.character_id, character.id)]
+                    .into_iter()
+                    .collect(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: vec![faction.faction_id].into_iter().collect(),
+                alliance_ids: vec![alliance.alliance_id].into_iter().collect(),
+                corporation_ids: vec![corporation.corporation_id].into_iter().collect(),
+                character_ids: vec![character.character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_and_store_missing_entities(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching and storing missing characters
+        #[tokio::test]
+        async fn fetches_and_stores_missing_characters() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let corporation = test
+                .eve()
+                .insert_mock_corporation(98000001, None, None)
+                .await?;
+
+            let (character_id, mock_character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+            let _character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: vec![(98000001, corporation.id)].into_iter().collect(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![98000001].into_iter().collect(),
+                character_ids: vec![character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_and_store_missing_entities(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching and storing missing corporations
+        #[tokio::test]
+        async fn fetches_and_stores_missing_corporations() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (corporation_id, mock_corporation) =
+                test.eve().with_mock_corporation(98000001, None, None);
+            let _corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: HashSet::new(),
+                corporation_ids: vec![corporation_id].into_iter().collect(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_and_store_missing_entities(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(table_ids.corporation_ids.contains_key(&corporation_id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching and storing missing alliances
+        #[tokio::test]
+        async fn fetches_and_stores_missing_alliances() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(99000001, None);
+            let _alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: vec![alliance_id].into_iter().collect(),
+                corporation_ids: HashSet::new(),
+                character_ids: HashSet::new(),
+            };
+
+            let result = service
+                .fetch_and_store_missing_entities(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            assert!(table_ids.alliance_ids.contains_key(&alliance_id));
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching entities with pre-populated dependencies
+        #[tokio::test]
+        async fn fetches_entities_with_dependencies() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter,
+            )?;
+
+            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(99000001, None);
+            let _alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+
+            let (corporation_id, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(98000001, Some(99000001), None);
+            let _corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let (character_id, mock_character) = test
+                .eve()
+                .with_mock_character(2114794365, 98000001, None, None);
+            let _character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let service = AffiliationService {
+                db: &test.state.db,
+                esi_client: &test.state.esi_client,
+            };
+
+            let mut table_ids = TableIds {
+                faction_ids: HashMap::new(),
+                alliance_ids: HashMap::new(),
+                corporation_ids: HashMap::new(),
+                character_ids: HashMap::new(),
+            };
+
+            // Pre-populate unique_ids with all IDs to simulate a proper affiliation update
+            let mut unique_ids = UniqueIds {
+                faction_ids: HashSet::new(),
+                alliance_ids: vec![alliance_id].into_iter().collect(),
+                corporation_ids: vec![corporation_id].into_iter().collect(),
+                character_ids: vec![character_id].into_iter().collect(),
+            };
+
+            let result = service
+                .fetch_and_store_missing_entities(&mut table_ids, &mut unique_ids)
+                .await;
+
+            assert!(result.is_ok());
+            // Verify that entities were stored and added to table_ids
+            assert!(table_ids.alliance_ids.contains_key(&alliance_id));
+            assert!(table_ids.corporation_ids.contains_key(&corporation_id));
+
+            Ok(())
+        }
+    }
 }
