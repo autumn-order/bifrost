@@ -535,11 +535,12 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoints for corporations with alliances
+            // Pre-insert alliances to avoid ESI fetches
             let alliance_id_1 = 1;
             let alliance_id_2 = 2;
-            let (_, mock_alliance_1) = test.eve().with_mock_alliance(alliance_id_1, None);
-            let (_, mock_alliance_2) = test.eve().with_mock_alliance(alliance_id_2, None);
+            let _ = test.eve().insert_mock_alliance(alliance_id_1, None).await?;
+            let _ = test.eve().insert_mock_alliance(alliance_id_2, None).await?;
+
             let (corporation_id_1, mock_corporation_1) =
                 test.eve()
                     .with_mock_corporation(1, Some(alliance_id_1), None);
@@ -547,12 +548,6 @@ mod tests {
                 test.eve()
                     .with_mock_corporation(2, Some(alliance_id_2), None);
 
-            let alliance_endpoint_1 =
-                test.eve()
-                    .with_alliance_endpoint(alliance_id_1, mock_alliance_1, 1);
-            let alliance_endpoint_2 =
-                test.eve()
-                    .with_alliance_endpoint(alliance_id_2, mock_alliance_2, 1);
             let corporation_endpoint_1 =
                 test.eve()
                     .with_corporation_endpoint(corporation_id_1, mock_corporation_1, 1);
@@ -571,8 +566,6 @@ mod tests {
             let corporations = result.unwrap();
             assert_eq!(corporations.len(), 2);
 
-            alliance_endpoint_1.assert();
-            alliance_endpoint_2.assert();
             corporation_endpoint_1.assert();
             corporation_endpoint_2.assert();
 
@@ -588,11 +581,12 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoints for corporations with factions
+            // Pre-insert factions to avoid ESI fetches
             let faction_id_1 = 1;
             let faction_id_2 = 2;
-            let mock_faction_1 = test.eve().with_mock_faction(faction_id_1);
-            let mock_faction_2 = test.eve().with_mock_faction(faction_id_2);
+            let _ = test.eve().insert_mock_faction(faction_id_1).await?;
+            let _ = test.eve().insert_mock_faction(faction_id_2).await?;
+
             let (corporation_id_1, mock_corporation_1) =
                 test.eve()
                     .with_mock_corporation(1, None, Some(faction_id_1));
@@ -600,9 +594,6 @@ mod tests {
                 test.eve()
                     .with_mock_corporation(2, None, Some(faction_id_2));
 
-            let faction_endpoint = test
-                .eve()
-                .with_faction_endpoint(vec![mock_faction_1, mock_faction_2], 1);
             let corporation_endpoint_1 =
                 test.eve()
                     .with_corporation_endpoint(corporation_id_1, mock_corporation_1, 1);
@@ -621,7 +612,6 @@ mod tests {
             let corporations = result.unwrap();
             assert_eq!(corporations.len(), 2);
 
-            faction_endpoint.assert();
             corporation_endpoint_1.assert();
             corporation_endpoint_2.assert();
 
@@ -637,19 +627,19 @@ mod tests {
                 entity::prelude::EveCorporation
             )?;
 
-            // Setup mock endpoint for corporation with alliance and faction
+            // Pre-insert faction and alliance to avoid ESI fetches
             let faction_id = 1;
             let alliance_id = 1;
-            let mock_faction = test.eve().with_mock_faction(faction_id);
-            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
+            let _ = test.eve().insert_mock_faction(faction_id).await?;
+            let _ = test
+                .eve()
+                .insert_mock_alliance(alliance_id, Some(faction_id))
+                .await?;
+
             let (corporation_id, mock_corporation) =
                 test.eve()
                     .with_mock_corporation(1, Some(alliance_id), Some(faction_id));
 
-            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
-            let alliance_endpoint =
-                test.eve()
-                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
             let corporation_endpoint =
                 test.eve()
                     .with_corporation_endpoint(corporation_id, mock_corporation, 1);
@@ -666,8 +656,6 @@ mod tests {
             assert_eq!(corporations[0].1.alliance_id, Some(alliance_id));
             assert_eq!(corporations[0].1.faction_id, Some(faction_id));
 
-            faction_endpoint.assert();
-            alliance_endpoint.assert();
             corporation_endpoint.assert();
 
             Ok(())

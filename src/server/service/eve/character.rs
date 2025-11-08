@@ -479,14 +479,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for 3 different characters
-            let character_ids = vec![1, 2, 3];
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids = vec![1, 2, 3];
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -514,7 +514,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }
@@ -552,16 +551,17 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
 
+            // Pre-insert the corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
+
             let (character_id, mock_character) =
                 test.eve()
                     .with_mock_character(1, corporation_id, None, None);
 
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
             let character_endpoint =
                 test.eve()
                     .with_character_endpoint(character_id, mock_character, 1);
@@ -576,7 +576,6 @@ mod tests {
             assert_eq!(characters.len(), 1);
             assert_eq!(characters[0].0, character_id);
 
-            corporation_endpoint.assert();
             character_endpoint.assert();
 
             Ok(())
@@ -596,13 +595,17 @@ mod tests {
             let alliance_id = 1;
             let corporation_id = 1;
 
-            let mock_faction = test.eve().with_mock_faction(faction_id);
-            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
-            let (_, mock_corporation) = test.eve().with_mock_corporation(
-                corporation_id,
-                Some(alliance_id),
-                Some(faction_id),
-            );
+            // Pre-insert dependencies to avoid ESI fetches
+            let _ = test.eve().insert_mock_faction(faction_id).await?;
+            let _ = test
+                .eve()
+                .insert_mock_alliance(alliance_id, Some(faction_id))
+                .await?;
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, Some(alliance_id), Some(faction_id))
+                .await?;
+
             let (character_id, mock_character) = test.eve().with_mock_character(
                 1,
                 corporation_id,
@@ -610,13 +613,6 @@ mod tests {
                 Some(faction_id),
             );
 
-            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
-            let alliance_endpoint =
-                test.eve()
-                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
             let character_endpoint =
                 test.eve()
                     .with_character_endpoint(character_id, mock_character, 1);
@@ -632,9 +628,6 @@ mod tests {
             assert_eq!(characters[0].1.faction_id, Some(faction_id));
             assert_eq!(characters[0].1.alliance_id, Some(alliance_id));
 
-            faction_endpoint.assert();
-            alliance_endpoint.assert();
-            corporation_endpoint.assert();
             character_endpoint.assert();
 
             Ok(())
@@ -670,16 +663,18 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
 
+            // Setup mock endpoint for first character only
+            // Pre-insert the corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
+
             let (character_id, mock_character) =
                 test.eve()
                     .with_mock_character(1, corporation_id, None, None);
 
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
             let character_endpoint =
                 test.eve()
                     .with_character_endpoint(character_id, mock_character, 1);
@@ -691,7 +686,6 @@ mod tests {
             // Should succeed on first, fail on second (no mock)
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            corporation_endpoint.assert();
             character_endpoint.assert();
 
             Ok(())
@@ -708,14 +702,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for 10 characters
-            let character_ids: Vec<i64> = (1..=10).collect();
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids: Vec<i64> = (1..=10).collect();
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -743,7 +737,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }
@@ -762,14 +755,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for 25 characters to test multiple batches
-            let character_ids: Vec<i64> = (1..=25).collect();
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids: Vec<i64> = (1..=25).collect();
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -797,7 +790,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }
@@ -816,14 +808,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for 5 characters (within one batch)
-            let character_ids: Vec<i64> = (1..=5).collect();
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids: Vec<i64> = (1..=5).collect();
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -851,7 +843,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }
@@ -869,16 +860,17 @@ mod tests {
                 entity::prelude::EveCharacter
             )?;
 
+            // Pre-insert the corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
+
             let (character_id, mock_character) =
                 test.eve()
                     .with_mock_character(1, corporation_id, None, None);
 
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
             let character_endpoint =
                 test.eve()
                     .with_character_endpoint(character_id, mock_character, 1);
@@ -890,7 +882,6 @@ mod tests {
             // Should fail when any request in the batch fails
             assert!(matches!(result, Err(Error::EsiError(_))));
 
-            corporation_endpoint.assert();
             character_endpoint.assert();
 
             Ok(())
@@ -907,14 +898,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for exactly 10 characters (one full batch)
-            let character_ids: Vec<i64> = (1..=10).collect();
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids: Vec<i64> = (1..=10).collect();
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -942,7 +933,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }
@@ -961,14 +951,14 @@ mod tests {
             )?;
 
             // Setup mock endpoints for 11 characters (one full batch + one item)
-            let character_ids: Vec<i64> = (1..=11).collect();
+            // Pre-insert the shared corporation to avoid ESI fetch
             let corporation_id = 1;
-            let (_, mock_corporation) =
-                test.eve().with_mock_corporation(corporation_id, None, None);
-            let corporation_endpoint =
-                test.eve()
-                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let _ = test
+                .eve()
+                .insert_mock_corporation(corporation_id, None, None)
+                .await?;
 
+            let character_ids: Vec<i64> = (1..=11).collect();
             let mut character_endpoints = Vec::new();
             for id in &character_ids {
                 let (char_id, mock_character) =
@@ -996,7 +986,6 @@ mod tests {
                 assert!(returned_ids.contains(id));
             }
 
-            corporation_endpoint.assert();
             for endpoint in character_endpoints {
                 endpoint.assert();
             }

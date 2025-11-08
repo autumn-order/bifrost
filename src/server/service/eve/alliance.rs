@@ -379,19 +379,13 @@ mod tests {
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
             // Setup mock endpoints for alliances with factions
-            let faction_id_1 = 1;
-            let faction_id_2 = 2;
-            let mock_faction_1 = test.eve().with_mock_faction(faction_id_1);
-            let mock_faction_2 = test.eve().with_mock_faction(faction_id_2);
+            // Pre-insert factions so they don't need to be fetched from ESI
+            let _ = test.eve().insert_mock_faction(1).await?;
+            let _ = test.eve().insert_mock_faction(2).await?;
 
-            let (alliance_id_1, mock_alliance_1) =
-                test.eve().with_mock_alliance(1, Some(faction_id_1));
-            let (alliance_id_2, mock_alliance_2) =
-                test.eve().with_mock_alliance(2, Some(faction_id_2));
+            let (alliance_id_1, mock_alliance_1) = test.eve().with_mock_alliance(1, Some(1));
+            let (alliance_id_2, mock_alliance_2) = test.eve().with_mock_alliance(2, Some(2));
 
-            let faction_endpoint = test
-                .eve()
-                .with_faction_endpoint(vec![mock_faction_1, mock_faction_2], 1);
             let alliance_endpoint_1 =
                 test.eve()
                     .with_alliance_endpoint(alliance_id_1, mock_alliance_1, 1);
@@ -407,7 +401,6 @@ mod tests {
             let alliances = result.unwrap();
             assert_eq!(alliances.len(), 2);
 
-            faction_endpoint.assert();
             alliance_endpoint_1.assert();
             alliance_endpoint_2.assert();
 

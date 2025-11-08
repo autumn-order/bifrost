@@ -90,7 +90,10 @@ mod tests {
         #[tokio::test]
         async fn updates_empty_faction_table() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_endpoint = test.eve().with_faction_endpoint(1, 1);
+
+            let faction_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let update_result = faction_service.update_factions().await;
@@ -99,7 +102,6 @@ mod tests {
             let updated = update_result.unwrap();
             assert!(!updated.is_empty());
 
-            // Assert 1 request was made to mock endpoint
             faction_endpoint.assert();
 
             Ok(())
@@ -110,7 +112,9 @@ mod tests {
         async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.eve().insert_mock_faction(1).await?;
-            let faction_endpoint = test.eve().with_faction_endpoint(1, 1);
+
+            let mock_faction = test.eve().with_mock_faction(faction_model.faction_id);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
             // Set updated_at to *before* the effective expiry so an update should be performed.
             let now = Utc::now();
@@ -131,7 +135,6 @@ mod tests {
             let updated_faction = updated.iter().next().unwrap();
             assert!(updated_faction.updated_at > updated_at);
 
-            // Assert 1 request was made to mock endpoint
             faction_endpoint.assert();
 
             Ok(())
@@ -142,7 +145,9 @@ mod tests {
         async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.eve().insert_mock_faction(1).await?;
-            let faction_endpoint = test.eve().with_faction_endpoint(1, 0);
+
+            let mock_faction = test.eve().with_mock_faction(faction_model.faction_id);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
             // Set updated_at to just after the effective expiry so it should be considered cached.
             let now = Utc::now();
@@ -161,7 +166,6 @@ mod tests {
             let updated = result.unwrap();
             assert!(updated.is_empty());
 
-            // Assert no request was made to mock endpoint due to cache
             faction_endpoint.assert();
 
             Ok(())
@@ -207,7 +211,9 @@ mod tests {
         async fn finds_existing_faction() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_model = test.eve().insert_mock_faction(1).await?;
-            let faction_endpoint = test.eve().with_faction_endpoint(1, 0);
+
+            let mock_faction = test.eve().with_mock_faction(faction_model.faction_id);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let result = faction_service
@@ -215,7 +221,6 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            // Assert no requests were made to faction endpoint
             faction_endpoint.assert();
 
             Ok(())
@@ -225,8 +230,10 @@ mod tests {
         #[tokio::test]
         async fn creates_faction_when_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
+
             let faction_id = 1;
-            let faction_endpoint = test.eve().with_faction_endpoint(faction_id, 1);
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let update_result = faction_service.get_or_update_factions(faction_id).await;
@@ -235,7 +242,6 @@ mod tests {
             // Call method one more time to ensure the faction is not retrieved from endpoint again
             let get_result = faction_service.get_or_update_factions(faction_id).await;
             assert!(get_result.is_ok());
-            // Assert only 1 request was made to faction endpoint
             faction_endpoint.assert();
 
             Ok(())
@@ -273,14 +279,15 @@ mod tests {
         #[tokio::test]
         async fn fails_when_faction_not_returned() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_endpoint = test.eve().with_faction_endpoint(1, 1);
+
+            let mock_faction = test.eve().with_mock_faction(1);
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
             let faction_id = 2;
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let result = faction_service.get_or_update_factions(faction_id).await;
 
             assert!(matches!(result, Err(Error::EveFactionNotFound(_))));
-            // Assert 1 request was made to faction endpoint
             faction_endpoint.assert();
 
             Ok(())
