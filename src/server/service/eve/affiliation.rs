@@ -209,6 +209,10 @@ impl<'a> AffiliationService<'a> {
             })
             .collect();
 
+        CorporationRepository::new(&self.db)
+            .update_affiliations(corporation_affiliations)
+            .await?;
+
         Ok(())
     }
 
@@ -284,6 +288,10 @@ impl<'a> AffiliationService<'a> {
                     Some((character_table_id, corporation_table_id, faction_table_id))
                 }
             ).collect();
+
+        CharacterRepository::new(&self.db)
+            .update_affiliations(character_affiliations)
+            .await?;
 
         Ok(())
     }
@@ -524,12 +532,4 @@ impl<'a> AffiliationService<'a> {
 
         Ok(())
     }
-}
-
-fn get_missing_ids(all_ids: &[i64], existing_ids: &[i64]) -> Vec<i64> {
-    all_ids
-        .iter()
-        .filter(|id| !existing_ids.contains(id))
-        .copied()
-        .collect()
 }
