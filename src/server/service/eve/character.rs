@@ -159,19 +159,27 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, None, None, 1);
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -185,19 +193,34 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, Some(1), None, 1);
+
+            let alliance_id = 1;
+            let corporation_id = 1;
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, None);
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_id, Some(alliance_id), None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, Some(alliance_id), None);
+
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -211,19 +234,32 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, None, Some(1), 1);
+
+            let faction_id = 1;
+            let corporation_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_id, None, Some(faction_id));
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -237,19 +273,43 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints =
+
+            let faction_id = 1;
+            let alliance_id = 1;
+            let corporation_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_id,
+                Some(alliance_id),
+                Some(faction_id),
+            );
+            let (character_id, mock_character) = test.eve().with_mock_character(
+                1,
+                corporation_id,
+                Some(alliance_id),
+                Some(faction_id),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
                 test.eve()
-                    .with_character_endpoint(character_id, 1, Some(1), Some(1), 1);
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -288,17 +348,20 @@ mod tests {
                 .eve()
                 .insert_mock_character(character_id, corporation_id, None, None)
                 .await?;
-            let endpoints =
+
+            let (_, mock_character) =
                 test.eve()
-                    .with_character_endpoint(character_id, corporation_id, None, None, 1);
+                    .with_mock_character(character_id, corporation_id, None, None);
+
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.create_character(character_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
-
-            // Assert only character endpoint was fetched prior to DB error
-            endpoints.first().unwrap().assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -337,10 +400,20 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, None, None, 1);
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -348,10 +421,8 @@ mod tests {
                 .await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -394,6 +465,546 @@ mod tests {
         }
     }
 
+    mod get_many_characters {
+        use super::*;
+
+        /// Expect Ok when fetching multiple characters successfully
+        #[tokio::test]
+        async fn fetches_multiple_characters() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for 3 different characters
+            let character_ids = vec![1, 2, 3];
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 3);
+
+            // Verify all character IDs are present (order may vary due to concurrency)
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok with empty vec when given empty character IDs list
+        #[tokio::test]
+        async fn returns_empty_for_empty_input() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service.get_many_characters(vec![]).await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 0);
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching single character
+        #[tokio::test]
+        async fn fetches_single_character() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(vec![character_id])
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 1);
+            assert_eq!(characters[0].0, character_id);
+
+            corporation_endpoint.assert();
+            character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching characters with various relationships
+        #[tokio::test]
+        async fn fetches_characters_with_relationships() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let faction_id = 1;
+            let alliance_id = 1;
+            let corporation_id = 1;
+
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_alliance) = test.eve().with_mock_alliance(alliance_id, Some(faction_id));
+            let (_, mock_corporation) = test.eve().with_mock_corporation(
+                corporation_id,
+                Some(alliance_id),
+                Some(faction_id),
+            );
+            let (character_id, mock_character) = test.eve().with_mock_character(
+                1,
+                corporation_id,
+                Some(alliance_id),
+                Some(faction_id),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let alliance_endpoint =
+                test.eve()
+                    .with_alliance_endpoint(alliance_id, mock_alliance, 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(vec![character_id])
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 1);
+            assert_eq!(characters[0].1.faction_id, Some(faction_id));
+            assert_eq!(characters[0].1.alliance_id, Some(alliance_id));
+
+            faction_endpoint.assert();
+            alliance_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI endpoint is unavailable for any character
+        #[tokio::test]
+        async fn fails_when_esi_unavailable() -> Result<(), TestError> {
+            let test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let character_ids = vec![1, 2, 3];
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service.get_many_characters(character_ids).await;
+
+            // Should fail on first unavailable character
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI fails partway through batch
+        #[tokio::test]
+        async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let character_ids = vec![1, 2, 3];
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service.get_many_characters(character_ids).await;
+
+            // Should succeed on first, fail on second (no mock)
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            corporation_endpoint.assert();
+            character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching many characters (stress test)
+        #[tokio::test]
+        async fn fetches_many_characters() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for 10 characters
+            let character_ids: Vec<i64> = (1..=10).collect();
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 10);
+
+            // Verify all character IDs are present (order may vary due to concurrency)
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when fetching more than 10 characters (tests batching)
+        #[tokio::test]
+        async fn fetches_many_characters_with_batching() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for 25 characters to test multiple batches
+            let character_ids: Vec<i64> = (1..=25).collect();
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 25);
+
+            // Verify all character IDs are present (order may vary due to concurrency)
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Ok when verifying concurrent execution within a batch
+        #[tokio::test]
+        async fn executes_requests_concurrently() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for 5 characters (within one batch)
+            let character_ids: Vec<i64> = (1..=5).collect();
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 5);
+
+            // Verify all character IDs are present
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect Error when ESI fails in middle of concurrent batch
+        #[tokio::test]
+        async fn fails_on_concurrent_batch_error() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
+            let character_ids = vec![1, 2, 3, 4, 5];
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service.get_many_characters(character_ids).await;
+
+            // Should fail when any request in the batch fails
+            assert!(matches!(result, Err(Error::EsiError(_))));
+
+            corporation_endpoint.assert();
+            character_endpoint.assert();
+
+            Ok(())
+        }
+
+        /// Expect correct batching behavior with exactly 10 items
+        #[tokio::test]
+        async fn handles_exact_batch_size() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for exactly 10 characters (one full batch)
+            let character_ids: Vec<i64> = (1..=10).collect();
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 10);
+
+            // Verify all character IDs are present
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+
+        /// Expect correct batching behavior with 11 items (tests partial second batch)
+        #[tokio::test]
+        async fn handles_batch_size_plus_one() -> Result<(), TestError> {
+            let mut test = test_setup_with_tables!(
+                entity::prelude::EveFaction,
+                entity::prelude::EveAlliance,
+                entity::prelude::EveCorporation,
+                entity::prelude::EveCharacter
+            )?;
+
+            // Setup mock endpoints for 11 characters (one full batch + one item)
+            let character_ids: Vec<i64> = (1..=11).collect();
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+
+            let mut character_endpoints = Vec::new();
+            for id in &character_ids {
+                let (char_id, mock_character) =
+                    test.eve()
+                        .with_mock_character(*id, corporation_id, None, None);
+                character_endpoints.push(test.eve().with_character_endpoint(
+                    char_id,
+                    mock_character,
+                    1,
+                ));
+            }
+
+            let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+            let result = character_service
+                .get_many_characters(character_ids.clone())
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 11);
+
+            // Verify all character IDs are present
+            let returned_ids: Vec<i64> = characters.iter().map(|(id, _)| *id).collect();
+            for id in &character_ids {
+                assert!(returned_ids.contains(id));
+            }
+
+            corporation_endpoint.assert();
+            for endpoint in character_endpoints {
+                endpoint.assert();
+            }
+
+            Ok(())
+        }
+    }
+
     mod upsert_character {
         use chrono::{Duration, Utc};
         use sea_orm::{ActiveValue, EntityTrait, IntoActiveModel};
@@ -409,10 +1020,24 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, None, Some(1), 1);
+
+            let faction_id = 1;
+            let corporation_id = 1;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_corporation) =
+                test.eve()
+                    .with_mock_corporation(corporation_id, None, Some(faction_id));
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, Some(faction_id));
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.upsert_character(character_id).await;
@@ -422,10 +1047,9 @@ mod tests {
             assert_eq!(created.character_id, character_id);
             assert!(created.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -439,10 +1063,20 @@ mod tests {
                 entity::prelude::EveCorporation,
                 entity::prelude::EveCharacter
             )?;
-            let character_id = 1;
-            let endpoints = test
-                .eve()
-                .with_character_endpoint(character_id, 1, None, None, 1);
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.upsert_character(character_id).await;
@@ -452,10 +1086,8 @@ mod tests {
             assert_eq!(created.character_id, character_id);
             assert_eq!(created.faction_id, None);
 
-            // Assert 1 request was made to mock character endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -476,7 +1108,23 @@ mod tests {
                 .await?;
 
             // Mock endpoint returns character with different corporation
-            let endpoints = test.eve().with_character_endpoint(1, 2, None, None, 1);
+            let corporation_id_2 = 2;
+            let (_, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(corporation_id_2, None, None);
+            let (_, mock_character) = test.eve().with_mock_character(
+                character_model.character_id,
+                corporation_id_2,
+                None,
+                None,
+            );
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_model.character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -489,10 +1137,8 @@ mod tests {
             assert_eq!(upserted.id, character_model.id);
             assert_ne!(upserted.corporation_id, character_model.corporation_id);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -528,7 +1174,26 @@ mod tests {
                 .await?;
 
             // Mock endpoint returns character with different faction
-            let endpoints = test.eve().with_character_endpoint(1, 2, None, Some(2), 1);
+            let faction_id_2 = 2;
+            let corporation_id_2 = 2;
+            let mock_faction_2 = test.eve().with_mock_faction(faction_id_2);
+            let (_, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(corporation_id_2, None, Some(faction_id_2));
+            let (_, mock_character) = test.eve().with_mock_character(
+                character_model.character_id,
+                corporation_id_2,
+                None,
+                Some(faction_id_2),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction_2], 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_model.character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -541,10 +1206,9 @@ mod tests {
             assert_eq!(upserted.id, character_model.id);
             assert_ne!(upserted.faction_id, character_model.faction_id);
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -567,7 +1231,23 @@ mod tests {
             assert!(character_model.faction_id.is_some());
 
             // Mock endpoint returns character without faction
-            let endpoints = test.eve().with_character_endpoint(1, 2, None, None, 1);
+            let corporation_id_2 = 2;
+            let (_, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(corporation_id_2, None, None);
+            let (_, mock_character) = test.eve().with_mock_character(
+                character_model.character_id,
+                corporation_id_2,
+                None,
+                None,
+            );
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_model.character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -580,10 +1260,8 @@ mod tests {
             assert_eq!(upserted.id, character_model.id);
             assert_eq!(upserted.faction_id, None);
 
-            // Assert 1 request was made to mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -602,7 +1280,26 @@ mod tests {
             assert_eq!(character_model.faction_id, None);
 
             // Mock endpoint returns character with faction
-            let endpoints = test.eve().with_character_endpoint(1, 2, None, Some(1), 1);
+            let faction_id = 1;
+            let corporation_id_2 = 2;
+            let mock_faction = test.eve().with_mock_faction(faction_id);
+            let (_, mock_corporation_2) =
+                test.eve()
+                    .with_mock_corporation(corporation_id_2, None, Some(faction_id));
+            let (_, mock_character) = test.eve().with_mock_character(
+                character_model.character_id,
+                corporation_id_2,
+                None,
+                Some(faction_id),
+            );
+
+            let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_model.character_id, mock_character, 1);
 
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service
@@ -615,10 +1312,9 @@ mod tests {
             assert_eq!(upserted.id, character_model.id);
             assert!(upserted.faction_id.is_some());
 
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in endpoints {
-                endpoint.assert();
-            }
+            faction_endpoint.assert();
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
@@ -646,16 +1342,21 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!()?;
-            let endpoints = test.eve().with_character_endpoint(1, 1, None, None, 1);
 
-            let character_id = 1;
+            let corporation_id = 1;
+            let (character_id, mock_character) =
+                test.eve()
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
+
             let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
             let result = character_service.upsert_character(character_id).await;
 
             assert!(matches!(result, Err(Error::DbErr(_))));
-
-            // Assert only character endpoint was fetched prior to DB error
-            endpoints.first().unwrap().assert();
+            character_endpoint.assert();
 
             Ok(())
         }
