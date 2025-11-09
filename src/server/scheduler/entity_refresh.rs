@@ -6,11 +6,8 @@ use sea_orm::{
     QueryOrder, QuerySelect,
 };
 
-use crate::server::{
-    error::Error,
-    model::worker::WorkerJob,
-    util::task::schedule::{calculate_batch_limit, create_job_schedule},
-};
+use super::schedule::{calculate_batch_limit, create_job_schedule};
+use crate::server::{error::Error, model::worker::WorkerJob};
 
 /// Trait for entities that support scheduled cache updates
 pub trait SchedulableEntity: EntityTrait {
