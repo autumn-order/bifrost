@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
 use eve_esi::model::{
-    alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
+    alliance::Alliance,
+    character::{Character, CharacterAffiliation},
+    corporation::Corporation,
+    universe::Faction,
 };
 
 use crate::fixtures::eve::EveFixtures;
@@ -94,5 +97,20 @@ impl<'a> EveFixtures<'a> {
                 title: Some("Title".to_string()),
             },
         )
+    }
+
+    pub fn with_mock_character_affiliation(
+        &self,
+        character_id: i64,
+        corporation_id: i64,
+        alliance_id: Option<i64>,
+        faction_id: Option<i64>,
+    ) -> CharacterAffiliation {
+        CharacterAffiliation {
+            character_id,
+            corporation_id,
+            alliance_id,
+            faction_id,
+        }
     }
 }

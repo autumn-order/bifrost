@@ -213,10 +213,20 @@ mod tests {
         #[tokio::test]
         async fn creates_user_and_character() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let character_id = 1;
-            let character_endpoints =
+
+            let corporation_id = 1;
+            let (_, mock_corporation) =
+                test.eve().with_mock_corporation(corporation_id, None, None);
+            let (character_id, mock_character) =
                 test.eve()
-                    .with_character_endpoint(character_id, 1, None, None, 1);
+                    .with_mock_character(1, corporation_id, None, None);
+
+            let corporation_endpoint =
+                test.eve()
+                    .with_corporation_endpoint(corporation_id, mock_corporation, 1);
+            let character_endpoint =
+                test.eve()
+                    .with_character_endpoint(character_id, mock_character, 1);
 
             // Set character ID in claims to the mock character
             let mut claims = EveJwtClaims::mock();
@@ -226,10 +236,8 @@ mod tests {
             let result = user_service.get_or_create_user(claims).await;
 
             assert!(result.is_ok());
-            // Assert 1 request was made to each mock endpoint
-            for endpoint in character_endpoints {
-                endpoint.assert();
-            }
+            corporation_endpoint.assert();
+            character_endpoint.assert();
 
             Ok(())
         }
