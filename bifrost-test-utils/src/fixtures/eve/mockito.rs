@@ -1,5 +1,8 @@
 use eve_esi::model::{
-    alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
+    alliance::Alliance,
+    character::{Character, CharacterAffiliation},
+    corporation::Corporation,
+    universe::Faction,
 };
 use mockito::Mock;
 
@@ -71,6 +74,21 @@ impl<'a> EveFixtures<'a> {
             .with_status(200)
             .with_header("content-type", "application/json")
             .with_body(serde_json::to_string(&mock_character).unwrap())
+            .expect(expected_requests)
+            .create()
+    }
+
+    pub fn with_character_affiliation_endpoint(
+        &mut self,
+        mock_affiliations: Vec<CharacterAffiliation>,
+        expected_requests: usize,
+    ) -> Mock {
+        self.setup
+            .server
+            .mock("POST", "/characters/affiliation")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(serde_json::to_string(&mock_affiliations).unwrap())
             .expect(expected_requests)
             .create()
     }
