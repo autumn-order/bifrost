@@ -38,8 +38,8 @@ impl MigrationTrait for Migration {
                     .col(string_null(EveCorporation::Url))
                     .col(boolean_null(EveCorporation::WarEligible))
                     .col(timestamp(EveCorporation::CreatedAt))
-                    .col(timestamp(EveCorporation::UpdatedAt))
-                    .col(timestamp_null(EveCorporation::JobScheduledAt))
+                    .col(timestamp(EveCorporation::InfoUpdatedAt))
+                    .col(timestamp(EveCorporation::AffiliationUpdatedAt))
                     .to_owned(),
             )
             .await?;
@@ -156,6 +156,6 @@ pub enum EveCorporation {
     Url,
     WarEligible,
     CreatedAt,
-    UpdatedAt,
-    JobScheduledAt,
+    InfoUpdatedAt,
+    AffiliationUpdatedAt,
 }

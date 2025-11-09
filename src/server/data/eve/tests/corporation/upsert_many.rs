@@ -59,9 +59,9 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
         .expect("corporation 2 not found");
 
     let initial_created_at_1 = initial_entry_1.created_at;
-    let initial_updated_at_1 = initial_entry_1.updated_at;
+    let initial_updated_at_1 = initial_entry_1.info_updated_at;
     let initial_created_at_2 = initial_entry_2.created_at;
-    let initial_updated_at_2 = initial_entry_2.updated_at;
+    let initial_updated_at_2 = initial_entry_2.info_updated_at;
 
     let latest = corporation_repo
         .upsert_many(vec![
@@ -81,9 +81,9 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
 
     // created_at should not change and updated_at should increase for both corporations
     assert_eq!(latest_entry_1.created_at, initial_created_at_1);
-    assert!(latest_entry_1.updated_at > initial_updated_at_1);
+    assert!(latest_entry_1.info_updated_at > initial_updated_at_1);
     assert_eq!(latest_entry_2.created_at, initial_created_at_2);
-    assert!(latest_entry_2.updated_at > initial_updated_at_2);
+    assert!(latest_entry_2.info_updated_at > initial_updated_at_2);
 
     Ok(())
 }

@@ -120,7 +120,6 @@ async fn updates_existing_corporation() -> Result<(), TestError> {
     assert_eq!(upserted.name, "Updated Corporation Name");
     assert_eq!(upserted.ticker, "NEW");
     assert_eq!(upserted.member_count, 9999);
-    assert_eq!(upserted.job_scheduled_at, None);
 
     Ok(())
 }

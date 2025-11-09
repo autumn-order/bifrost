@@ -1,4 +1,5 @@
 use apalis_redis::RedisStorage;
+use fred::prelude::*;
 use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 
 use crate::server::{
@@ -10,9 +11,11 @@ use crate::server::{
 /// Checks for corporation information nearing expiration & schedules an update
 pub async fn schedule_corporation_info_update(
     db: &DatabaseConnection,
+    redis_pool: &Pool,
     job_storage: &mut RedisStorage<WorkerJob>,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker =
+        EntityRefreshTracker::new(db, redis_pool, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find corporations that need updating
     let corporations_needing_update = refresh_tracker
@@ -46,11 +49,7 @@ pub async fn schedule_corporation_info_update(
 
 impl SchedulableEntity for entity::eve_corporation::Entity {
     fn updated_at_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_corporation::Column::UpdatedAt
-    }
-
-    fn job_scheduled_at_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_corporation::Column::JobScheduledAt
+        entity::eve_corporation::Column::InfoUpdatedAt
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {

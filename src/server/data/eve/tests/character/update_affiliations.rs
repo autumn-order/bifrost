@@ -254,7 +254,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
         .create(character_id, character, corp.id, None)
         .await?;
 
-    let original_updated_at = char.updated_at;
+    let original_updated_at = char.info_updated_at;
 
     // Wait a moment to ensure timestamp difference
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -273,10 +273,10 @@ async fn updates_timestamp() -> Result<(), TestError> {
         .expect("Character should exist");
 
     assert!(
-        updated.updated_at >= original_updated_at,
+        updated.info_updated_at >= original_updated_at,
         "UpdatedAt should be equal to or newer than original. Original: {:?}, Updated: {:?}",
         original_updated_at,
-        updated.updated_at
+        updated.info_updated_at
     );
 
     Ok(())
