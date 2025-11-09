@@ -58,4 +58,18 @@ pub mod eve {
         /// Runs every 12 hours at the top of the hour (00:00, 12:00)
         pub const CRON_EXPRESSION: &str = "0 0 */12 * * *";
     }
+
+    pub mod character_affiliation {
+        use super::*;
+
+        /// Cache ESI character affiliations for 1 hour
+        pub const CACHE_DURATION: Duration = Duration::hours(1);
+
+        /// Interval the schedule cron task is run (30 minutes)
+        pub const SCHEDULE_INTERVAL: Duration = Duration::minutes(30);
+
+        /// Cron expression for character affiliation update scheduling
+        /// Runs every 30 minutes (00:22, 00:52)
+        pub const CRON_EXPRESSION: &str = "0 22,52 * * * *";
+    }
 }

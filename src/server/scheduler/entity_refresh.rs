@@ -11,7 +11,10 @@ use super::schedule::{calculate_batch_limit, create_job_schedule};
 use crate::server::{error::Error, model::worker::WorkerJob};
 
 /// Trait for entities that support scheduled cache updates
-pub trait SchedulableEntity: EntityTrait {
+pub trait SchedulableEntity {
+    /// The actual SeaORM entity type
+    type Entity: EntityTrait;
+
     /// Get the column representing when the entity was last updated
     fn updated_at_column() -> impl ColumnTrait + IntoSimpleExpr;
 
@@ -42,14 +45,15 @@ impl<'a> EntityRefreshTracker<'a> {
     }
 
     /// Finds entries that need their information updated
-    pub async fn find_entries_needing_update<E>(
+    pub async fn find_entries_needing_update<S>(
         &self,
-    ) -> Result<Vec<E::Model>, crate::server::error::Error>
+    ) -> Result<Vec<<S::Entity as EntityTrait>::Model>, crate::server::error::Error>
     where
-        E: SchedulableEntity + Send + Sync,
-        <E as EntityTrait>::Model: Send + Sync,
+        S: SchedulableEntity + Send + Sync,
+        S::Entity: Send + Sync,
+        <S::Entity as EntityTrait>::Model: Send + Sync,
     {
-        let table_entries = E::find().count(self.db).await?;
+        let table_entries = S::Entity::find().count(self.db).await?;
         if table_entries == 0 {
             return Ok(Vec::new());
         }
@@ -60,10 +64,10 @@ impl<'a> EntityRefreshTracker<'a> {
         let max_batch_size =
             calculate_batch_limit(table_entries, self.cache_duration, self.schedule_interval);
 
-        let entries = E::find()
+        let entries = S::Entity::find()
             // Only update entries after their cache has expired to get fresh data
-            .filter(E::updated_at_column().lt(cache_expiry_threshold))
-            .order_by_asc(E::updated_at_column())
+            .filter(S::updated_at_column().lt(cache_expiry_threshold))
+            .order_by_asc(S::updated_at_column())
             .limit(max_batch_size)
             .all(self.db)
             .await?;
@@ -71,13 +75,13 @@ impl<'a> EntityRefreshTracker<'a> {
         Ok(entries)
     }
 
-    pub async fn schedule_jobs<E>(
+    pub async fn schedule_jobs<S>(
         &self,
         job_storage: &mut RedisStorage<WorkerJob>,
-        jobs: Vec<(i32, WorkerJob)>,
+        jobs: Vec<WorkerJob>,
     ) -> Result<usize, Error>
     where
-        E: SchedulableEntity + Send + Sync,
+        S: SchedulableEntity + Send + Sync,
     {
         use apalis::prelude::Storage;
 
@@ -87,7 +91,7 @@ impl<'a> EntityRefreshTracker<'a> {
         let mut skipped_count = 0;
 
         // Try to schedule each job, checking for duplicates
-        for (_id, job, scheduled_at) in job_schedule {
+        for (job, scheduled_at) in job_schedule {
             let tracking_key = job.tracking_key();
             let ttl_seconds = (self.schedule_interval * 2).num_seconds();
 

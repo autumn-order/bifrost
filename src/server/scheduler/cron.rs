@@ -1,6 +1,7 @@
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::eve::{
+        affiliation::schedule_character_affiliation_update,
         alliance::schedule_alliance_info_update, character::schedule_character_info_update,
         corporation::schedule_corporation_info_update,
     },
@@ -14,6 +15,7 @@ use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
 
 use super::config::eve::alliance as alliance_config;
 use super::config::eve::character as character_config;
+use super::config::eve::character_affiliation as character_affiliation_config;
 use super::config::eve::corporation as corporation_config;
 use super::config::eve::faction as faction_config;
 
@@ -77,6 +79,16 @@ pub async fn start_scheduler(
         job_storage,
         schedule_character_info_update,
         "character info"
+    );
+
+    add_cron_job!(
+        sched,
+        character_affiliation_config::CRON_EXPRESSION,
+        db,
+        redis_pool,
+        job_storage,
+        schedule_character_affiliation_update,
+        "character affiliation"
     );
 
     let db_clone = db.clone();

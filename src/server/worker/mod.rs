@@ -28,7 +28,9 @@ pub async fn handle_job(
         WorkerJob::UpdateCharacterInfo { character_id } => {
             handler.update_character_info(*character_id).await
         }
-        WorkerJob::UpdateAffiliations { count } => handler.update_affiliations(*count).await,
+        WorkerJob::UpdateAffiliations { character_ids } => {
+            handler.update_affiliations(character_ids.clone()).await
+        }
     };
 
     // Clean up the tracking key after job completes (whether success or failure)
@@ -43,6 +45,5 @@ pub async fn handle_job(
         );
     }
 
-    // Return the original result
     result
 }

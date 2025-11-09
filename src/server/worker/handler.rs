@@ -1,5 +1,5 @@
 use dioxus_logger::tracing;
-use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
@@ -92,33 +92,23 @@ impl<'a> WorkerJobHandler<'a> {
         Ok(())
     }
 
-    /// Retrieves list of character IDs equal to provided count and updates affiliations for all of them
-    pub async fn update_affiliations(&self, count: u64) -> Result<(), Error> {
+    /// Updates affiliations for the provided list of character IDs
+    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+        let count = character_ids.len();
         tracing::debug!("Processing affiliations update for {} characters", count);
 
-        let count = if count > ESI_AFFILIATION_REQUEST_LIMIT as u64 {
+        if character_ids.is_empty() {
+            tracing::debug!("No characters to update affiliations for");
+            return Ok(());
+        }
+
+        if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
             tracing::warn!(
-                "Update affiliation job for character count of {} exceeds ESI affiliation request limit of {}, capping to limit",
-                count,
+                "Update affiliation job contains {} character IDs, exceeding ESI affiliation request limit of {}; truncating to limit",
+                character_ids.len(),
                 ESI_AFFILIATION_REQUEST_LIMIT
             );
-            ESI_AFFILIATION_REQUEST_LIMIT as u64
-        } else {
-            count
-        };
-
-        // TODO: this needs to filter only affiliations that are out of date (1 hour since last update)
-        // - Will implement following the job scheduler, a table modification will be required first
-        let character_ids: Vec<i64> = entity::prelude::EveCharacter::find()
-            .select_only()
-            .column(entity::eve_character::Column::CharacterId)
-            .limit(count)
-            .into_tuple()
-            .all(self.db)
-            .await.map_err(|e| {
-                tracing::error!("Failed to retrieve character IDs for an affiliations update due to error: {:?}", e);
-                e
-            })?;
+        }
 
         AffiliationService::new(self.db, self.esi_client)
             .update_affiliations(character_ids)

@@ -5,7 +5,7 @@ pub enum WorkerJob {
     UpdateAllianceInfo { alliance_id: i64 },
     UpdateCorporationInfo { corporation_id: i64 },
     UpdateCharacterInfo { character_id: i64 },
-    UpdateAffiliations { count: u64 },
+    UpdateAffiliations { character_ids: Vec<i64> },
 }
 
 impl WorkerJob {
@@ -39,12 +39,22 @@ impl WorkerJob {
             WorkerJob::UpdateCorporationInfo { corporation_id } => {
                 format!("job:pending:corporation:info:{}", corporation_id)
             }
-            WorkerJob::UpdateAffiliations { .. } => {
-                // Single key for batch job
+            WorkerJob::UpdateAffiliations { character_ids } => {
+                // Generate unique key per batch based on the character IDs in the job
                 //
-                // If there are any affiliation update tracking keys in redis we
-                // won't schedule another affiliation job yet
-                "job:pending:affiliation:batch".to_string()
+                // We use a hash of the sorted character IDs to create a stable identifier
+                // that's unique per batch but doesn't grow linearly with batch size.
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+
+                let mut sorted_ids = character_ids.clone();
+                sorted_ids.sort_unstable();
+
+                let mut hasher = DefaultHasher::new();
+                sorted_ids.hash(&mut hasher);
+                let hash = hasher.finish();
+
+                format!("job:pending:affiliation:batch:{:x}", hash)
             }
         }
     }
