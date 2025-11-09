@@ -7,6 +7,7 @@ use crate::server::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
         corporation::CorporationService,
     },
+    util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
 
 pub struct WorkerJobHandler<'a> {
@@ -95,6 +96,19 @@ impl<'a> WorkerJobHandler<'a> {
     pub async fn update_affiliations(&self, count: u64) -> Result<(), Error> {
         tracing::debug!("Processing affiliations update for {} characters", count);
 
+        let count = if count > ESI_AFFILIATION_REQUEST_LIMIT as u64 {
+            tracing::warn!(
+                "Update affiliation job for character count of {} exceeds ESI affiliation request limit of {}, capping to limit",
+                count,
+                ESI_AFFILIATION_REQUEST_LIMIT
+            );
+            ESI_AFFILIATION_REQUEST_LIMIT as u64
+        } else {
+            count
+        };
+
+        // TODO: this needs to filter only affiliations that are out of date (1 hour since last update)
+        // - Will implement following the job scheduler, a table modification will be required first
         let character_ids: Vec<i64> = entity::prelude::EveCharacter::find()
             .select_only()
             .column(entity::eve_character::Column::CharacterId)

@@ -25,7 +25,7 @@ use crate::server::{
         alliance::AllianceService, character::CharacterService, corporation::CorporationService,
         faction::FactionService,
     },
-    util::eve::is_valid_character_id,
+    util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
 
 struct TableIds {
@@ -54,6 +54,21 @@ impl<'a> AffiliationService<'a> {
     }
 
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+        // Cap character_ids to ESI limit to prevent affiliation request from erroring
+        let character_ids = if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
+            tracing::warn!(
+                "Received {} character IDs for affiliation update, exceeding ESI limit of {}; truncating to limit",
+                character_ids.len(),
+                ESI_AFFILIATION_REQUEST_LIMIT
+            );
+            character_ids
+                .into_iter()
+                .take(ESI_AFFILIATION_REQUEST_LIMIT)
+                .collect()
+        } else {
+            character_ids
+        };
+
         // Sanitize character IDs to valid ranges as an invalid ID causes entire affiliation request to fail
         let character_ids = character_ids
             .into_iter()
