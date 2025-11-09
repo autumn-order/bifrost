@@ -1,13 +1,13 @@
-use apalis::prelude::Data;
 use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
-    model::worker::WorkerJob,
     service::eve::{
-        alliance::AllianceService, character::CharacterService, corporation::CorporationService,
+        affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
+        corporation::CorporationService,
     },
+    util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
 
 pub struct WorkerJobHandler<'a> {
@@ -15,34 +15,12 @@ pub struct WorkerJobHandler<'a> {
     esi_client: &'a eve_esi::Client,
 }
 
-pub async fn handle_job(
-    job: WorkerJob,
-    db: Data<DatabaseConnection>,
-    esi_client: Data<eve_esi::Client>,
-) -> Result<(), Error> {
-    let handler = WorkerJobHandler::new(&db, &esi_client);
-
-    match job {
-        WorkerJob::UpdateAllianceInfo { alliance_id } => {
-            handler.update_alliance_info(alliance_id).await?
-        }
-        WorkerJob::UpdateCorporationInfo { corporation_id } => {
-            handler.update_corporation_info(corporation_id).await?
-        }
-        WorkerJob::UpdateCharacterInfo { character_id } => {
-            handler.update_character_info(character_id).await?
-        }
-    }
-
-    Ok(())
-}
-
 impl<'a> WorkerJobHandler<'a> {
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
+    pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
         tracing::debug!(
             "Processing alliance info update for alliance_id: {}",
             alliance_id
@@ -65,7 +43,7 @@ impl<'a> WorkerJobHandler<'a> {
         Ok(())
     }
 
-    async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), Error> {
+    pub async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), Error> {
         tracing::debug!(
             "Processing corporation info update for corporation_id: {}",
             corporation_id
@@ -91,7 +69,7 @@ impl<'a> WorkerJobHandler<'a> {
         Ok(())
     }
 
-    async fn update_character_info(&self, character_id: i64) -> Result<(), Error> {
+    pub async fn update_character_info(&self, character_id: i64) -> Result<(), Error> {
         tracing::debug!(
             "Processing character info update for character_id: {}",
             character_id
@@ -110,6 +88,37 @@ impl<'a> WorkerJobHandler<'a> {
             })?;
 
         tracing::debug!("Successfully updated info for character {}", character_id);
+
+        Ok(())
+    }
+
+    /// Updates affiliations for the provided list of character IDs
+    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+        let count = character_ids.len();
+        tracing::debug!("Processing affiliations update for {} characters", count);
+
+        if character_ids.is_empty() {
+            tracing::debug!("No characters to update affiliations for");
+            return Ok(());
+        }
+
+        if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
+            tracing::warn!(
+                "Update affiliation job contains {} character IDs, exceeding ESI affiliation request limit of {}; truncating to limit",
+                character_ids.len(),
+                ESI_AFFILIATION_REQUEST_LIMIT
+            );
+        }
+
+        AffiliationService::new(self.db, self.esi_client)
+            .update_affiliations(character_ids)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update affiliations due to error: {:?}", e);
+                e
+            })?;
+
+        tracing::debug!("Successfully updated affiliations for {} characters", count);
 
         Ok(())
     }

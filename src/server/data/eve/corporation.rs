@@ -44,7 +44,8 @@ impl<'a> CorporationRepository<'a> {
             url: ActiveValue::Set(corporation.url),
             war_eligible: ActiveValue::Set(corporation.war_eligible),
             created_at: ActiveValue::Set(Utc::now().naive_utc()),
-            updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+            info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+            affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
             ..Default::default()
         };
 
@@ -82,8 +83,8 @@ impl<'a> CorporationRepository<'a> {
                 url: ActiveValue::Set(corporation.url),
                 war_eligible: ActiveValue::Set(corporation.war_eligible),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                job_scheduled_at: ActiveValue::Set(None),
+                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
             .on_conflict(
@@ -103,8 +104,7 @@ impl<'a> CorporationRepository<'a> {
                         entity::eve_corporation::Column::Ticker,
                         entity::eve_corporation::Column::Url,
                         entity::eve_corporation::Column::WarEligible,
-                        entity::eve_corporation::Column::UpdatedAt,
-                        entity::eve_corporation::Column::JobScheduledAt,
+                        entity::eve_corporation::Column::InfoUpdatedAt,
                     ])
                     .to_owned(),
             )
@@ -141,8 +141,8 @@ impl<'a> CorporationRepository<'a> {
                     url: ActiveValue::Set(corporation.url),
                     war_eligible: ActiveValue::Set(corporation.war_eligible),
                     created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                    updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                    job_scheduled_at: ActiveValue::Set(None),
+                    info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                    affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                     ..Default::default()
                 }
             },
@@ -166,8 +166,7 @@ impl<'a> CorporationRepository<'a> {
                         entity::eve_corporation::Column::Ticker,
                         entity::eve_corporation::Column::Url,
                         entity::eve_corporation::Column::WarEligible,
-                        entity::eve_corporation::Column::UpdatedAt,
-                        entity::eve_corporation::Column::JobScheduledAt,
+                        entity::eve_corporation::Column::InfoUpdatedAt,
                     ])
                     .to_owned(),
             )
@@ -240,7 +239,7 @@ impl<'a> CorporationRepository<'a> {
                     Expr::value(case_stmt),
                 )
                 .col_expr(
-                    entity::eve_corporation::Column::UpdatedAt,
+                    entity::eve_corporation::Column::AffiliationUpdatedAt,
                     Expr::current_timestamp(),
                 )
                 .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))

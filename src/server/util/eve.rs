@@ -1,3 +1,6 @@
+/// ESI API hard limit for character affiliation requests
+pub const ESI_AFFILIATION_REQUEST_LIMIT: usize = 1000;
+
 /// Sanitizes character IDs to acceptable EVE Online character ID ranges.
 ///
 /// Valid ranges:

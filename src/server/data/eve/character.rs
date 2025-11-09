@@ -35,7 +35,8 @@ impl<'a> CharacterRepository<'a> {
             security_status: ActiveValue::Set(character.security_status),
             title: ActiveValue::Set(character.title),
             created_at: ActiveValue::Set(Utc::now().naive_utc()),
-            updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+            info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+            affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
             ..Default::default()
         };
 
@@ -63,7 +64,8 @@ impl<'a> CharacterRepository<'a> {
                 security_status: ActiveValue::Set(character.security_status),
                 title: ActiveValue::Set(character.title),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
             .on_conflict(
@@ -79,7 +81,7 @@ impl<'a> CharacterRepository<'a> {
                         entity::eve_character::Column::RaceId,
                         entity::eve_character::Column::SecurityStatus,
                         entity::eve_character::Column::Title,
-                        entity::eve_character::Column::UpdatedAt,
+                        entity::eve_character::Column::InfoUpdatedAt,
                     ])
                     .to_owned(),
             )
@@ -109,7 +111,8 @@ impl<'a> CharacterRepository<'a> {
                         security_status: ActiveValue::Set(character.security_status),
                         title: ActiveValue::Set(character.title),
                         created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                        updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                        info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                        affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                         ..Default::default()
                     }
                 });
@@ -128,7 +131,7 @@ impl<'a> CharacterRepository<'a> {
                         entity::eve_character::Column::RaceId,
                         entity::eve_character::Column::SecurityStatus,
                         entity::eve_character::Column::Title,
-                        entity::eve_character::Column::UpdatedAt,
+                        entity::eve_character::Column::InfoUpdatedAt,
                     ])
                     .to_owned(),
             )
@@ -209,7 +212,7 @@ impl<'a> CharacterRepository<'a> {
                     Expr::value(faction_case_stmt),
                 )
                 .col_expr(
-                    entity::eve_character::Column::UpdatedAt,
+                    entity::eve_character::Column::AffiliationUpdatedAt,
                     Expr::current_timestamp(),
                 )
                 .filter(entity::eve_character::Column::Id.is_in(character_ids))

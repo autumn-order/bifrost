@@ -25,9 +25,9 @@ pub fn calculate_batch_limit(
 
 /// Staggers provided jobs across the provided update schedule interval
 pub async fn create_job_schedule(
-    jobs: Vec<(i32, WorkerJob)>,
+    jobs: Vec<WorkerJob>,
     schedule_interval: Duration,
-) -> Result<Vec<(i32, WorkerJob, DateTime<Utc>)>, crate::server::error::Error> {
+) -> Result<Vec<(WorkerJob, DateTime<Utc>)>, crate::server::error::Error> {
     if jobs.is_empty() {
         return Ok(vec![]);
     }
@@ -38,13 +38,13 @@ pub async fn create_job_schedule(
 
     let mut scheduled_jobs = Vec::new();
 
-    for (index, (id, job)) in jobs.into_iter().enumerate() {
+    for (index, job) in jobs.into_iter().enumerate() {
         // Distribute jobs evenly across the window: (index * window) / total_jobs
         // This allows multiple jobs per second and ensures all jobs fit within the window
         let offset_seconds = (index as i64 * window_seconds) / num_jobs;
         let scheduled_time = base_time + Duration::seconds(offset_seconds);
 
-        scheduled_jobs.push((id, job, scheduled_time))
+        scheduled_jobs.push((job, scheduled_time))
     }
 
     Ok(scheduled_jobs)
@@ -160,7 +160,7 @@ mod tests {
         /// Expect single job scheduled at current time or shortly after
         #[tokio::test]
         async fn schedules_single_job() {
-            let jobs = vec![(1, WorkerJob::UpdateAllianceInfo { alliance_id: 1 })];
+            let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }];
 
             let before = Utc::now().timestamp();
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -170,8 +170,7 @@ mod tests {
             let scheduled_jobs = result.unwrap();
             assert_eq!(scheduled_jobs.len(), 1);
 
-            let (id, job, scheduled_at) = &scheduled_jobs[0];
-            assert_eq!(*id, 1);
+            let (job, scheduled_at) = &scheduled_jobs[0];
             assert!(matches!(
                 job,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 1 }
@@ -184,9 +183,9 @@ mod tests {
         #[tokio::test]
         async fn staggers_job_execution_times() {
             let jobs = vec![
-                (1, WorkerJob::UpdateAllianceInfo { alliance_id: 1 }),
-                (2, WorkerJob::UpdateAllianceInfo { alliance_id: 2 }),
-                (3, WorkerJob::UpdateAllianceInfo { alliance_id: 3 }),
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 3 },
             ];
 
             let schedule_interval = Duration::minutes(10);
@@ -202,13 +201,13 @@ mod tests {
             let expected_interval = 200;
 
             // Check that scheduled times are properly staggered
-            assert!(scheduled_jobs[0].2.timestamp() >= before);
+            assert!(scheduled_jobs[0].1.timestamp() >= before);
             assert_eq!(
-                scheduled_jobs[1].2.timestamp() - scheduled_jobs[0].2.timestamp(),
+                scheduled_jobs[1].1.timestamp() - scheduled_jobs[0].1.timestamp(),
                 expected_interval
             );
             assert_eq!(
-                scheduled_jobs[2].2.timestamp() - scheduled_jobs[1].2.timestamp(),
+                scheduled_jobs[2].1.timestamp() - scheduled_jobs[1].1.timestamp(),
                 expected_interval
             );
         }
@@ -219,7 +218,7 @@ mod tests {
             // Create more jobs than seconds in the schedule interval
             let mut jobs = Vec::new();
             for i in 1..=700 {
-                jobs.push((i as i32, WorkerJob::UpdateAllianceInfo { alliance_id: i }));
+                jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
             }
 
             let schedule_interval = Duration::minutes(10); // 600 seconds
@@ -232,7 +231,7 @@ mod tests {
             assert_eq!(scheduled_jobs.len(), 700);
 
             // All jobs should fit within the 600-second window
-            for (index, (_, _, scheduled_at)) in scheduled_jobs.iter().enumerate() {
+            for (index, (_, scheduled_at)) in scheduled_jobs.iter().enumerate() {
                 assert!(
                     scheduled_at.timestamp() >= before && scheduled_at.timestamp() <= after,
                     "Job {} scheduled at {} is outside window [{}, {}]",
@@ -244,19 +243,19 @@ mod tests {
             }
 
             // First job should be at or near the start
-            assert_eq!(scheduled_jobs[0].2.timestamp(), before);
+            assert_eq!(scheduled_jobs[0].1.timestamp(), before);
 
             // Last job should be near the end but within window
-            assert!(scheduled_jobs[699].2.timestamp() <= after);
-            assert!(scheduled_jobs[699].2.timestamp() >= after - 2); // Within last 2 seconds of window
+            assert!(scheduled_jobs[699].1.timestamp() <= after);
+            assert!(scheduled_jobs[699].1.timestamp() >= after - 2); // Within last 2 seconds of window
         }
 
         /// Expect correct job structure with WorkerJob and timestamp
         #[tokio::test]
         async fn returns_correct_job_structure() {
             let jobs = vec![
-                (1, WorkerJob::UpdateAllianceInfo { alliance_id: 42 }),
-                (2, WorkerJob::UpdateAllianceInfo { alliance_id: 99 }),
+                WorkerJob::UpdateAllianceInfo { alliance_id: 42 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 99 },
             ];
 
             let before = Utc::now().timestamp();
@@ -268,8 +267,7 @@ mod tests {
             assert_eq!(scheduled_jobs.len(), 2);
 
             // Verify first job
-            let (id1, job1, scheduled_at1) = &scheduled_jobs[0];
-            assert_eq!(*id1, 1);
+            let (job1, scheduled_at1) = &scheduled_jobs[0];
             assert!(matches!(
                 job1,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 42 }
@@ -278,8 +276,7 @@ mod tests {
             assert!(scheduled_at1.timestamp() <= after);
 
             // Verify second job
-            let (id2, job2, scheduled_at2) = &scheduled_jobs[1];
-            assert_eq!(*id2, 2);
+            let (job2, scheduled_at2) = &scheduled_jobs[1];
             assert!(matches!(
                 job2,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 99 }
@@ -295,11 +292,11 @@ mod tests {
         #[tokio::test]
         async fn schedules_within_interval_window() {
             let jobs = vec![
-                (1, WorkerJob::UpdateAllianceInfo { alliance_id: 1 }),
-                (2, WorkerJob::UpdateAllianceInfo { alliance_id: 2 }),
-                (3, WorkerJob::UpdateAllianceInfo { alliance_id: 3 }),
-                (4, WorkerJob::UpdateAllianceInfo { alliance_id: 4 }),
-                (5, WorkerJob::UpdateAllianceInfo { alliance_id: 5 }),
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 3 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 4 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 5 },
             ];
 
             let schedule_interval = Duration::minutes(10);
@@ -311,7 +308,7 @@ mod tests {
             let scheduled_jobs = result.unwrap();
 
             // All jobs should be scheduled within the interval window
-            for (_, _, scheduled_at) in scheduled_jobs {
+            for (_, scheduled_at) in scheduled_jobs {
                 assert!(
                     scheduled_at.timestamp() >= before && scheduled_at.timestamp() <= after,
                     "Job scheduled at {} is outside window [{}, {}]",
@@ -326,10 +323,10 @@ mod tests {
         #[tokio::test]
         async fn maintains_job_order() {
             let jobs = vec![
-                (1, WorkerJob::UpdateAllianceInfo { alliance_id: 10 }),
-                (2, WorkerJob::UpdateAllianceInfo { alliance_id: 20 }),
-                (3, WorkerJob::UpdateAllianceInfo { alliance_id: 30 }),
-                (4, WorkerJob::UpdateAllianceInfo { alliance_id: 40 }),
+                WorkerJob::UpdateAllianceInfo { alliance_id: 10 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 20 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 30 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 40 },
             ];
 
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -339,24 +336,20 @@ mod tests {
             assert_eq!(scheduled_jobs.len(), 4);
 
             // Jobs should maintain their input order
-            assert_eq!(scheduled_jobs[0].0, 1);
             assert!(matches!(
-                scheduled_jobs[0].1,
+                scheduled_jobs[0].0,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 10 }
             ));
-            assert_eq!(scheduled_jobs[1].0, 2);
             assert!(matches!(
-                scheduled_jobs[1].1,
+                scheduled_jobs[1].0,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 20 }
             ));
-            assert_eq!(scheduled_jobs[2].0, 3);
             assert!(matches!(
-                scheduled_jobs[2].1,
+                scheduled_jobs[2].0,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 30 }
             ));
-            assert_eq!(scheduled_jobs[3].0, 4);
             assert!(matches!(
-                scheduled_jobs[3].1,
+                scheduled_jobs[3].0,
                 WorkerJob::UpdateAllianceInfo { alliance_id: 40 }
             ));
         }
@@ -366,7 +359,7 @@ mod tests {
         async fn produces_monotonic_timestamps() {
             let mut jobs = Vec::new();
             for i in 1..=50 {
-                jobs.push((i as i32, WorkerJob::UpdateAllianceInfo { alliance_id: i }));
+                jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
             }
 
             let result = create_job_schedule(jobs, Duration::minutes(10)).await;
@@ -377,11 +370,11 @@ mod tests {
             // Verify timestamps increase monotonically
             for i in 1..scheduled_jobs.len() {
                 assert!(
-                    scheduled_jobs[i].2.timestamp() >= scheduled_jobs[i - 1].2.timestamp(),
+                    scheduled_jobs[i].1.timestamp() >= scheduled_jobs[i - 1].1.timestamp(),
                     "Timestamp at index {} ({}) is not >= previous timestamp ({})",
                     i,
-                    scheduled_jobs[i].2.timestamp(),
-                    scheduled_jobs[i - 1].2.timestamp()
+                    scheduled_jobs[i].1.timestamp(),
+                    scheduled_jobs[i - 1].1.timestamp()
                 );
             }
         }
@@ -399,7 +392,7 @@ mod tests {
             for (job_count, interval, expected_interval) in test_cases {
                 let mut jobs = Vec::new();
                 for i in 1..=job_count {
-                    jobs.push((i as i32, WorkerJob::UpdateAllianceInfo { alliance_id: i }));
+                    jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
                 }
 
                 let result = create_job_schedule(jobs, interval).await;
@@ -411,7 +404,7 @@ mod tests {
                 // Check intervals between consecutive jobs
                 for i in 1..scheduled_jobs.len() {
                     let actual_interval =
-                        scheduled_jobs[i].2.timestamp() - scheduled_jobs[i - 1].2.timestamp();
+                        scheduled_jobs[i].1.timestamp() - scheduled_jobs[i - 1].1.timestamp();
                     assert_eq!(
                         actual_interval, expected_interval,
                         "For {} jobs with {:?} interval, expected interval {} but got {}",

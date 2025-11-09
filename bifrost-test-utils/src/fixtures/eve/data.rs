@@ -131,7 +131,8 @@ impl<'a> EveFixtures<'a> {
                 url: ActiveValue::Set(corporation.url),
                 war_eligible: ActiveValue::Set(corporation.war_eligible),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
             .exec_with_returning(&self.setup.state.db)
@@ -178,7 +179,8 @@ impl<'a> EveFixtures<'a> {
                 security_status: ActiveValue::Set(character.security_status),
                 title: ActiveValue::Set(character.title),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
             .exec_with_returning(&self.setup.state.db)

@@ -19,10 +19,7 @@ async fn updates_character_affiliations_successfully() -> Result<(), TestError> 
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -76,10 +73,7 @@ async fn updates_character_affiliations_with_faction() -> Result<(), TestError> 
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: vec![(500001, faction.id)].into_iter().collect(),
@@ -128,10 +122,7 @@ async fn skips_affiliations_when_character_missing() -> Result<(), TestError> {
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -179,10 +170,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
 
     let original_corporation_id = character.corporation_id;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -236,10 +224,7 @@ async fn sets_faction_to_none_when_faction_missing() -> Result<(), TestError> {
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(), // Faction not in table_ids
@@ -299,10 +284,7 @@ async fn updates_multiple_character_affiliations() -> Result<(), TestError> {
         .insert_mock_character(2114794366, 98000002, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -371,10 +353,7 @@ async fn deduplicates_character_affiliations() -> Result<(), TestError> {
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -426,10 +405,7 @@ async fn handles_empty_affiliations_list() -> Result<(), TestError> {
         entity::prelude::EveCharacter,
     )?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -472,10 +448,7 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),

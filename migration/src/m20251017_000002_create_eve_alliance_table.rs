@@ -27,7 +27,6 @@ impl MigrationTrait for Migration {
                     .col(string(EveAlliance::Ticker))
                     .col(timestamp(EveAlliance::CreatedAt))
                     .col(timestamp(EveAlliance::UpdatedAt))
-                    .col(timestamp_null(EveAlliance::JobScheduledAt))
                     .to_owned(),
             )
             .await?;
@@ -98,5 +97,4 @@ pub enum EveAlliance {
     Ticker,
     CreatedAt,
     UpdatedAt,
-    JobScheduledAt,
 }

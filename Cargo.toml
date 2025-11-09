@@ -33,6 +33,7 @@ dioxus-logger = "0.7.0"
 dotenvy = { version = "0.15.7", optional = true }
 entity = { workspace = true, optional = true }
 eve_esi = { workspace = true, optional = true }
+fred = { version = "10.1.0", optional = true }
 futures = { version = "0.3", optional = true }
 migration = { path = "migration", optional = true }
 oauth2 = { version = "5.0.0", optional = true }
@@ -69,6 +70,7 @@ server = [
   "dotenvy",
   "entity",
   "eve_esi",
+  "fred",
   "futures",
   "migration",
   "oauth2",
