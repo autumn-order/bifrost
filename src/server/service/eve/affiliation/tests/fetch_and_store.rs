@@ -21,10 +21,7 @@ async fn returns_ok_when_no_entities_missing() -> Result<(), TestError> {
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let mut table_ids = TableIds {
         faction_ids: vec![(faction.faction_id, faction.id)].into_iter().collect(),
@@ -77,10 +74,7 @@ async fn fetches_and_stores_missing_characters() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let mut table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -120,10 +114,7 @@ async fn fetches_and_stores_missing_corporations() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let mut table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -164,10 +155,7 @@ async fn fetches_and_stores_missing_alliances() -> Result<(), TestError> {
         .eve()
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let mut table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -222,10 +210,7 @@ async fn fetches_entities_with_dependencies() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let service = AffiliationService {
-        db: &test.state.db,
-        esi_client: &test.state.esi_client,
-    };
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let mut table_ids = TableIds {
         faction_ids: HashMap::new(),
