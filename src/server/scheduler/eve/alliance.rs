@@ -49,10 +49,6 @@ impl SchedulableEntity for entity::eve_alliance::Entity {
         entity::eve_alliance::Column::UpdatedAt
     }
 
-    fn job_scheduled_at_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_alliance::Column::JobScheduledAt
-    }
-
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
         entity::eve_alliance::Column::Id
     }

@@ -58,7 +58,6 @@ impl<'a> AllianceRepository<'a> {
                 ticker: ActiveValue::Set(alliance.ticker),
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                job_scheduled_at: ActiveValue::Set(None),
                 ..Default::default()
             })
             .on_conflict(
@@ -72,7 +71,6 @@ impl<'a> AllianceRepository<'a> {
                         entity::eve_alliance::Column::Name,
                         entity::eve_alliance::Column::Ticker,
                         entity::eve_alliance::Column::UpdatedAt,
-                        entity::eve_alliance::Column::JobScheduledAt,
                     ])
                     .to_owned(),
             )
@@ -100,7 +98,6 @@ impl<'a> AllianceRepository<'a> {
                     ticker: ActiveValue::Set(alliance.ticker),
                     created_at: ActiveValue::Set(Utc::now().naive_utc()),
                     updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                    job_scheduled_at: ActiveValue::Set(None),
                     ..Default::default()
                 },
             );
@@ -117,7 +114,6 @@ impl<'a> AllianceRepository<'a> {
                         entity::eve_alliance::Column::Name,
                         entity::eve_alliance::Column::Ticker,
                         entity::eve_alliance::Column::UpdatedAt,
-                        entity::eve_alliance::Column::JobScheduledAt,
                     ])
                     .to_owned(),
             )

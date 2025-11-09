@@ -205,7 +205,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
     let corp = test.eve().insert_mock_corporation(100, None, None).await?;
 
-    let original_updated_at = corp.updated_at;
+    let original_updated_at = corp.info_updated_at;
 
     // Wait a moment to ensure timestamp difference
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -225,10 +225,10 @@ async fn updates_timestamp() -> Result<(), TestError> {
         .expect("Corporation should exist");
 
     assert!(
-        updated.updated_at >= original_updated_at,
+        updated.info_updated_at >= original_updated_at,
         "UpdatedAt should be equal to or newer than original. Original: {:?}, Updated: {:?}",
         original_updated_at,
-        updated.updated_at
+        updated.info_updated_at
     );
 
     Ok(())

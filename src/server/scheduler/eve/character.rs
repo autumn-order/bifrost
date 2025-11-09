@@ -46,11 +46,7 @@ pub async fn schedule_character_info_update(
 
 impl SchedulableEntity for entity::eve_character::Entity {
     fn updated_at_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_character::Column::UpdatedAt
-    }
-
-    fn job_scheduled_at_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_character::Column::JobScheduledAt
+        entity::eve_character::Column::InfoUpdatedAt
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
