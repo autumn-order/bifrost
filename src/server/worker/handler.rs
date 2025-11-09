@@ -1,10 +1,11 @@
 use dioxus_logger::tracing;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
 
 use crate::server::{
     error::Error,
     service::eve::{
-        alliance::AllianceService, character::CharacterService, corporation::CorporationService,
+        affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
+        corporation::CorporationService,
     },
 };
 
@@ -86,6 +87,34 @@ impl<'a> WorkerJobHandler<'a> {
             })?;
 
         tracing::debug!("Successfully updated info for character {}", character_id);
+
+        Ok(())
+    }
+
+    /// Retrieves list of character IDs equal to provided count and updates affiliations for all of them
+    pub async fn update_affiliations(&self, count: u64) -> Result<(), Error> {
+        tracing::debug!("Processing affiliations update for {} characters", count);
+
+        let character_ids: Vec<i64> = entity::prelude::EveCharacter::find()
+            .select_only()
+            .column(entity::eve_character::Column::CharacterId)
+            .limit(count)
+            .into_tuple()
+            .all(self.db)
+            .await.map_err(|e| {
+                tracing::error!("Failed to retrieve character IDs for an affiliations update due to error: {:?}", e);
+                e
+            })?;
+
+        AffiliationService::new(self.db, self.esi_client)
+            .update_affiliations(character_ids)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update affiliations due to error: {:?}", e);
+                e
+            })?;
+
+        tracing::debug!("Successfully updated affiliations for {} characters", count);
 
         Ok(())
     }

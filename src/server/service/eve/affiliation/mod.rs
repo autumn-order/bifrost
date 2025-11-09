@@ -48,6 +48,11 @@ pub struct AffiliationService<'a> {
 }
 
 impl<'a> AffiliationService<'a> {
+    /// Creates a new instance of [`AffiliationService`]
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+        Self { db, esi_client }
+    }
+
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
         // Sanitize character IDs to valid ranges as an invalid ID causes entire affiliation request to fail
         let character_ids = character_ids

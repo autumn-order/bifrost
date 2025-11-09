@@ -24,6 +24,7 @@ pub async fn handle_job(
         WorkerJob::UpdateCharacterInfo { character_id } => {
             handler.update_character_info(character_id).await?
         }
+        WorkerJob::UpdateAffiliations { count } => handler.update_affiliations(count).await?,
     }
 
     Ok(())
