@@ -18,7 +18,13 @@ fn main() {
         use crate::server::{config::Config, model::app::AppState, startup};
 
         dotenvy::dotenv().ok();
-        let config = Config::from_env().unwrap();
+        let config = match Config::from_env() {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("Configuration error: {}", e);
+                std::process::exit(1);
+            }
+        };
 
         let esi_client = startup::build_esi_client(&config).unwrap();
         let session = startup::connect_to_session(&config).await.unwrap();

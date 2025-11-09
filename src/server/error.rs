@@ -32,6 +32,10 @@ pub enum Error {
     AuthCsrfEmptySession,
     #[error("Failed to login user due to CSRF state mismatch")]
     AuthCsrfInvalidState,
+    #[error("Missing required environment variable: {0}")]
+    MissingEnvVar(String),
+    #[error("Invalid value for environment variable {var}: {reason}")]
+    InvalidEnvValue { var: String, reason: String },
     #[error(transparent)]
     EsiError(#[from] eve_esi::Error),
     #[error(transparent)]
@@ -54,27 +58,6 @@ impl IntoResponse for Error {
         );
 
         match self {
-            // This should not be returned as an error response as it can be
-            // resolved by setting the character/corporation/alliance membership
-            // to None as a temporary solution.
-            Error::EveFactionNotFound(err) => {
-                error!(err);
-
-                internal_server_error.into_response()
-            }
-            Error::ParseError(err) => {
-                error!(err);
-
-                internal_server_error.into_response()
-            }
-            Error::AuthCsrfEmptySession => {
-                error!(
-                    "Authentication-related internal server error: {}",
-                    Error::AuthCsrfEmptySession
-                );
-
-                internal_server_error.into_response()
-            }
             Error::AuthCsrfInvalidState => {
                 debug!("Authentication error: {}", Error::AuthCsrfInvalidState);
 
@@ -84,28 +67,8 @@ impl IntoResponse for Error {
                 )
                     .into_response()
             }
-            Error::EsiError(err) => {
-                error!("ESI-related internal server error: {}", err);
-
-                internal_server_error.into_response()
-            }
-            Error::DbErr(err) => {
-                error!("Database-related internal server error: {}", err);
-
-                internal_server_error.into_response()
-            }
-            Error::SessionError(err) => {
-                error!("Session-related internal server error: {}", err);
-
-                internal_server_error.into_response()
-            }
-            Error::SessionRedisError(err) => {
-                error!("Session-related internal server error: {}", err);
-
-                internal_server_error.into_response()
-            }
-            Error::ApalisRedisError(err) => {
-                error!("Apalis-related internal server error: {}", err);
+            err => {
+                error!("Internal server error: {}", err);
 
                 internal_server_error.into_response()
             }
