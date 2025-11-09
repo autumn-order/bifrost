@@ -4,7 +4,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::config::eve::character::{CACHE_DURATION, SCHEDULE_INTERVAL},
-    util::task::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+    scheduler::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
 };
 
 /// Checks for character information nearing expiration & schedules an update

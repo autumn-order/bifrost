@@ -4,7 +4,7 @@ use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::config::eve::alliance::{CACHE_DURATION, SCHEDULE_INTERVAL},
-    util::task::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+    scheduler::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
 };
 
 /// Checks for alliance information nearing expiration & schedules an update
