@@ -19,7 +19,7 @@ pub fn Navbar() -> Element {
             }
             div {
                 class: "navbar-end",
-                ul { class: "flex gap-2",
+                ul { class: "flex gap-2 h-10",
                     // Conditionally render based on whether user is logged in
                     if user_store.read().user.is_some() {
                         // User is logged in, show link to auth page

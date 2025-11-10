@@ -111,7 +111,7 @@ pub fn LoginButton() -> Element {
     let user_store = use_context::<Store<UserState>>();
 
     rsx!(
-        ul { class: "flex gap-2",
+        ul { class: "flex gap-2 h-10",
             if user_store.read().user.is_some() {
                 li {
                     Link {
