@@ -1,3 +1,3 @@
-pub mod home;
+pub mod dashboard;
 
-pub use home::AuthHome;
+pub use dashboard::Dashboard;
