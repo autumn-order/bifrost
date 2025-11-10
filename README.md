@@ -1,3 +1,75 @@
+
+# Deployment
+
+## Prerequisites
+
+### Install Dependencies
+
+- [Docker](https://docs.docker.com/engine/install/)
+- [git](https://git-scm.com/install/linux)
+
+### Clone the repository
+
+```bash
+git clone https://github.com/autumn-order/bifrost
+```
+
+### Create EVE Online Developer Application
+
+Create a developer application at <https://developers.eveonline.com/applications>
+
+- Set callback URL to `https://your.domain.com/api/auth/callback`
+- Enable ALL scopes for the application
+
+### Configure Environment Variables
+
+```bash
+cp .env.example .env
+```
+
+Set the following in `.env`:
+
+- `DOMAIN` (Set to your domain, e.g. `bifrost.autumn-order.com`)
+- `CONTACT_EMAIL` (Email for EVE developers to contact you if any issues occur)
+- `ESI_CLIENT_ID` (Get from <https://developers.eveonline.com/applications>)
+- `ESI_CLIENT_SECRET`(Get from from <https://developers.eveonline.com/applications>)
+- `ESI_CALLBACK_URL` (This will be what you set in your dev application `https://your.domain.com/api/auth/callback`)
+- `POSTGRES_PASSWORD` (Set to a secure password)
+
+## Running for Production
+
+1. Start traefik proxy instance
+
+```bash
+sudo docker network create traefik
+```
+
+```bash
+sudo docker compose -f docker-compose.traefik.yml up -d
+```
+
+2. Run Bifrost
+
+```bash
+sudo docker compose up -d
+```
+
+This will take a few minutes to build depending on server resources, this will only occur on first startup or after updating
+
+## Updating
+
+1. Pull repository changes
+
+```bash
+git pull
+```
+
+2. Rebuild the application with the `--build` flag
+
+```bash
+sudo docker compose up -d --build
+```
+
 # Development
 
 ## Prerequisites
@@ -30,7 +102,8 @@ cp .env.example .env
 
 Set the following in `.env`:
 
-- `CONTACT_EMAIL`
+- `DOMAIN` (Unnecessary for testing on localhost, ignore it)
+- `CONTACT_EMAIL` (Email for EVE developers to contact you if any issues occur)
 - `ESI_CLIENT_ID` (Get from <https://developers.eveonline.com/applications>)
 - `ESI_CLIENT_SECRET`(Get from from <https://developers.eveonline.com/applications>)
 - `ESI_CALLBACK_URL` (For development, this will be `http://localhost:8080/api/auth/callback`)

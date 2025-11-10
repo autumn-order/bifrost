@@ -1,0 +1,17 @@
+assets/tailwind.css
+
+# Rust build artifacts
+target/
+dx/
+
+# Node.js dependencies
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Docker files
+Dockerfile
+docker-compose*.yml
+.dockerignore

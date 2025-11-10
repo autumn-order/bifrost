@@ -1,0 +1,36 @@
+services:
+  traefik:
+    image: "traefik:latest"
+    container_name: "traefik"
+    restart: always
+    command:
+      - --log.level=INFO
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=traefik
+      # HTTP
+      - --entrypoints.web.address=:80
+      - --entrypoints.http.http.redirections.entryPoint.to=websecure
+      - --entrypoints.http.http.redirections.entryPoint.scheme=https
+      # HTTPS
+      - --entryPoints.websecure.address=:443
+      - --entrypoints.websecure.http.tls=true
+      # ACME
+      - --certificatesresolvers.primary.acme.httpchallenge=true
+      - --certificatesresolvers.primary.acme.httpchallenge.entrypoint=web
+      - --certificatesresolvers.primary.acme.email=${CONTACT_EMAIL}
+      - --certificatesresolvers.primary.acme.storage=/letsencrypt/acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./data/letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - traefik
+    labels:
+      - "traefik.enable=true"
+
+networks:
+  traefik:
+    external: true
