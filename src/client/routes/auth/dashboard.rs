@@ -1,5 +1,5 @@
 use dioxus::prelude::*;
-use dioxus_free_icons::icons::fa_solid_icons::FaLink;
+use dioxus_free_icons::icons::fa_solid_icons::{FaLink, FaShuffle};
 use dioxus_free_icons::Icon;
 use dioxus_logger::tracing;
 
@@ -44,7 +44,7 @@ pub fn CharacterCard() -> Element {
                     if let Some(user) = user_data {
                         div { class: "avatar",
                             div {
-                                class: "w-24 rounded-full",
+                                class: "w-24 h-24 rounded-full",
                                 img {
                                     src: format!("https://images.evetech.net/characters/{}/portrait?size=128", user.character_id),
                                     alt: "{user.character_name}",
@@ -57,24 +57,43 @@ pub fn CharacterCard() -> Element {
                         }
                     } else {
                         div {
-                            class: "skeleton h-32 w-32 rounded"
+                            class: "skeleton h-24 w-24 rounded"
                         }
                         div {
                             class: "skeleton h-6 w-40 mt-2"
                         }
                     }
                 }
-                div { class: "flex justify-center",
-                    a {
-                        href: "/api/auth/login",
-                        button { class: "btn btn-outline w-42 flex gap-2",
-                            Icon {
-                                width: 24,
-                                height: 24,
-                                icon: FaLink
+                div {
+                    ul { class: "flex flex-wrap gap-2 justify-center",
+                        li {
+                            a {
+                                href: "/api/auth/login",
+                                button { class: "btn btn-outline w-42 flex gap-2",
+                                    Icon {
+                                        width: 24,
+                                        height: 24,
+                                        icon: FaLink
+                                    }
+                                    p {
+                                        "Link Character"
+                                    }
+                                }
                             }
-                            p {
-                                "Link Character"
+                        }
+                        li {
+                            a {
+                                href: "/api/auth/login?change_main=true",
+                                button { class: "btn btn-outline w-42 flex gap-2",
+                                    Icon {
+                                        width: 24,
+                                        height: 24,
+                                        icon: FaShuffle
+                                    }
+                                    p {
+                                        "Change Main"
+                                    }
+                                }
                             }
                         }
                     }
@@ -88,7 +107,6 @@ pub fn CharacterCard() -> Element {
 #[component]
 pub fn CharacterTable() -> Element {
     let mut characters = use_signal(|| Vec::<CharacterDto>::new());
-    let user_store = use_context::<Store<UserState>>();
 
     // Retrieve user characters on component load
     #[cfg(feature = "web")]
@@ -97,17 +115,7 @@ pub fn CharacterTable() -> Element {
 
         match &*future.read_unchecked() {
             Some(Ok(chars)) => {
-                let user = user_store.read();
-                let main_character_id = user.user.as_ref().map(|u| u.character_id);
-
-                // Filter out the main character from the list
-                let filtered_chars: Vec<CharacterDto> = chars
-                    .iter()
-                    .filter(|c| Some(c.id) != main_character_id)
-                    .cloned()
-                    .collect();
-
-                characters.set(filtered_chars);
+                characters.set(chars.clone());
             }
             Some(Err(err)) => {
                 tracing::error!(err);
