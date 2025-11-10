@@ -28,7 +28,7 @@ services:
       - traefik
 
   postgres:
-    image: postgres:latest
+    image: postgres:18-alpine
     env_file: .env
     volumes:
       - postgres:/var/lib/postgresql/data
@@ -36,7 +36,7 @@ services:
       - bifrost
 
   valkey:
-    image: valkey/valkey:latest
+    image: valkey/valkey:9-alpine
     networks:
       - bifrost
 
