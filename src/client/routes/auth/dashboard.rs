@@ -17,7 +17,7 @@ pub fn Dashboard() -> Element {
             content: "EVE Online authentication platform for coalitions, alliances, and corporations."
         }
         Page { class: "flex flex-col items-center",
-            div { class: "w-full h-full max-w-[1440px] p-6 flex justify-center gap-2",
+            div { class: "w-full h-full max-w-[1440px] pt-4 flex justify-center gap-2",
                 CharacterCard { }
             }
         }
@@ -33,7 +33,7 @@ pub fn CharacterCard() -> Element {
 
     rsx!(
         div {
-            class: "card shadow-sm w-full max-w-96",
+            class: "card shadow-sm w-full max-w-196",
             div {
                 class: "card-body",
                 h2 {
@@ -124,6 +124,8 @@ pub fn CharacterTable() -> Element {
                 thead {
                     tr {
                         th { "Character" }
+                        th { "Corporation" }
+                        th { "Alliance" }
                     }
                 }
                 tbody {
@@ -145,6 +147,51 @@ pub fn CharacterTable() -> Element {
                                         "{c.name}"
                                     }
                                 }
+                            }
+                            td {
+                                div {
+                                    class: "flex gap-2 items-center",
+                                    div { class: "avatar",
+                                        div {
+                                            class: "w-10 h-10",
+                                            img {
+                                                src: format!("https://images.evetech.net/corporations/{}/logo?size=64", c.corporation.id),
+                                                alt: "{c.corporation.name}",
+                                            }
+                                        }
+                                    }
+                                    p {
+                                        "{c.corporation.name}"
+                                    }
+                                }
+                            }
+                            {if let Some(alliance) = &c.alliance {
+                                rsx!(
+                                    td {
+                                        div {
+                                            class: "flex gap-2 items-center",
+                                            div { class: "avatar",
+                                                div {
+                                                    class: "w-10 h-10",
+                                                    img {
+                                                        src: format!("https://images.evetech.net/alliances/{}/logo?size=64", alliance.id),
+                                                        alt: "{alliance.name}",
+                                                    }
+                                                }
+                                            }
+                                            p {
+                                                "{alliance.name}"
+                                            }
+                                        }
+                                    }
+                                )
+                            } else {
+                                rsx!(
+                                    td {
+
+                                    }
+                                )
+                            }
                             }
                         }
                     })}
