@@ -9,16 +9,17 @@ use crate::{
         user::{AllianceDto, CharacterDto, CorporationDto},
     },
     server::{
-        data::user::user_character::UserCharacterRepository,
         error::Error,
         model::{app::AppState, session::user::SessionUserId},
-        service::user::{user_character, UserService},
+        service::user::UserService,
     },
 };
 
 pub static USER_TAG: &str = "user";
 
 // TEMPORARY for alpha 1 tests
+//
+// Refactor will be needed to decouple sea_orm and remove updated at metadata out of this controller for actual usage outside of tests
 /// Get all characters owned by logged in user
 #[utoipa::path(
     get,
@@ -35,7 +36,6 @@ pub async fn get_user_characters(
     session: Session,
 ) -> Result<impl IntoResponse, Error> {
     let user_service = UserService::new(&state.db, &state.esi_client);
-    let user_character_repository = UserCharacterRepository::new(&state.db);
 
     let user_id = SessionUserId::get(&session).await?;
 
@@ -72,9 +72,16 @@ pub async fn get_user_characters(
             .into_response());
     };
 
-    let user_characters = user_character_repository
-        .get_owned_characters_by_user_id(user.id)
+    let user_characters_join = entity::prelude::BifrostUserCharacter::find()
+        .filter(entity::bifrost_user_character::Column::UserId.eq(user.id))
+        .find_also_related(entity::prelude::EveCharacter)
+        .all(&state.db)
         .await?;
+
+    let user_characters: Vec<entity::eve_character::Model> = user_characters_join
+        .into_iter()
+        .filter_map(|(_, maybe_char)| maybe_char)
+        .collect();
 
     let corporation_ids = user_characters
         .iter()
@@ -113,6 +120,7 @@ pub async fn get_user_characters(
                     Some(AllianceDto {
                         id: alliance.alliance_id,
                         name: alliance.name.clone(),
+                        updated_at: alliance.updated_at,
                     })
                 } else {
                     None
@@ -124,8 +132,12 @@ pub async fn get_user_characters(
                     corporation: CorporationDto {
                         id: corporation.corporation_id,
                         name: corporation.name.clone(),
+                        info_updated_at: corporation.info_updated_at,
+                        affiliation_updated_at: corporation.affiliation_updated_at,
                     },
                     alliance: alliance_dto,
+                    info_updated_at: character.info_updated_at,
+                    affiliation_updated_at: character.affiliation_updated_at,
                 })
             } else {
                 None

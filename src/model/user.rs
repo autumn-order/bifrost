@@ -1,3 +1,4 @@
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -15,6 +16,8 @@ pub struct CharacterDto {
     pub name: String,
     pub corporation: CorporationDto,
     pub alliance: Option<AllianceDto>,
+    pub info_updated_at: NaiveDateTime,
+    pub affiliation_updated_at: NaiveDateTime,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -22,6 +25,8 @@ pub struct CharacterDto {
 pub struct CorporationDto {
     pub id: i64,
     pub name: String,
+    pub info_updated_at: NaiveDateTime,
+    pub affiliation_updated_at: NaiveDateTime,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -29,4 +34,5 @@ pub struct CorporationDto {
 pub struct AllianceDto {
     pub id: i64,
     pub name: String,
+    pub updated_at: NaiveDateTime,
 }
