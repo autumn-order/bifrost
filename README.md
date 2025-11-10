@@ -1,3 +1,48 @@
+# Bifrost Auth
+
+> [!WARNING]
+>
+> **This application is still in early Alpha, it is not ready for production usage!**
+>
+> Currently the backend is still in development, frontend development has yet to begin.
+> A production ready release for v0.1.0 is aimed for around January but timelines may change
+
+An EVE Online authentication platform for coaltions, alliances, and corporations. Built by The Order of Autumn, a corporation part of Black Rose alliance & Phoenix Coalition.
+
+The goal is to create an authentication platform written for high performance, large-scale, and support for multiple corporations & alliances to exist within the same instance or to link their own instance with minimal hassle.
+Flexibility should be offered for corporations & alliances to have their own group configurations and discords within an auth instance as determined by the administrators.
+
+## Roadmap
+
+Subject to change, this is a rough draft of goal modules
+
+v0.1.0 Core Functionality
+- Auth Module (Completed, currently under testing)
+- Job scheduler and worker (In progress, needs refinement & testing)
+- Admin (Admin login & controls)
+- Groups (Multi-tenant groups owned by auth, other groups, alliances, and corporations)
+- Communications - Discord (Support for multiple Discord instances)
+- Character Audit (ESI check assets, mails, wallet etc)
+
+v0.2.0 Bifrost Syncing
+- Corporation Audit (ESI check assets, wallet, structures)
+- Developer API (Provide API endpoints similar to ESI to access Bifrost information for 3rd party apps)
+- Syncing (Link bifrost instances together so members don't need to login to multiple auths)
+
+v0.3.0 Alliance/Coalition Essentials
+- Recruitment (List corporations accepting applications, create applications to corporations)
+- Timerboard
+- Doctrines
+- Communications - Mumble
+
+v0.4.0 Economy & Industry
+- Buyback
+- Logistics
+- Moon mining
+- Market
+
+3rd party extensions to the auth may or may not be possible as Rust is harder than Python/PHP to dynamically modify the code but it has been done. This will be lowest in development priority
+and we'll aim to provide first-party support for all of the most utilized features for auths.
 
 # Deployment
 
