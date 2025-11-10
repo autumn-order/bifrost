@@ -7,36 +7,12 @@ use crate::client::components::{EveLogin, Page};
 use crate::client::router::Route;
 use crate::client::store::user::UserState;
 
-#[component]
-pub fn LoginButton() -> Element {
-    let user_store = use_context::<Store<UserState>>();
-
-    rsx!(
-        ul { class: "flex gap-2",
-            if user_store.read().user.is_some() {
-                li {
-                    Link {
-                        to: Route::Dashboard {},
-                        class: "btn btn-primary w-28",
-                        "Go to Auth"
-                    }
-                }
-                li {
-                    a { href: "/api/docs",
-                        button {
-                            class: "btn btn-secondary w-28",
-                            "API Docs"
-                        }
-                    }
-                }
-            } else if user_store.read().fetched {
-                li {
-                    EveLogin {  }
-                }
-            }
-        }
-    )
-}
+const AUTUMN_LOGO: Asset = asset!(
+    "/assets/autumn-logo-dark.png",
+    ImageAssetOptions::new()
+        .with_avif()
+        .with_size(ImageSize::Automatic)
+);
 
 #[component]
 pub fn Home() -> Element {
@@ -48,6 +24,13 @@ pub fn Home() -> Element {
         }
         Page { class: "flex items-center justify-center",
             div { class: "flex flex-col items-center gap-4",
+                div { class: "pt-6",
+                    img {
+                        width: 256,
+                        height: 256,
+                        src: AUTUMN_LOGO
+                    }
+                }
                 div { class: "flex items-center gap-2",
                     p { class: "text-2xl",
                         "Bifrost"
@@ -117,6 +100,37 @@ pub fn Home() -> Element {
                             }
                         }
                     }
+                }
+            }
+        }
+    )
+}
+
+#[component]
+pub fn LoginButton() -> Element {
+    let user_store = use_context::<Store<UserState>>();
+
+    rsx!(
+        ul { class: "flex gap-2",
+            if user_store.read().user.is_some() {
+                li {
+                    Link {
+                        to: Route::Dashboard {},
+                        class: "btn btn-primary w-28",
+                        "Go to Auth"
+                    }
+                }
+                li {
+                    a { href: "/api/docs",
+                        button {
+                            class: "btn btn-secondary w-28",
+                            "API Docs"
+                        }
+                    }
+                }
+            } else if user_store.read().fetched {
+                li {
+                    EveLogin {  }
                 }
             }
         }
