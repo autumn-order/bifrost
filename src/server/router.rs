@@ -9,7 +9,6 @@ pub fn routes() -> Router<AppState> {
     #[derive(OpenApi)]
     #[openapi(info(title = "Bifrost", description = "Bifrost API"), tags(
         (name = controller::auth::AUTH_TAG, description = "Authentication API routes"),
-        (name = controller::user::USER_TAG, description = "User-related API routes")
     ))]
     struct ApiDoc;
 
@@ -17,7 +16,7 @@ pub fn routes() -> Router<AppState> {
         .routes(routes!(controller::auth::login))
         .routes(routes!(controller::auth::callback))
         .routes(routes!(controller::auth::logout))
-        .routes(routes!(controller::user::get_user))
+        .routes(routes!(controller::auth::get_user))
         .split_for_parts();
 
     let routes = routes.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api));

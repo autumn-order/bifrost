@@ -4,7 +4,7 @@ use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
 use crate::{
-    model::user::{Character, UserDto},
+    model::user::UserDto,
     server::{
         data::user::{user_character::UserCharacterRepository, UserRepository},
         error::Error,
@@ -67,9 +67,9 @@ impl<'a> UserService<'a> {
         Ok(new_user.id)
     }
 
+    /// Retrieves main character for provided user ID
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
         let user_repo = UserRepository::new(&self.db);
-        let user_character_repo = UserCharacterRepository::new(&self.db);
 
         match user_repo.get(user_id).await? {
             None => return Ok(None),
@@ -82,26 +82,10 @@ impl<'a> UserService<'a> {
                     )))
                 })?;
 
-                let user_characters = user_character_repo
-                    .get_owned_characters_by_user_id(user_id)
-                    .await?;
-
-                let characters: Vec<Character> = user_characters
-                    .into_iter()
-                    .filter(|c| c.character_id != main_character.character_id)
-                    .map(|c| Character {
-                        id: c.character_id,
-                        name: c.name,
-                    })
-                    .collect();
-
                 Ok(Some(UserDto {
                     id: user.id,
-                    main_character: Character {
-                        id: main_character.character_id,
-                        name: main_character.name,
-                    },
-                    characters: characters,
+                    character_id: main_character.character_id,
+                    character_name: main_character.name,
                 }))
             }
         }
@@ -284,7 +268,7 @@ mod tests {
 
         /// Expect Ok with Some & no additional characters for user with only a main character linked
         #[tokio::test]
-        async fn returns_user_with_only_main_character() -> Result<(), TestError> {
+        async fn returns_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
             let (user_model, _, _) = test
                 .user()
@@ -296,35 +280,6 @@ mod tests {
             assert!(result.is_ok());
             let maybe_user = result.unwrap();
             assert!(maybe_user.is_some());
-            let user_info = maybe_user.unwrap();
-
-            // Additional characters as only their main is linked should be empty
-            assert!(user_info.characters.is_empty());
-
-            Ok(())
-        }
-
-        /// Expect Ok with Some & 1 additional characters linked for user
-        #[tokio::test]
-        async fn returns_user_with_additional_character() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let (user_model, _, _) = test
-                .user()
-                .insert_user_with_mock_character(1, 1, None, None)
-                .await?;
-            let (_, _) = test
-                .user()
-                .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
-                .await?;
-
-            let user_service = UserService::new(&test.state.db, &test.state.esi_client);
-            let result = user_service.get_user(user_model.id).await;
-            assert!(result.is_ok());
-            let maybe_user = result.unwrap();
-            assert!(maybe_user.is_some());
-            let user_info = maybe_user.unwrap();
-            // Additional characters, which does not include main, should equal 1
-            assert_eq!(user_info.characters.len(), 1);
 
             Ok(())
         }

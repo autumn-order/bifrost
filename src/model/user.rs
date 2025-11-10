@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct UserDto {
     pub id: i32,
-    pub main_character: Character,
-    pub characters: Vec<Character>,
+    pub character_id: i64,
+    pub character_name: String,
 }
 
 #[derive(Serialize, Deserialize)]

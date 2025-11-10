@@ -1,12 +1,14 @@
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     response::{IntoResponse, Redirect},
 };
+use dioxus_logger::tracing;
 use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    model::api::ErrorDto,
+    model::{api::ErrorDto, user::UserDto},
     server::{
         controller::util::csrf::validate_csrf,
         error::Error,
@@ -14,7 +16,10 @@ use crate::{
             app::AppState,
             session::{auth::SessionAuthCsrf, user::SessionUserId},
         },
-        service::auth::{callback::CallbackService, login::login_service},
+        service::{
+            auth::{callback::CallbackService, login::login_service},
+            user::UserService,
+        },
     },
 };
 
@@ -127,4 +132,60 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
     }
 
     Ok(Redirect::temporary("/"))
+}
+
+/// Returns information on the currently logged in user
+///
+/// # Responses
+/// - 200 (Success): The user's ID & main character ID & name
+/// - 404 (Not Found): The provided user ID does not exist
+/// - 500 (Internal Server Error): An error if there is a database-related issue
+#[utoipa::path(
+    get,
+    path = "/api/auth/user",
+    tag = AUTH_TAG,
+    responses(
+        (status = 200, description = "Success when retrieving user information", body = UserDto),
+        (status = 404, description = "User not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
+pub async fn get_user(
+    State(state): State<AppState>,
+    session: Session,
+) -> Result<impl IntoResponse, Error> {
+    let user_service = UserService::new(&state.db, &state.esi_client);
+
+    let user_id = SessionUserId::get(&session).await?;
+
+    match user_id {
+        Some(id) => match user_service.get_user(id).await? {
+            Some(user) => Ok((StatusCode::OK, axum::Json(user)).into_response()),
+            None => {
+                // Clear session for user not found in database
+                session.clear().await;
+
+                tracing::warn!(
+                    "Failed to find user ID {} in database despite having an active session;
+                    cleared session for user, they will need to relog to fix",
+                    id
+                );
+
+                Ok((
+                    StatusCode::NOT_FOUND,
+                    axum::Json(ErrorDto {
+                        error: "User not found".to_string(),
+                    }),
+                )
+                    .into_response())
+            }
+        },
+        None => Ok((
+            StatusCode::NOT_FOUND,
+            axum::Json(ErrorDto {
+                error: "User not found".to_string(),
+            }),
+        )
+            .into_response()),
+    }
 }
