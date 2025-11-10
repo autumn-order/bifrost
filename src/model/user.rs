@@ -13,4 +13,20 @@ pub struct UserDto {
 pub struct CharacterDto {
     pub id: i64,
     pub name: String,
+    pub corporation: CorporationDto,
+    pub alliance: Option<AllianceDto>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
+pub struct CorporationDto {
+    pub id: i64,
+    pub name: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
+pub struct AllianceDto {
+    pub id: i64,
+    pub name: String,
 }
