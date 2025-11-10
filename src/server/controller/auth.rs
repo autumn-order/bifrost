@@ -98,7 +98,7 @@ pub async fn callback(
         SessionUserId::insert(&session, user_id).await?;
     }
 
-    Ok(Redirect::temporary(&format!("/api/user/{}", user_id)))
+    Ok(Redirect::permanent("/auth"))
 }
 
 /// Logs the user out by clearing their session
@@ -126,5 +126,5 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
         session.clear().await;
     }
 
-    Ok(Redirect::temporary("/api/auth/login"))
+    Ok(Redirect::temporary("/"))
 }
