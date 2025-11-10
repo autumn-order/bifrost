@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-use crate::client::{components::BifrostTitleButton, router::Route};
+use crate::client::components::BifrostTitleButton;
 
 #[component]
 pub fn AuthNavbar() -> Element {
@@ -21,7 +21,5 @@ pub fn AuthNavbar() -> Element {
                 }
             }
         }
-
-        Outlet::<Route> {}
     }
 }

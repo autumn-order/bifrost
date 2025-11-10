@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::client::{
-    components::{auth::AuthNavbar, Navbar},
+    components::{auth::AuthLayout, Navbar},
     routes::{auth::Dashboard, Home, NotFound},
 };
 
@@ -22,7 +22,7 @@ pub enum Route {
 
     #[nest("/auth")]
 
-        #[layout(AuthNavbar)]
+        #[layout(AuthLayout)]
 
         #[route("/")]
         Dashboard {},
