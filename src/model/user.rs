@@ -10,7 +10,7 @@ pub struct UserDto {
 
 #[derive(Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
-pub struct Character {
+pub struct CharacterDto {
     pub id: i64,
     pub name: String,
 }

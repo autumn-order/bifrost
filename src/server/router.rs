@@ -17,6 +17,7 @@ pub fn routes() -> Router<AppState> {
         .routes(routes!(controller::auth::callback))
         .routes(routes!(controller::auth::logout))
         .routes(routes!(controller::auth::get_user))
+        .routes(routes!(controller::user::get_user_characters))
         .split_for_parts();
 
     let routes = routes.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api));
