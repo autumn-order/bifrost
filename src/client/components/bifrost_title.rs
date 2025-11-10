@@ -12,7 +12,7 @@ pub fn BifrostTitleButton() -> Element {
                     "Bifrost"
                 }
                 p { class: "text-xs",
-                    "v0.1.0.Alpha-1"
+                    "v0.1.0-Alpha.1"
                 }
             }
         }

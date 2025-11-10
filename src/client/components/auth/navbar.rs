@@ -16,7 +16,10 @@ pub fn AuthNavbar() -> Element {
                 class: "navbar-end",
                 div {
                     a { href: "/api/auth/logout",
-                        "Logout"
+                        button {
+                            class: "btn btn-outline",
+                            "Logout"
+                        }
                     }
                 }
             }

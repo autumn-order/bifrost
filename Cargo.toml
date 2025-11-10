@@ -1,6 +1,6 @@
 [package]
 name = "bifrost"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2021"
 description = "Authentication platform for EVE Online corporations, alliances, and coalitions"
 repository = "https://github.com/autumn-order/bifrost"
@@ -23,6 +23,7 @@ thiserror = { version = "2.0.17" }
 tower-sessions = { version = "0.14.0" }
 
 [dependencies]
+dioxus-free-icons = { version = "0.10.0", features = ["font-awesome-brands"], optional = true }
 apalis = { version = "0.7.3", features = ["limit"], optional = true }
 apalis-redis = { version = "0.7.3", optional = true }
 axum = { version = "0.8.6", optional = true }
@@ -59,7 +60,7 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 bifrost-test-utils = { path = "bifrost-test-utils" }
 
 [features]
-default = ["web", "reqwasm"]
+default = ["web", "reqwasm", "dioxus-free-icons"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
 server = [
