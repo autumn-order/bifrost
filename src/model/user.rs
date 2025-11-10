@@ -8,7 +8,7 @@ pub struct UserDto {
     pub character_name: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct CharacterDto {
     pub id: i64,

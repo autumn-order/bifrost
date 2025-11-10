@@ -17,7 +17,7 @@ const AUTUMN_LOGO: Asset = asset!(
 #[component]
 pub fn Home() -> Element {
     rsx!(
-        Title { "Bifrost Home" }
+        Title { "Bifrost" }
         Meta {
             name: "description",
             content: "EVE Online authentication platform for coalitions, alliances, and corporations."

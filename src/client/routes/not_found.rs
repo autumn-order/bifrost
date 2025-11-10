@@ -6,7 +6,7 @@ use crate::client::components::Page;
 #[component]
 pub fn NotFound(segments: Vec<String>) -> Element {
     rsx!(
-        Title { "404 Not Found" }
+        Title { "404 | Not Found" }
         Meta {
             name: "description",
             content: "The page you are looking for does not exist"
