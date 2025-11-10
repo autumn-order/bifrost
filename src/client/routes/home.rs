@@ -1,14 +1,7 @@
 use dioxus::document::{Meta, Title};
 use dioxus::prelude::*;
 
-use crate::client::components::Page;
-
-const LOGIN_BUTTON_IMG: Asset = asset!(
-    "/assets/eve-sso-login-black-large.png",
-    ImageAssetOptions::new()
-        .with_avif()
-        .with_size(ImageSize::Automatic)
-);
+use crate::client::components::{EveLogin, Page};
 
 #[component]
 pub fn Home() -> Element {
@@ -29,11 +22,7 @@ pub fn Home() -> Element {
                     }
                 }
                 div {
-                    a { href: "/api/auth/login",
-                        img {
-                            src: LOGIN_BUTTON_IMG,
-                        }
-                    }
+                    EveLogin {  }
                 }
             }
         }

@@ -37,6 +37,7 @@ fred = { version = "10.1.0", optional = true }
 futures = { version = "0.3", optional = true }
 migration = { path = "migration", optional = true }
 oauth2 = { version = "5.0.0", optional = true }
+reqwasm = { version = "0.5.0", optional = true }
 sea-orm = { workspace = true, features = [
   "runtime-tokio-rustls",
   "sqlx-postgres",
@@ -58,7 +59,7 @@ utoipa-swagger-ui = { version = "9.0.2", features = ["axum"], optional = true }
 bifrost-test-utils = { path = "bifrost-test-utils" }
 
 [features]
-default = ["web"]
+default = ["web", "reqwasm"]
 desktop = ["dioxus/desktop"]
 mobile = ["dioxus/mobile"]
 server = [

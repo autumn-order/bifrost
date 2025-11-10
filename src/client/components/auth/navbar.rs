@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 
-pub use crate::client::router::Route;
+use crate::client::{components::BifrostTitleButton, router::Route};
 
 #[component]
 pub fn AuthNavbar() -> Element {
@@ -9,14 +9,8 @@ pub fn AuthNavbar() -> Element {
             class: "navbar bg-base-200 fixed",
             div {
                 class: "navbar-start",
-                div { class: "flex items-center gap-2",
-                    p { class: "text-xl",
-                        "Bifrost"
-                    }
-                    p { class: "text-xs",
-                        "v0.1.0.Alpha-1"
-                    }
-                }
+                BifrostTitleButton {}
+
             }
             div {
                 class: "navbar-end",
