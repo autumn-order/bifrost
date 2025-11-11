@@ -1,4 +1,4 @@
-name: Coverage
+name: Code Coverage
 
 on:
   push:
@@ -10,17 +10,34 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CARGO_TERM_COLOR: always
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Install Rust
         run: rustup update stable
+
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
+
+      # Generate Tailwind CSS before Rust compilation
+      # The asset! macro in src/client/app.rs requires assets/tailwind.css to exist at compile time
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Generate Tailwind CSS
+        run: bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --minify
+
       - name: Generate code coverage
         run: cargo llvm-cov --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/" --lcov --output-path lcov.info
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
-          token: ${{ secrets.CODECOV_TOKEN }} # not required for public repos
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: lcov.info
           fail_ci_if_error: true
