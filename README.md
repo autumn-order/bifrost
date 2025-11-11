@@ -7,6 +7,10 @@
 > Currently the backend is still in development, frontend development has yet to begin.
 > A production ready release for v0.1.0 is aimed for around January but timelines may change
 
+[![codecov](https://codecov.io/gh/autumn-order/bifrost/graph/badge.svg?token=QGO17OBOST)](https://codecov.io/gh/autumn-order/bifrost)
+[![wakatime](https://wakatime.com/badge/github/autumn-order/bifrost.svg)](https://wakatime.com/badge/github/autumn-order/bifrost)
+[![Discord](https://img.shields.io/discord/1414000815017824288?logo=Discord&color=%235865F2)](https://discord.gg/HjaGsBBtFg)
+
 An EVE Online authentication platform for coaltions, alliances, and corporations. Built by The Order of Autumn, a corporation part of Black Rose alliance & Phoenix Coalition.
 
 The goal is to create an authentication platform written for high performance, large-scale, and support for multiple corporations & alliances to exist within the same instance or to link their own instance with minimal hassle.
