@@ -47,17 +47,18 @@ COPY entity ./entity
 COPY migration ./migration
 COPY bifrost-test-utils ./bifrost-test-utils
 
-# Build dependencies
-RUN mkdir src && echo "fn main() {}" > src/main.rs \
-    && dx build --release \
-    && rm -rf src
-
 # Build Rust application
 COPY assets ./assets
 COPY src ./src
 COPY --from=bun_stage /app/assets/tailwind.css /app/assets/tailwind.css
 
-RUN dx build --release
+# Cache compiled depdencies for future builds
+RUN --mount=type=cache,target=/app/target \
+    --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    dx build --release \
+    && mkdir -p /app/output \
+    && cp -r /app/target/dx/bifrost/release/web /app/output/
 
 # === Run application ===
 FROM debian:bookworm-slim
@@ -78,7 +79,7 @@ RUN apt-get update && apt-get install -y \
     && useradd -m -u 1000 ${APP_NAME}
 
 COPY --from=rust_stage --chown=${APP_NAME}:${APP_NAME} \
-    /app/target/dx/${APP_NAME}/release/web/ /app
+    /app/output/web/ /app
 
 USER ${APP_NAME}
 EXPOSE ${PORT}
