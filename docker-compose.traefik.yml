@@ -10,8 +10,8 @@ services:
       - --providers.docker.network=traefik
       # HTTP
       - --entrypoints.web.address=:80
-      - --entrypoints.http.http.redirections.entryPoint.to=websecure
-      - --entrypoints.http.http.redirections.entryPoint.scheme=https
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
       # HTTPS
       - --entryPoints.websecure.address=:443
       - --entrypoints.websecure.http.tls=true
