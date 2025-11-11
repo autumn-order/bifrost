@@ -13,7 +13,7 @@ pub fn DashboardCharacterCard(characters: Signal<Vec<CharacterDto>>) -> Element 
 
     rsx!(
         div {
-            class: "card shadow-sm w-full max-w-196",
+            class: "card shadow-sm w-full flex-1",
             div {
                 class: "card-body",
                 h2 {

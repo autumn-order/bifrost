@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct UserDto {
     pub id: i32,
@@ -9,7 +9,7 @@ pub struct UserDto {
     pub character_name: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct CharacterDto {
     pub id: i64,
@@ -20,7 +20,7 @@ pub struct CharacterDto {
     pub affiliation_updated_at: NaiveDateTime,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct CorporationDto {
     pub id: i64,
@@ -29,7 +29,7 @@ pub struct CorporationDto {
     pub affiliation_updated_at: NaiveDateTime,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[cfg_attr(feature = "server", derive(utoipa::ToSchema))]
 pub struct AllianceDto {
     pub id: i64,

@@ -2,7 +2,10 @@ use dioxus::prelude::*;
 use dioxus_logger::tracing;
 
 use crate::{
-    client::components::{auth::dashboard::DashboardCharacterCard, Page},
+    client::components::{
+        auth::dashboard::{DashboardCharacterCard, DashboardUpdateCard},
+        Page,
+    },
     model::user::CharacterDto,
 };
 
@@ -35,8 +38,9 @@ pub fn Dashboard() -> Element {
             content: "EVE Online authentication platform for coalitions, alliances, and corporations."
         }
         Page { class: "flex flex-col items-center",
-            div { class: "w-full h-full max-w-[1440px] pt-4 flex justify-center gap-2",
+            div { class: "w-full h-full max-w-[1440px] pt-4 flex flex-wrap justify-center gap-4 px-4",
                 DashboardCharacterCard { characters: characters }
+                DashboardUpdateCard { characters: characters }
             }
         }
     )
