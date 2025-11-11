@@ -1,5 +1,6 @@
 pub mod user_character;
 
+use dioxus_logger::tracing;
 use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
@@ -38,8 +39,14 @@ impl<'a> UserService<'a> {
                 if let Some(ownership_entry) = maybe_owner {
                     // Validate whether or not character has been sold or transferred between accounts
                     if claims.owner == ownership_entry.owner_hash {
+                        tracing::trace!(
+                            "User ID {} returned for character ID {} - ownership verified",
+                            ownership_entry.user_id,
+                            character_id
+                        );
+
                         // User ownership hasn't changed, user still owns this character
-                        return Ok(ownership_entry.id);
+                        return Ok(ownership_entry.user_id);
                     }
 
                     // Character has been sold or transferred, create a new user account
@@ -47,6 +54,12 @@ impl<'a> UserService<'a> {
                     user_character_service
                         .transfer_character(ownership_entry, new_user.id)
                         .await?;
+
+                    tracing::trace!(
+                        "New user ID {} created for character ID {} - ownership transfer detected",
+                        new_user.id,
+                        character_id
+                    );
 
                     return Ok(new_user.id);
                 }
@@ -63,6 +76,12 @@ impl<'a> UserService<'a> {
         let _ = user_character_repo
             .create(new_user.id, character.id, claims.owner)
             .await?;
+
+        tracing::trace!(
+            "New user ID {} created for character ID {} - first login",
+            new_user.id,
+            character.id
+        );
 
         Ok(new_user.id)
     }

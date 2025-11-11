@@ -106,6 +106,11 @@ pub async fn callback(
         .await?;
 
     if maybe_user_id.is_none() {
+        tracing::trace!(
+            "Inserting user ID {} into session after successful callback",
+            user_id
+        );
+
         SessionUserId::insert(&session, user_id).await?;
     }
 

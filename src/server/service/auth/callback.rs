@@ -1,3 +1,4 @@
+use dioxus_logger::tracing;
 use oauth2::TokenResponse;
 use sea_orm::DatabaseConnection;
 
@@ -56,6 +57,7 @@ impl<'a> CallbackService<'a> {
             .validate_token(token.access_token().secret().to_string())
             .await?;
 
+        // If user ID is in session, see if character link or main change is needed
         if let Some(user_id) = user_id {
             let character_id = claims.character_id()?;
             user_character_service
@@ -68,10 +70,20 @@ impl<'a> CallbackService<'a> {
                     .await?;
             }
 
+            tracing::trace!(
+                "Returning user ID {} for callback for user currently in session",
+                user_id
+            );
+
             return Ok(user_id);
         }
 
         let user_id = user_service.get_or_create_user(claims).await?;
+
+        tracing::trace!(
+            "Returning user ID {} for callback for user not currently in session",
+            user_id
+        );
 
         Ok(user_id)
     }
