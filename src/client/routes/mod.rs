@@ -1,5 +1,6 @@
-pub mod blog;
+pub mod auth;
 pub mod home;
+pub mod not_found;
 
-pub use blog::Blog;
 pub use home::Home;
+pub use not_found::NotFound;

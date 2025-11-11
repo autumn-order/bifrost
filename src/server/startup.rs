@@ -60,7 +60,8 @@ pub async fn connect_to_session(
     let session = SessionManagerLayer::new(session_store)
         .with_secure(secure_cookies)
         .with_same_site(SameSite::Lax)
-        .with_expiry(Expiry::OnInactivity(Duration::seconds(120)));
+        .with_http_only(true)
+        .with_expiry(Expiry::OnInactivity(Duration::days(7)));
 
     Ok(session)
 }

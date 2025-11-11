@@ -33,7 +33,7 @@ macro_rules! add_cron_job {
 
                 Box::pin(async move {
                     match $fn(&db, &redis, &mut job_storage).await {
-                        Ok(count) => tracing::info!("Scheduled {} {} update(s)", count, $name),
+                        Ok(count) => tracing::debug!("Scheduled {} {} update(s)", count, $name),
                         Err(e) => tracing::error!("Error scheduling {} update: {:?}", $name, e),
                     }
                 })

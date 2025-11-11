@@ -1,0 +1,47 @@
+services:
+  bifrost:
+    build: .
+    env_file: .env
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres/${POSTGRES_DB}
+      - VALKEY_URL=redis://valkey:6379
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -f -H 'Accept: text/html' http://localhost:8080 || exit 1",
+        ]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.web.entrypoints=websecure
+      - traefik.http.routers.web.tls.certresolver=primary
+    networks:
+      - bifrost
+      - traefik
+
+  postgres:
+    image: postgres:18-alpine
+    env_file: .env
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks:
+      - bifrost
+
+  valkey:
+    image: valkey/valkey:9-alpine
+    networks:
+      - bifrost
+
+volumes:
+  postgres:
+
+networks:
+  bifrost:
+  traefik:
+    external: true

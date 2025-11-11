@@ -1,24 +1,36 @@
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     response::{IntoResponse, Redirect},
 };
+use dioxus_logger::tracing;
 use serde::Deserialize;
 use tower_sessions::Session;
 
 use crate::{
-    model::api::ErrorDto,
+    model::{api::ErrorDto, user::UserDto},
     server::{
         controller::util::csrf::validate_csrf,
         error::Error,
         model::{
             app::AppState,
-            session::{auth::SessionAuthCsrf, user::SessionUserId},
+            session::{
+                auth::SessionAuthCsrf, change_main::SessionUserChangeMain, user::SessionUserId,
+            },
         },
-        service::auth::{callback::CallbackService, login::login_service},
+        service::{
+            auth::{callback::CallbackService, login::login_service},
+            user::UserService,
+        },
     },
 };
 
 pub static AUTH_TAG: &str = "auth";
+
+#[derive(Deserialize)]
+pub struct LoginParams {
+    pub change_main: Option<bool>,
+}
 
 #[derive(Deserialize)]
 pub struct CallbackParams {
@@ -29,10 +41,6 @@ pub struct CallbackParams {
 /// Login route to initiate login with EVE Online
 ///
 /// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Redirects user to a temporary login URL to start the EVE Online login process
-/// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
 #[utoipa::path(
     get,
     path = "/api/auth/login",
@@ -40,13 +48,21 @@ pub struct CallbackParams {
     responses(
         (status = 307, description = "Redirect to EVE Online login URL"),
         (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+    params(
+        ("change_main" = Option<bool>, Query, description = "If true, change logged in user's main to character"),
     )
 )]
 pub async fn login(
     State(state): State<AppState>,
     session: Session,
+    params: Query<LoginParams>,
 ) -> Result<impl IntoResponse, Error> {
     let scopes = eve_esi::ScopeBuilder::new().build();
+
+    if let Some(true) = params.0.change_main {
+        SessionUserChangeMain::insert(&session, true).await?;
+    }
 
     let login = login_service(&state.esi_client, scopes)?;
 
@@ -59,12 +75,6 @@ pub async fn login(
 ///
 /// This route fetches & validates the user's token to access character information as well as
 /// the access & refresh token for fetching data related to the requested scopes.
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Successful login, redirect to API route to display user information
-/// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
-/// - 500 (Internal Server Error): An error occurred related to JWT token validation, an ESI request, or
-///   a database-related error
 #[utoipa::path(
     get,
     path = "/api/auth/callback",
@@ -89,23 +99,25 @@ pub async fn callback(
     validate_csrf(&session, &params.0.state).await?;
 
     let maybe_user_id = SessionUserId::get(&session).await?;
+    let change_main = SessionUserChangeMain::remove(&session).await?;
 
     let user_id = callback_service
-        .handle_callback(&params.0.code, maybe_user_id)
+        .handle_callback(&params.0.code, maybe_user_id, change_main)
         .await?;
 
     if maybe_user_id.is_none() {
+        tracing::trace!(
+            "Inserting user ID {} into session after successful callback",
+            user_id
+        );
+
         SessionUserId::insert(&session, user_id).await?;
     }
 
-    Ok(Redirect::temporary(&format!("/api/user/{}", user_id)))
+    Ok(Redirect::permanent("/auth"))
 }
 
 /// Logs the user out by clearing their session
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Successfully logged out, redirect to login route
-/// - 500 (Internal Server Error): There was an issue clearing the session
 #[utoipa::path(
     get,
     path = "/api/auth/logout",
@@ -126,5 +138,56 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
         session.clear().await;
     }
 
-    Ok(Redirect::temporary("/api/auth/login"))
+    Ok(Redirect::temporary("/"))
+}
+
+/// Returns information on the currently logged in user
+#[utoipa::path(
+    get,
+    path = "/api/auth/user",
+    tag = AUTH_TAG,
+    responses(
+        (status = 200, description = "Success when retrieving user information", body = UserDto),
+        (status = 404, description = "User not found", body = ErrorDto),
+        (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+)]
+pub async fn get_user(
+    State(state): State<AppState>,
+    session: Session,
+) -> Result<impl IntoResponse, Error> {
+    let user_service = UserService::new(&state.db, &state.esi_client);
+
+    let user_id = SessionUserId::get(&session).await?;
+
+    match user_id {
+        Some(id) => match user_service.get_user(id).await? {
+            Some(user) => Ok((StatusCode::OK, axum::Json(user)).into_response()),
+            None => {
+                // Clear session for user not found in database
+                session.clear().await;
+
+                tracing::warn!(
+                    "Failed to find user ID {} in database despite having an active session;
+                    cleared session for user, they will need to relog to fix",
+                    id
+                );
+
+                Ok((
+                    StatusCode::NOT_FOUND,
+                    axum::Json(ErrorDto {
+                        error: "User not found".to_string(),
+                    }),
+                )
+                    .into_response())
+            }
+        },
+        None => Ok((
+            StatusCode::NOT_FOUND,
+            axum::Json(ErrorDto {
+                error: "User not found".to_string(),
+            }),
+        )
+            .into_response()),
+    }
 }

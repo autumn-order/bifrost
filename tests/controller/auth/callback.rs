@@ -38,7 +38,7 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
     let result = callback(State(test.state()), test.session.clone(), Query(params)).await;
 
     let resp = result.unwrap().into_response();
-    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
 
     // Assert user is in session
     let result = SessionUserId::get(&test.session).await;
@@ -88,7 +88,7 @@ async fn redirects_for_existing_user() -> Result<(), TestError> {
     let result = callback(State(test.state()), test.session.clone(), Query(params)).await;
 
     let resp = result.unwrap().into_response();
-    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+    assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
 
     // Assert user is in session
     let result = SessionUserId::get(&test.session).await;
