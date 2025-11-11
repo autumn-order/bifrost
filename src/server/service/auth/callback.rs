@@ -40,6 +40,7 @@ impl<'a> CallbackService<'a> {
         &self,
         authorization_code: &str,
         user_id: Option<i32>,
+        change_main: Option<bool>,
     ) -> Result<i32, Error> {
         let user_service = UserService::new(&self.db, &self.esi_client);
         let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
@@ -56,9 +57,16 @@ impl<'a> CallbackService<'a> {
             .await?;
 
         if let Some(user_id) = user_id {
+            let character_id = claims.character_id()?;
             user_character_service
                 .link_character(user_id, claims)
                 .await?;
+
+            if let Some(true) = change_main {
+                user_character_service
+                    .change_main(user_id, character_id)
+                    .await?;
+            }
 
             return Ok(user_id);
         }
@@ -70,6 +78,7 @@ impl<'a> CallbackService<'a> {
 }
 
 #[cfg(test)]
+// TODO: Needs unit tests including change main scenario
 mod tests {
     use bifrost_test_utils::prelude::*;
 
@@ -98,7 +107,7 @@ mod tests {
         let authorization_code = "test_code";
         let session_user_id = None;
         let result = callback_service
-            .handle_callback(&authorization_code, session_user_id)
+            .handle_callback(&authorization_code, session_user_id, None)
             .await;
 
         assert!(result.is_ok());
@@ -132,7 +141,7 @@ mod tests {
 
         let authorization_code = "test_code";
         let result = callback_service
-            .handle_callback(&authorization_code, Some(user_model.id))
+            .handle_callback(&authorization_code, Some(user_model.id), None)
             .await;
 
         assert!(result.is_ok(), "Error: {:#?}", result);
@@ -153,7 +162,7 @@ mod tests {
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
         let authorization_code = "string";
         let result = callback_service
-            .handle_callback(authorization_code, None)
+            .handle_callback(authorization_code, None, None)
             .await;
 
         assert!(matches!(result, Err(Error::EsiError(_))),);
@@ -170,7 +179,7 @@ mod tests {
         let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
         let authorization_code = "string";
         let result = callback_service
-            .handle_callback(authorization_code, None)
+            .handle_callback(authorization_code, None, None)
             .await;
 
         assert!(matches!(result, Err(Error::DbErr(_))));

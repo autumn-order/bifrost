@@ -1,3 +1,4 @@
+use dioxus_logger::tracing;
 use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
 
@@ -149,6 +150,39 @@ impl<'a> UserCharacterService<'a> {
         }
 
         Ok(false)
+    }
+
+    // TODO: Needs unit tests & docs
+    pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
+        let user_repo = UserRepository::new(self.db);
+        let user_character_repo = UserCharacterRepository::new(&self.db);
+
+        let character = user_character_repo
+            .get_by_character_id(character_id)
+            .await?;
+
+        let ownership = match character {
+            Some((_, maybe_ownership)) => {
+                if let Some(ownership) = maybe_ownership {
+                    ownership
+                } else {
+                    tracing::warn!("User ID {} attempted to change main to character ID {} for their account yet user doesn't own this character", user_id, character_id);
+
+                    // TODO: Return proper error for failure to link character
+                    return Ok(());
+                }
+            }
+            None => {
+                tracing::error!("User ID {} attempted to change main to character ID {} for their account yet character is not present in the database", user_id, character_id);
+
+                // TODO: Return proper error for failure to link character
+                return Ok(());
+            }
+        };
+
+        user_repo.update(user_id, ownership.character_id).await?;
+
+        Ok(())
     }
 }
 

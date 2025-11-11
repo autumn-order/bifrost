@@ -14,7 +14,9 @@ use crate::{
         error::Error,
         model::{
             app::AppState,
-            session::{auth::SessionAuthCsrf, user::SessionUserId},
+            session::{
+                auth::SessionAuthCsrf, change_main::SessionUserChangeMain, user::SessionUserId,
+            },
         },
         service::{
             auth::{callback::CallbackService, login::login_service},
@@ -26,6 +28,11 @@ use crate::{
 pub static AUTH_TAG: &str = "auth";
 
 #[derive(Deserialize)]
+pub struct LoginParams {
+    pub change_main: Option<bool>,
+}
+
+#[derive(Deserialize)]
 pub struct CallbackParams {
     pub state: String,
     pub code: String,
@@ -34,10 +41,6 @@ pub struct CallbackParams {
 /// Login route to initiate login with EVE Online
 ///
 /// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Redirects user to a temporary login URL to start the EVE Online login process
-/// - 500 (Internal Server Error): An error if the ESI client is not properly configured for OAuth2
 #[utoipa::path(
     get,
     path = "/api/auth/login",
@@ -45,13 +48,21 @@ pub struct CallbackParams {
     responses(
         (status = 307, description = "Redirect to EVE Online login URL"),
         (status = 500, description = "Internal server error", body = ErrorDto)
+    ),
+    params(
+        ("change_main" = Option<bool>, Query, description = "If true, change logged in user's main to character"),
     )
 )]
 pub async fn login(
     State(state): State<AppState>,
     session: Session,
+    params: Query<LoginParams>,
 ) -> Result<impl IntoResponse, Error> {
     let scopes = eve_esi::ScopeBuilder::new().build();
+
+    if let Some(true) = params.0.change_main {
+        SessionUserChangeMain::insert(&session, true).await?;
+    }
 
     let login = login_service(&state.esi_client, scopes)?;
 
@@ -64,12 +75,6 @@ pub async fn login(
 ///
 /// This route fetches & validates the user's token to access character information as well as
 /// the access & refresh token for fetching data related to the requested scopes.
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Successful login, redirect to API route to display user information
-/// - 400 (Bad Request): Failed to validate CSRF state due mismatch with the CSRF state stored in session
-/// - 500 (Internal Server Error): An error occurred related to JWT token validation, an ESI request, or
-///   a database-related error
 #[utoipa::path(
     get,
     path = "/api/auth/callback",
@@ -94,9 +99,10 @@ pub async fn callback(
     validate_csrf(&session, &params.0.state).await?;
 
     let maybe_user_id = SessionUserId::get(&session).await?;
+    let change_main = SessionUserChangeMain::remove(&session).await?;
 
     let user_id = callback_service
-        .handle_callback(&params.0.code, maybe_user_id)
+        .handle_callback(&params.0.code, maybe_user_id, change_main)
         .await?;
 
     if maybe_user_id.is_none() {
@@ -107,10 +113,6 @@ pub async fn callback(
 }
 
 /// Logs the user out by clearing their session
-///
-/// # Responses
-/// - 307 (Temporary Redirect): Successfully logged out, redirect to login route
-/// - 500 (Internal Server Error): There was an issue clearing the session
 #[utoipa::path(
     get,
     path = "/api/auth/logout",
@@ -135,11 +137,6 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
 }
 
 /// Returns information on the currently logged in user
-///
-/// # Responses
-/// - 200 (Success): The user's ID & main character ID & name
-/// - 404 (Not Found): The provided user ID does not exist
-/// - 500 (Internal Server Error): An error if there is a database-related issue
 #[utoipa::path(
     get,
     path = "/api/auth/user",
