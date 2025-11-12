@@ -6,7 +6,7 @@ use crate::{
     model::user::{AllianceDto, CharacterDto, CorporationDto},
     server::{
         data::user::{user_character::UserCharacterRepository, UserRepository},
-        error::Error,
+        error::{auth::AuthError, Error},
         service::{eve::character::CharacterService, user::UserService},
     },
 };
@@ -210,24 +210,34 @@ impl<'a> UserCharacterService<'a> {
                 if let Some(ownership) = maybe_ownership {
                     // Verify the character is owned by this user
                     if ownership.user_id != user_id {
-                        tracing::warn!("User ID {} attempted to change main to character ID {} which is owned by user ID {}", user_id, character_id, ownership.user_id);
+                        tracing::warn!(
+                            user_id = %user_id,
+                            character_id = %character_id,
+                            actual_owner_id = %ownership.user_id,
+                            "User attempted to change main to character owned by another user"
+                        );
 
-                        // TODO: Return proper error for failure to link character
-                        return Ok(());
+                        return Err(AuthError::CharacterOwnedByAnotherUser.into());
                     }
                     ownership
                 } else {
-                    tracing::warn!("User ID {} attempted to change main to character ID {} for their account yet user doesn't own this character", user_id, character_id);
+                    tracing::warn!(
+                        user_id = %user_id,
+                        character_id = %character_id,
+                        "User attempted to change main to unowned character"
+                    );
 
-                    // TODO: Return proper error for failure to link character
-                    return Ok(());
+                    return Err(AuthError::CharacterNotOwned.into());
                 }
             }
             None => {
-                tracing::error!("User ID {} attempted to change main to character ID {} for their account yet character is not present in the database", user_id, character_id);
+                tracing::error!(
+                    user_id = %user_id,
+                    character_id = %character_id,
+                    "User attempted to change main to non-existent character"
+                );
 
-                // TODO: Return proper error for failure to link character
-                return Ok(());
+                return Err(AuthError::CharacterNotFound.into());
             }
         };
 

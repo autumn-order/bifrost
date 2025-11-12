@@ -1,4 +1,4 @@
-use crate::server::error::Error;
+use crate::server::error::{config::ConfigError, Error};
 
 pub struct Config {
     pub contact_email: String,
@@ -14,7 +14,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self, Error> {
         let contact_email = std::env::var("CONTACT_EMAIL")
-            .map_err(|_| Error::MissingEnvVar("CONTACT_EMAIL".to_string()))?;
+            .map_err(|_| ConfigError::MissingEnvVar("CONTACT_EMAIL".to_string()))?;
         let user_agent = format!(
             "{}/{} ({}; +{})",
             env!("CARGO_PKG_NAME"),
@@ -26,19 +26,19 @@ impl Config {
         Ok(Self {
             contact_email: contact_email,
             esi_client_id: std::env::var("ESI_CLIENT_ID")
-                .map_err(|_| Error::MissingEnvVar("ESI_CLIENT_ID".to_string()))?,
+                .map_err(|_| ConfigError::MissingEnvVar("ESI_CLIENT_ID".to_string()))?,
             esi_client_secret: std::env::var("ESI_CLIENT_SECRET")
-                .map_err(|_| Error::MissingEnvVar("ESI_CLIENT_SECRET".to_string()))?,
+                .map_err(|_| ConfigError::MissingEnvVar("ESI_CLIENT_SECRET".to_string()))?,
             esi_callback_url: std::env::var("ESI_CALLBACK_URL")
-                .map_err(|_| Error::MissingEnvVar("ESI_CALLBACK_URL".to_string()))?,
+                .map_err(|_| ConfigError::MissingEnvVar("ESI_CALLBACK_URL".to_string()))?,
             database_url: std::env::var("DATABASE_URL")
-                .map_err(|_| Error::MissingEnvVar("DATABASE_URL".to_string()))?,
+                .map_err(|_| ConfigError::MissingEnvVar("DATABASE_URL".to_string()))?,
             valkey_url: std::env::var("VALKEY_URL")
-                .map_err(|_| Error::MissingEnvVar("VALKEY_URL".to_string()))?,
+                .map_err(|_| ConfigError::MissingEnvVar("VALKEY_URL".to_string()))?,
             workers: std::env::var("WORKERS")
-                .map_err(|_| Error::MissingEnvVar("WORKERS".to_string()))?
+                .map_err(|_| ConfigError::MissingEnvVar("WORKERS".to_string()))?
                 .parse()
-                .map_err(|e| Error::InvalidEnvValue {
+                .map_err(|e| ConfigError::InvalidEnvValue {
                     var: "WORKERS".to_string(),
                     reason: format!("must be a valid number: {}", e),
                 })?,

@@ -1,5 +1,7 @@
 use crate::server::{
-    data::user::UserRepository, service::user::user_character::UserCharacterService,
+    data::user::UserRepository,
+    error::{auth::AuthError, Error},
+    service::user::user_character::UserCharacterService,
 };
 
 use super::*;
@@ -66,14 +68,21 @@ async fn handles_changing_to_current_main() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok (with warning logged) when attempting to change main to unowned character
+/// Expect error when attempting to change main to unowned character
+///
+/// # Important Context
+/// In a fully integrated system, the character would be linked to the
+/// user first before changing main to that character. This error
+/// should not occur unless there is an internal issue with the codebase,
+/// this test ensures that the proper error is returned just in case.
 #[tokio::test]
-async fn handles_unowned_character_gracefully() -> Result<(), TestError> {
+async fn unowned_character_err() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
+
     // Create a character that exists but is not owned by this user
     let unowned_character = test.eve().insert_mock_character(2, 1, None, None).await?;
 
@@ -83,8 +92,11 @@ async fn handles_unowned_character_gracefully() -> Result<(), TestError> {
         .change_main(user_model.id, unowned_character.character_id)
         .await;
 
-    // Should return Ok() but not actually change the main
-    assert!(result.is_ok());
+    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::AuthError(AuthError::CharacterNotOwned))
+    ));
 
     // Verify main character was NOT changed
     let (updated_user_model, _) = user_repo.get(user_model.id).await?.unwrap();
@@ -96,9 +108,16 @@ async fn handles_unowned_character_gracefully() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok (with error logged) when attempting to change main to nonexistent character
+/// Expect error when attempting to change main to nonexistent character
+///
+/// # Important Context
+/// In a fully integrated system, the character is always created first
+/// before the main change attempt is made and should the character creation
+/// fail, the database error would be propagated prior to this error. This
+/// test simply ensures the proper error is returned just in case the method
+/// is implemented improperly.
 #[tokio::test]
-async fn handles_nonexistent_character_gracefully() -> Result<(), TestError> {
+async fn non_existant_character_err() -> Result<(), TestError> {
     let mut test = test_setup_with_user_tables!()?;
     let (user_model, _, _) = test
         .user()
@@ -112,8 +131,11 @@ async fn handles_nonexistent_character_gracefully() -> Result<(), TestError> {
         .change_main(user_model.id, nonexistent_character_id)
         .await;
 
-    // Should return Ok() but not actually change the main
-    assert!(result.is_ok());
+    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::AuthError(AuthError::CharacterNotFound))
+    ));
 
     // Verify main character was NOT changed
     let (updated_user_model, _) = user_repo.get(user_model.id).await?.unwrap();
@@ -142,6 +164,7 @@ async fn prevents_changing_to_character_owned_by_different_user() -> Result<(), 
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
+
     // Create a second user with their own character
     let (_, _, other_user_character) = test
         .user()
@@ -154,8 +177,11 @@ async fn prevents_changing_to_character_owned_by_different_user() -> Result<(), 
         .change_main(user_model.id, other_user_character.character_id)
         .await;
 
-    // Should return Ok() but not actually change the main due to ownership check
-    assert!(result.is_ok());
+    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Err(Error::AuthError(AuthError::CharacterOwnedByAnotherUser))
+    ));
 
     // Verify main character was NOT changed
     let (updated_user_model, _) = user_repo.get(user_model.id).await?.unwrap();

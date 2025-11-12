@@ -1,6 +1,9 @@
 use tower_sessions::Session;
 
-use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
+use crate::server::{
+    error::{auth::AuthError, Error},
+    model::session::auth::SessionAuthCsrf,
+};
 
 /// Validate that the session CSRF state exists and matches `state`.
 /// Returns `Ok(())` when valid or the appropriate `Error` otherwise.
@@ -13,7 +16,7 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
         }
     }
 
-    Err(Error::AuthCsrfInvalidState)
+    Err(Error::AuthError(AuthError::CsrfValidationFailed))
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
-use crate::server::error::Error;
+use crate::server::error::{auth::AuthError, Error};
 
 pub const SESSION_AUTH_CSRF_KEY: &str = "bifrost:auth:csrf";
 
@@ -22,7 +22,7 @@ impl SessionAuthCsrf {
     pub async fn get(session: &Session) -> Result<String, Error> {
         match session.get(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
-            None => Err(Error::AuthCsrfEmptySession),
+            None => Err(AuthError::CsrfMissingValue.into()),
         }
     }
 
@@ -30,7 +30,7 @@ impl SessionAuthCsrf {
     pub async fn remove(session: &Session) -> Result<Option<String>, Error> {
         match session.remove(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
-            None => Err(Error::AuthCsrfEmptySession),
+            None => Err(AuthError::CsrfMissingValue.into()),
         }
     }
 }
@@ -59,7 +59,10 @@ mod tests {
     mod get {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
+        use crate::server::{
+            error::{auth::AuthError, Error},
+            model::session::auth::SessionAuthCsrf,
+        };
 
         /// Expect success when retrieving CSRF from session
         #[tokio::test]
@@ -86,7 +89,10 @@ mod tests {
 
             // Should error due to state not being present in session
             assert!(result.is_err());
-            assert!(matches!(result, Err(Error::AuthCsrfEmptySession)));
+            assert!(matches!(
+                result,
+                Err(Error::AuthError(AuthError::CsrfMissingValue))
+            ));
 
             Ok(())
         }
@@ -95,7 +101,10 @@ mod tests {
     mod remove {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::{error::Error, model::session::auth::SessionAuthCsrf};
+        use crate::server::{
+            error::{auth::AuthError, Error},
+            model::session::auth::SessionAuthCsrf,
+        };
 
         /// Expect successful removal of CSRF state from session
         #[tokio::test]
@@ -121,7 +130,10 @@ mod tests {
 
             // Should error due to state not being present in session
             assert!(result.is_err());
-            assert!(matches!(result, Err(Error::AuthCsrfEmptySession)));
+            assert!(matches!(
+                result,
+                Err(Error::AuthError(AuthError::CsrfMissingValue))
+            ));
 
             Ok(())
         }
