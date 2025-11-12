@@ -1,4 +1,7 @@
-use crate::server::data::user::UserRepository;
+use crate::server::{
+    data::user::{user_character::UserCharacterRepository, UserRepository},
+    service::user::user_character::UserCharacterService,
+};
 
 use super::*;
 

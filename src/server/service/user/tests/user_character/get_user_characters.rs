@@ -1,3 +1,5 @@
+use crate::server::service::user::user_character::UserCharacterService;
+
 use super::*;
 
 /// Expect Ok with Vec containing single character DTO without alliance
