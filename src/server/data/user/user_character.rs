@@ -1,4 +1,5 @@
 use chrono::Utc;
+use dioxus_logger::tracing;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
     IntoActiveModel, QueryFilter,
@@ -67,12 +68,23 @@ impl<'a> UserCharacterRepository<'a> {
             .await
     }
 
-    /// Gets character information for all characters owned by the user
+    /// Gets character information for all characters owned by the user,
+    /// including their corporation and alliance details.
+    ///
+    /// Characters without a corporation (which violates foreign key constraint)
+    /// will be logged as warnings and skipped from the results.
     pub async fn get_owned_characters_by_user_id(
         &self,
         user_id: i32,
-    ) -> Result<Vec<entity::eve_character::Model>, sea_orm::DbErr> {
-        let joined: Vec<(
+    ) -> Result<
+        Vec<(
+            entity::eve_character::Model,
+            entity::eve_corporation::Model,
+            Option<entity::eve_alliance::Model>,
+        )>,
+        sea_orm::DbErr,
+    > {
+        let user_characters: Vec<(
             entity::bifrost_user_character::Model,
             Option<entity::eve_character::Model>,
         )> = entity::prelude::BifrostUserCharacter::find()
@@ -80,11 +92,59 @@ impl<'a> UserCharacterRepository<'a> {
             .find_also_related(entity::prelude::EveCharacter)
             .all(self.db)
             .await?;
-        let characters = joined
-            .into_iter()
-            .filter_map(|(_, maybe_char)| maybe_char)
+
+        if user_characters.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let corporation_ids: Vec<i32> = user_characters
+            .iter()
+            .filter_map(|(_, eve_char)| eve_char.as_ref().and_then(|c| Some(c.corporation_id)))
             .collect();
-        Ok(characters)
+
+        let corporations: std::collections::HashMap<
+            i32,
+            (
+                entity::eve_corporation::Model,
+                Option<entity::eve_alliance::Model>,
+            ),
+        > = entity::prelude::EveCorporation::find()
+            .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))
+            .find_also_related(entity::prelude::EveAlliance)
+            .all(self.db)
+            .await?
+            .into_iter()
+            .map(|(corp, alliance)| (corp.id, (corp, alliance)))
+            .collect();
+
+        // Build the result by matching corporations (with alliances) to characters
+        // Filter out entries without corporations
+        let result = user_characters
+            .into_iter()
+            .filter_map(|(_, eve_char)| {
+                match eve_char {
+                    Some(character) => {
+                        match corporations.get(&character.corporation_id) {
+                            Some((corporation, alliance)) => {
+                                Some((character, corporation.clone(), alliance.clone()))
+                            }
+                            None => {
+                                tracing::warn!(
+                                    character_id = character.id,
+                                    character_name = %character.name,
+                                    corporation_id = character.corporation_id,
+                                    "Failed to find related corporation for character in database - skipping character from results"
+                                );
+                                None
+                            }
+                        }
+                    }
+                    None => None,
+                }
+            })
+            .collect();
+
+        Ok(result)
     }
 
     /// Update a user character entry with a new user id
@@ -374,10 +434,11 @@ mod tests {
         use crate::server::data::user::user_character::UserCharacterRepository;
 
         /// Expect Ok with Vec length of 1 when requesting valid user ID
+        /// Validates that corporation is present and alliance can be None
         #[tokio::test]
         async fn returns_owned_characters_for_user() -> Result<(), TestError> {
             let mut test = test_setup_with_user_tables!()?;
-            let (user_model, _, _) = test
+            let (user_model, _, character_model) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
@@ -390,6 +451,89 @@ mod tests {
             assert!(result.is_ok());
             let characters = result.unwrap();
             assert_eq!(characters.len(), 1);
+
+            let (character, corporation, alliance) = &characters[0];
+            assert_eq!(character.id, character_model.id);
+            assert_eq!(character.name, character_model.name);
+            // Corporation should always be present
+            assert_eq!(corporation.corporation_id, 1);
+            // Alliance should be None since we didn't create one
+            assert!(alliance.is_none());
+
+            Ok(())
+        }
+
+        /// Expect Ok with Vec containing character with alliance
+        #[tokio::test]
+        async fn returns_owned_characters_with_alliance() -> Result<(), TestError> {
+            let mut test = test_setup_with_user_tables!()?;
+
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
+            let corporation_model = test.eve().insert_mock_corporation(1, Some(1), None).await?;
+            let character_model = test
+                .eve()
+                .insert_mock_character(
+                    1,
+                    corporation_model.corporation_id,
+                    Some(alliance_model.alliance_id),
+                    None,
+                )
+                .await?;
+
+            // Create user
+            let user_model = test.user().insert_user(character_model.id).await?;
+
+            // Create ownership entry
+            test.user()
+                .insert_user_character_ownership(user_model.id, character_model.id)
+                .await?;
+
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
+                .get_owned_characters_by_user_id(user_model.id)
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 1);
+
+            // Validate alliance is present
+            let (character, corporation, alliance) = &characters[0];
+            assert_eq!(character.id, character_model.id);
+            assert_eq!(corporation.corporation_id, 1);
+            // Alliance should be present
+            assert!(alliance.is_some());
+            assert_eq!(alliance.as_ref().unwrap().id, alliance_model.id);
+
+            Ok(())
+        }
+
+        /// Expect Ok with multiple characters, validating all have corporations
+        #[tokio::test]
+        async fn returns_multiple_owned_characters() -> Result<(), TestError> {
+            let mut test = test_setup_with_user_tables!()?;
+            let (user_model, _, _) = test
+                .user()
+                .insert_user_with_mock_character(1, 1, None, None)
+                .await?;
+            test.user()
+                .insert_mock_character_for_user(user_model.id, 2, 2, Some(1), None)
+                .await?;
+
+            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let result = user_character_repo
+                .get_owned_characters_by_user_id(user_model.id)
+                .await;
+
+            assert!(result.is_ok());
+            let characters = result.unwrap();
+            assert_eq!(characters.len(), 2);
+
+            // Validate both characters have corporations
+            for (character, corporation, _) in &characters {
+                assert!(character.id > 0);
+                assert!(corporation.id > 0);
+            }
 
             Ok(())
         }

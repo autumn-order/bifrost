@@ -4,7 +4,9 @@ use axum::{
     response::IntoResponse,
 };
 use bifrost::server::controller::auth::{login, LoginParams};
-use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
+use bifrost_test_utils::constant::TEST_USER_AGENT;
+
+use super::*;
 
 #[tokio::test]
 // Test the return of a 307 temporary redirect response for login

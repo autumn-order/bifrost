@@ -1,6 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::auth::get_user, model::session::user::SessionUserId};
-use bifrost_test_utils::prelude::*;
+
+use super::*;
 
 #[tokio::test]
 /// Expect 200 success with user information for existing user
@@ -30,8 +31,8 @@ async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
 
     let result = get_user(State(test.state()), test.session).await;
 
-    assert!(result.is_ok());
-    let resp = result.unwrap().into_response();
+    assert!(result.is_err());
+    let resp = result.err().unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     Ok(())
@@ -50,8 +51,8 @@ async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
 
     let result = get_user(State(test.state()), test.session).await;
 
-    assert!(result.is_ok());
-    let resp = result.unwrap().into_response();
+    assert!(result.is_err());
+    let resp = result.err().unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     Ok(())

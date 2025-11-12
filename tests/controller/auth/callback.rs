@@ -7,7 +7,8 @@ use bifrost::server::{
     controller::auth::{callback, CallbackParams},
     model::session::{auth::SessionAuthCsrf, user::SessionUserId},
 };
-use bifrost_test_utils::prelude::*;
+
+use super::*;
 
 #[tokio::test]
 /// Expect 307 temprorary redirect when logging with new character

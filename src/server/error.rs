@@ -32,6 +32,10 @@ pub enum Error {
     AuthCsrfEmptySession,
     #[error("Failed to login user due to CSRF state mismatch")]
     AuthCsrfInvalidState,
+    #[error("User ID is not present in session")]
+    AuthUserNotInSession,
+    #[error("User ID {0:?} not found in database despite having an active session")]
+    AuthUserNotInDatabase(i32),
     #[error("Missing required environment variable: {0}")]
     MissingEnvVar(String),
     #[error("Invalid value for environment variable {var}: {reason}")]
@@ -50,10 +54,10 @@ pub enum Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> Response {
-        let internal_server_error = (
-            StatusCode::INTERNAL_SERVER_ERROR,
+        let user_not_found_response = (
+            StatusCode::NOT_FOUND,
             Json(ErrorDto {
-                error: "Internal server error".to_string(),
+                error: "User not found".to_string(),
             }),
         );
 
@@ -63,14 +67,35 @@ impl IntoResponse for Error {
 
                 (
                     StatusCode::BAD_REQUEST,
-                    "There was an issue logging you in, please try again.",
+                    Json(ErrorDto {
+                        error: "There was an issue logging you in, please try again.".to_string(),
+                    }),
                 )
                     .into_response()
+            }
+            Error::AuthUserNotInSession => {
+                debug!("Authentication error: {}", Error::AuthUserNotInSession);
+
+                user_not_found_response.into_response()
+            }
+            Error::AuthUserNotInDatabase(user_id) => {
+                debug!(
+                    "Authentication error: {}",
+                    Error::AuthUserNotInDatabase(user_id)
+                );
+
+                user_not_found_response.into_response()
             }
             err => {
                 error!("Internal server error: {}", err);
 
-                internal_server_error.into_response()
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorDto {
+                        error: "Internal server error".to_string(),
+                    }),
+                )
+                    .into_response()
             }
         }
     }

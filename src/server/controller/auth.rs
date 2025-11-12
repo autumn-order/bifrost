@@ -10,7 +10,7 @@ use tower_sessions::Session;
 use crate::{
     model::{api::ErrorDto, user::UserDto},
     server::{
-        controller::util::csrf::validate_csrf,
+        controller::util::{csrf::validate_csrf, get_user::get_user_from_session},
         error::Error,
         model::{
             app::AppState,
@@ -18,10 +18,7 @@ use crate::{
                 auth::SessionAuthCsrf, change_main::SessionUserChangeMain, user::SessionUserId,
             },
         },
-        service::{
-            auth::{callback::CallbackService, login::login_service},
-            user::UserService,
-        },
+        service::auth::{callback::CallbackService, login::login_service},
     },
 };
 
@@ -156,38 +153,7 @@ pub async fn get_user(
     State(state): State<AppState>,
     session: Session,
 ) -> Result<impl IntoResponse, Error> {
-    let user_service = UserService::new(&state.db, &state.esi_client);
+    let user = get_user_from_session(&state, &session).await?;
 
-    let user_id = SessionUserId::get(&session).await?;
-
-    match user_id {
-        Some(id) => match user_service.get_user(id).await? {
-            Some(user) => Ok((StatusCode::OK, axum::Json(user)).into_response()),
-            None => {
-                // Clear session for user not found in database
-                session.clear().await;
-
-                tracing::warn!(
-                    "Failed to find user ID {} in database despite having an active session;
-                    cleared session for user, they will need to relog to fix",
-                    id
-                );
-
-                Ok((
-                    StatusCode::NOT_FOUND,
-                    axum::Json(ErrorDto {
-                        error: "User not found".to_string(),
-                    }),
-                )
-                    .into_response())
-            }
-        },
-        None => Ok((
-            StatusCode::NOT_FOUND,
-            axum::Json(ErrorDto {
-                error: "User not found".to_string(),
-            }),
-        )
-            .into_response()),
-    }
+    Ok((StatusCode::OK, axum::Json(user)).into_response())
 }
