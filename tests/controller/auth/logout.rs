@@ -1,6 +1,7 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::auth::logout, model::session::user::SessionUserId};
-use bifrost_test_utils::prelude::*;
+
+use super::*;
 
 #[tokio::test]
 /// Expect 307 temporary redirect after logout with a user ID in session

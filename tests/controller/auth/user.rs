@@ -1,6 +1,7 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::auth::get_user, model::session::user::SessionUserId};
-use bifrost_test_utils::prelude::*;
+
+use super::*;
 
 #[tokio::test]
 /// Expect 200 success with user information for existing user
