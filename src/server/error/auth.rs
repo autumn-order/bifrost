@@ -18,6 +18,12 @@ pub enum AuthError {
     CsrfValidationFailed,
     #[error("Failed to login user due to CSRF state present in session store but without a value")]
     CsrfMissingValue,
+    #[error("Character is owned by another user")]
+    CharacterOwnedByAnotherUser,
+    #[error("Character is not owned by any user")]
+    CharacterNotOwned,
+    #[error("Character not found in database")]
+    CharacterNotFound,
 }
 
 impl AuthError {
@@ -60,7 +66,29 @@ impl IntoResponse for AuthError {
                 )
                     .into_response()
             }
-            Self::CsrfMissingValue => InternalServerError(self).into_response(),
+            Self::CharacterOwnedByAnotherUser => {
+                tracing::debug!("{}", self);
+
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorDto {
+                        error: "Invalid character selection".to_string(),
+                    }),
+                )
+                    .into_response()
+            }
+            Self::CharacterNotOwned => {
+                tracing::debug!("{}", self);
+
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(ErrorDto {
+                        error: "Invalid character selection".to_string(),
+                    }),
+                )
+                    .into_response()
+            }
+            err => InternalServerError(err).into_response(),
         }
     }
 }
