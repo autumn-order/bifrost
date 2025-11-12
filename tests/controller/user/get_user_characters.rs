@@ -125,8 +125,8 @@ async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
 
     let result = get_user_characters(State(test.state()), test.session).await;
 
-    assert!(result.is_ok());
-    let resp = result.unwrap().into_response();
+    assert!(result.is_err());
+    let resp = result.err().unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     Ok(())
@@ -145,8 +145,8 @@ async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
 
     let result = get_user_characters(State(test.state()), test.session.clone()).await;
 
-    assert!(result.is_ok());
-    let resp = result.unwrap().into_response();
+    assert!(result.is_err());
+    let resp = result.err().unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 
     // Verify session was cleared

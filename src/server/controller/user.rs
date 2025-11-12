@@ -1,13 +1,11 @@
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use dioxus_logger::tracing;
 use tower_sessions::Session;
 
 use crate::{
     model::{api::ErrorDto, user::CharacterDto},
     server::{
-        error::Error,
-        model::{app::AppState, session::user::SessionUserId},
-        service::user::{user_character::UserCharacterService, UserService},
+        controller::util::get_user::get_user_from_session, error::Error, model::app::AppState,
+        service::user::user_character::UserCharacterService,
     },
 };
 
@@ -28,42 +26,7 @@ pub async fn get_user_characters(
     State(state): State<AppState>,
     session: Session,
 ) -> Result<impl IntoResponse, Error> {
-    let user_service = UserService::new(&state.db, &state.esi_client);
-
-    let user_id = SessionUserId::get(&session).await?;
-
-    let user_id = if let Some(user_id) = user_id {
-        user_id
-    } else {
-        return Ok((
-            StatusCode::NOT_FOUND,
-            axum::Json(ErrorDto {
-                error: "User not found".to_string(),
-            }),
-        )
-            .into_response());
-    };
-
-    let user = if let Some(user) = user_service.get_user(user_id).await? {
-        user
-    } else {
-        // Clear session for user not found in database
-        session.clear().await;
-
-        tracing::warn!(
-            "Failed to find user ID {} in database despite having an active session;
-            cleared session for user, they will need to relog to fix",
-            user_id
-        );
-
-        return Ok((
-            StatusCode::NOT_FOUND,
-            axum::Json(ErrorDto {
-                error: "User not found".to_string(),
-            }),
-        )
-            .into_response());
-    };
+    let user = get_user_from_session(&state, &session).await?;
 
     let character_dtos = UserCharacterService::new(&state.db, &state.esi_client)
         .get_user_characters(user.id)
