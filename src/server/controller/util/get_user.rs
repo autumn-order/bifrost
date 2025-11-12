@@ -4,7 +4,7 @@ use tower_sessions::Session;
 use crate::{
     model::user::UserDto,
     server::{
-        error::Error,
+        error::{auth::AuthError, Error},
         model::{app::AppState, session::user::SessionUserId},
         service::user::UserService,
     },
@@ -24,7 +24,7 @@ use crate::{
 pub async fn get_user_from_session(state: &AppState, session: &Session) -> Result<UserDto, Error> {
     // Get user from session
     let Some(user_id) = SessionUserId::get(&session).await? else {
-        return Err(Error::AuthUserNotInSession);
+        return Err(Error::AuthError(AuthError::UserNotInSession));
     };
 
     // Get user from database
@@ -39,7 +39,7 @@ pub async fn get_user_from_session(state: &AppState, session: &Session) -> Resul
             user_id
         );
 
-        return Err(Error::AuthUserNotInDatabase(user_id));
+        return Err(Error::AuthError(AuthError::UserNotInDatabase(user_id)));
     };
 
     Ok(user)

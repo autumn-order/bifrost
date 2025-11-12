@@ -2,7 +2,9 @@ use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::eve::faction::FactionRepository, error::Error, util::time::effective_faction_cache_expiry,
+    data::eve::faction::FactionRepository,
+    error::{eve::EveError, Error},
+    util::time::effective_faction_cache_expiry,
 };
 
 pub struct FactionService<'a> {
@@ -69,7 +71,7 @@ impl<'a> FactionService<'a> {
             return Ok(faction);
         }
 
-        Err(Error::EveFactionNotFound(faction_id))
+        Err(EveError::FactionNotFound(faction_id).into())
     }
 }
 
@@ -204,7 +206,10 @@ mod tests {
     mod get_or_update_factions {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::{error::Error, service::eve::faction::FactionService};
+        use crate::server::{
+            error::{eve::EveError, Error},
+            service::eve::faction::FactionService,
+        };
 
         /// Expect Ok with faction found when it is present in database
         #[tokio::test]
@@ -287,7 +292,10 @@ mod tests {
             let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
             let result = faction_service.get_or_update_factions(faction_id).await;
 
-            assert!(matches!(result, Err(Error::EveFactionNotFound(_))));
+            assert!(matches!(
+                result,
+                Err(Error::EveError(EveError::FactionNotFound(_)))
+            ));
             faction_endpoint.assert();
 
             Ok(())
