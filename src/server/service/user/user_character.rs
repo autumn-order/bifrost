@@ -197,7 +197,6 @@ impl<'a> UserCharacterService<'a> {
         Ok(false)
     }
 
-    // TODO: Needs unit tests & docs
     pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
         let user_repo = UserRepository::new(self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
@@ -209,6 +208,13 @@ impl<'a> UserCharacterService<'a> {
         let ownership = match character {
             Some((_, maybe_ownership)) => {
                 if let Some(ownership) = maybe_ownership {
+                    // Verify the character is owned by this user
+                    if ownership.user_id != user_id {
+                        tracing::warn!("User ID {} attempted to change main to character ID {} which is owned by user ID {}", user_id, character_id, ownership.user_id);
+
+                        // TODO: Return proper error for failure to link character
+                        return Ok(());
+                    }
                     ownership
                 } else {
                     tracing::warn!("User ID {} attempted to change main to character ID {} for their account yet user doesn't own this character", user_id, character_id);
