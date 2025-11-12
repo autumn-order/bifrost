@@ -1,5 +1,8 @@
 pub mod user_character;
 
+#[cfg(test)]
+mod tests;
+
 use dioxus_logger::tracing;
 use eve_esi::model::oauth2::EveJwtClaims;
 use sea_orm::DatabaseConnection;
@@ -126,7 +129,8 @@ impl<'a> UserService<'a> {
 }
 
 #[cfg(test)]
-mod tests {
+// TODO: move to own folder
+mod module_tests {
 
     mod get_or_create_user {
         use bifrost_test_utils::prelude::*;
