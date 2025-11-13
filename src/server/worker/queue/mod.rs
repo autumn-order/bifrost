@@ -47,7 +47,7 @@ const DEFAULT_QUEUE_NAME: &str = "bifrost:worker:queue";
 
 /// Maximum age for jobs in the queue before they're considered stale (24 hours in milliseconds)
 /// Jobs older than this will be removed by cleanup operations
-pub(self) const JOB_TTL_MS: i64 = 24 * 60 * 60 * 1000;
+const JOB_TTL_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// Cleanup stale jobs every time this many jobs are pushed (1000 pushes)
 /// This provides passive cleanup without requiring a separate background task
@@ -109,29 +109,45 @@ impl WorkerJobQueue {
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
 
-        // Periodically cleanup stale jobs (every CLEANUP_INTERVAL pushes)
-        if was_added {
-            let count = self
-                .push_counter
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            if count % CLEANUP_INTERVAL == 0 {
-                // Run cleanup in background, don't wait for it
-                let pool = self.pool.clone();
-                let queue_name = self.queue_name.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
-                        tracing::warn!("Failed to cleanup stale jobs: {}", e);
-                    }
-                });
-            }
-        }
+        // Periodically cleanup stale jobs (every 1000 job pushes)
+        self.trigger_periodic_cleanup(was_added);
 
         Ok(was_added)
     }
 
     /// Schedule job to be executed at provided time
-    pub async fn schedule(&self, _job: WorkerJob, _time: DateTime<Utc>) -> Result<(), Error> {
-        Ok(())
+    ///
+    /// Uses a Lua script to atomically check for duplicates and add the job to the queue.
+    /// Jobs with the same identity will not be added if they already exist in the queue.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(true)` if the job was added to the queue.
+    /// Returns `Ok(false)` if a duplicate already exists in the queue.
+    /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
+    pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, Error> {
+        let identity = job.identity()?;
+        let score = time.timestamp_millis() as f64;
+
+        // Execute Lua script atomically
+        // Uses ZSCORE for O(1) duplicate check, then ZADD with identity as member
+        // Note: For affiliation batches, identity only contains count+hash, not actual character IDs
+        let result: i64 = self
+            .pool
+            .eval(
+                PUSH_JOB_SCRIPT,
+                vec![&self.queue_name],
+                vec![identity, score.to_string()],
+            )
+            .await?;
+
+        // result is 1 if added, 0 if duplicate exists
+        let was_added = result == 1;
+
+        // Periodically cleanup stale jobs (every 1000 job pushes)
+        self.trigger_periodic_cleanup(was_added);
+
+        Ok(was_added)
     }
 
     /// Retrieve earliest job from queue
@@ -153,6 +169,30 @@ impl WorkerJobQueue {
     /// Returns the number of stale jobs that were removed from the queue.
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
         Self::cleanup_stale_jobs_internal(&self.pool, &self.queue_name).await
+    }
+
+    /// Trigger periodic cleanup if a job was added and cleanup interval is reached
+    ///
+    /// This method is called by push and schedule to periodically clean up stale jobs.
+    /// Cleanup runs in the background without blocking the caller.
+    fn trigger_periodic_cleanup(&self, was_added: bool) {
+        if was_added {
+            let count = self
+                .push_counter
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            // Check if we've reached the cleanup interval
+            // count + 1 because fetch_add returns the value BEFORE incrementing
+            if (count + 1) % CLEANUP_INTERVAL == 0 {
+                // Run cleanup in background, don't wait for it
+                let pool = self.pool.clone();
+                let queue_name = self.queue_name.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
+                        tracing::warn!("Failed to cleanup stale jobs: {}", e);
+                    }
+                });
+            }
+        }
     }
 
     /// Internal implementation of cleanup that can be called from spawn
