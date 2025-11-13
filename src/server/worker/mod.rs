@@ -1,11 +1,12 @@
+mod handler;
+mod queue;
+
 use apalis::prelude::Data;
 use dioxus_logger::tracing;
 use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{error::Error, model::worker::WorkerJob};
-
-mod handler;
 
 pub use handler::WorkerJobHandler;
 

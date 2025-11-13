@@ -468,6 +468,7 @@ dependencies = [
  "reqwasm",
  "sea-orm",
  "serde",
+ "serde_json",
  "thiserror 2.0.17",
  "time",
  "tokio",
@@ -488,6 +489,7 @@ dependencies = [
  "chrono",
  "entity",
  "eve_esi",
+ "fred",
  "jsonwebtoken",
  "mockito",
  "oauth2",
@@ -495,6 +497,7 @@ dependencies = [
  "sea-orm",
  "serde_json",
  "thiserror 2.0.17",
+ "tokio",
  "tower-sessions",
 ]
 

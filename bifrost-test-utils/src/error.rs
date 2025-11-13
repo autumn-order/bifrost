@@ -8,4 +8,6 @@ pub enum TestError {
     DbErr(#[from] sea_orm::DbErr),
     #[error(transparent)]
     SessionError(#[from] tower_sessions::session::Error),
+    #[error(transparent)]
+    FredError(#[from] fred::error::Error),
 }
