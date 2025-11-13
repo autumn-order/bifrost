@@ -35,13 +35,16 @@ mod lua;
 #[cfg(test)]
 mod tests;
 
-use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
+use lua::{CLEANUP_STALE_JOBS_SCRIPT, GET_ALL_OF_TYPE_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
 use fred::prelude::*;
 
-use crate::server::{error::Error, model::worker::WorkerJob};
+use crate::server::{
+    error::{worker::WorkerError, Error},
+    model::worker::WorkerJob,
+};
 
 const DEFAULT_QUEUE_NAME: &str = "bifrost:worker:queue";
 
@@ -197,8 +200,75 @@ impl WorkerJobQueue {
     }
 
     /// Retrieve all worker jobs of type without removing from queue
-    pub async fn get_all_of_type(&self, _job: WorkerJob) -> Result<Vec<QueuedJob>, Error> {
-        Ok(Vec::new())
+    ///
+    /// This method is useful for preventing duplicate job scheduling by checking what jobs
+    /// are already in the queue. For example, when scheduling UpdateAllianceInfo jobs, you can
+    /// retrieve all existing alliance jobs and exclude those IDs from your database query.
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of `QueuedJob` containing all jobs of the specified type currently in the queue,
+    /// along with their scheduled execution times.
+    ///
+    /// # Note
+    ///
+    /// For affiliation batch jobs, this will return jobs but the character_ids field will be empty
+    /// since the identity string only contains count and hash. The actual character IDs must be
+    /// retrieved from the database when processing these jobs.
+    pub async fn get_all_of_type(&self, job: WorkerJob) -> Result<Vec<QueuedJob>, Error> {
+        // Determine the identity prefix based on the job type
+        let prefix = match job {
+            WorkerJob::UpdateCharacterInfo { .. } => "character:info:",
+            WorkerJob::UpdateAllianceInfo { .. } => "alliance:info:",
+            WorkerJob::UpdateCorporationInfo { .. } => "corporation:info:",
+            WorkerJob::UpdateAffiliations { .. } => "affiliation:batch:",
+        };
+
+        // Execute Lua script to get all matching jobs
+        let result: Vec<Value> = self
+            .pool
+            .eval(GET_ALL_OF_TYPE_SCRIPT, vec![&self.queue_name], vec![prefix])
+            .await?;
+
+        // Parse results into QueuedJob structs
+        let mut jobs = Vec::new();
+
+        // Results come in pairs: [identity1, score1, identity2, score2, ...]
+        for chunk in result.chunks(2) {
+            if chunk.len() == 2 {
+                let identity: String = chunk[0].clone().convert()?;
+                let score: f64 = chunk[1].clone().convert()?;
+
+                // Convert score (milliseconds) to DateTime
+                let timestamp_ms = score as i64;
+                let scheduled_at =
+                    DateTime::from_timestamp_millis(timestamp_ms).ok_or_else(|| {
+                        Error::from(WorkerError::InvalidJobIdentity(format!(
+                            "Invalid timestamp: {}",
+                            timestamp_ms
+                        )))
+                    })?;
+
+                // Parse identity back into WorkerJob
+                // For affiliation batches, this will fail to parse due to missing character IDs
+                // We handle this specially by creating an empty affiliation job
+                let job = match WorkerJob::parse_identity(&identity) {
+                    Ok(job) => job,
+                    Err(_) if identity.starts_with("affiliation:batch:") => {
+                        // For affiliation batches, create a job with empty character_ids
+                        // since the actual IDs must be retrieved from the database
+                        WorkerJob::UpdateAffiliations {
+                            character_ids: Vec::new(),
+                        }
+                    }
+                    Err(e) => return Err(e),
+                };
+
+                jobs.push(QueuedJob { job, scheduled_at });
+            }
+        }
+
+        Ok(jobs)
     }
 
     /// Remove all jobs older than JOB_TTL_MS from the queue

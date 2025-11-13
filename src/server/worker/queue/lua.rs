@@ -81,3 +81,35 @@ local result = redis.call('ZPOPMIN', queue_key, 1)
 -- result[1] is the identity string, result[2] is the score
 return {result[1], result[2]}
 "#;
+
+// Lua script to get all jobs of a specific type without removing them
+// Uses pattern matching on identity strings to filter jobs by type
+//
+// KEYS[1]: sorted set key (queue name)
+// ARGV[1]: identity prefix pattern (e.g., "character:info:", "alliance:info:", "affiliation:batch:")
+//
+// Returns:
+//   empty table if no matching jobs found
+//   table of {identity, score} pairs for all matching jobs
+pub static GET_ALL_OF_TYPE_SCRIPT: &str = r#"
+local queue_key = KEYS[1]
+local prefix = ARGV[1]
+
+-- Get all jobs from the sorted set with their scores
+local all_jobs = redis.call('ZRANGE', queue_key, 0, -1, 'WITHSCORES')
+
+-- Filter jobs that match the prefix
+local matching_jobs = {}
+for i = 1, #all_jobs, 2 do
+    local identity = all_jobs[i]
+    local score = all_jobs[i + 1]
+
+    -- Check if identity starts with the prefix
+    if string.sub(identity, 1, #prefix) == prefix then
+        table.insert(matching_jobs, identity)
+        table.insert(matching_jobs, score)
+    end
+end
+
+return matching_jobs
+"#;
