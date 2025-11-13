@@ -1,7 +1,7 @@
 mod handler;
-mod new_handler;
-mod pool;
 mod queue;
+
+mod new_worker;
 
 use apalis::prelude::Data;
 use dioxus_logger::tracing;
@@ -11,7 +11,6 @@ use sea_orm::DatabaseConnection;
 use crate::server::{error::Error, model::worker::WorkerJob};
 
 pub use handler::WorkerJobHandler;
-pub use pool::{WorkerPool, WorkerPoolConfig};
 pub use queue::WorkerJobQueue;
 
 pub async fn handle_job(
