@@ -1,4 +1,6 @@
 mod handler;
+mod new_handler;
+mod pool;
 mod queue;
 
 use apalis::prelude::Data;
@@ -9,6 +11,8 @@ use sea_orm::DatabaseConnection;
 use crate::server::{error::Error, model::worker::WorkerJob};
 
 pub use handler::WorkerJobHandler;
+pub use pool::{WorkerPool, WorkerPoolConfig};
+pub use queue::WorkerJobQueue;
 
 pub async fn handle_job(
     job: WorkerJob,
