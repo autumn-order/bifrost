@@ -6,7 +6,7 @@ use crate::server::error::{worker::WorkerError, Error};
 /// This matches the EVE ESI API limit for affiliation lookups
 pub const MAX_AFFILIATION_BATCH_SIZE: usize = 1000;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum WorkerJob {
     UpdateAllianceInfo { alliance_id: i64 },
     UpdateCorporationInfo { corporation_id: i64 },

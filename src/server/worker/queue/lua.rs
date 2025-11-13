@@ -45,3 +45,39 @@ local cutoff_score = tonumber(ARGV[1])
 local removed = redis.call('ZREMRANGEBYSCORE', queue_key, '-inf', cutoff_score)
 return removed
 "#;
+
+// Lua script to atomically pop the earliest job from the queue
+// Uses ZPOPMIN to retrieve and remove the job with the lowest score (earliest timestamp)
+// Only pops jobs that are due (score <= current time)
+//
+// KEYS[1]: sorted set key (queue name)
+// ARGV[1]: current timestamp in milliseconds
+//
+// Returns:
+//   nil if queue is empty or no jobs are due
+//   table with {identity, score} if job was popped
+pub static POP_JOB_SCRIPT: &str = r#"
+local queue_key = KEYS[1]
+local now = tonumber(ARGV[1])
+
+-- Get the earliest job without removing it
+local peek = redis.call('ZRANGE', queue_key, 0, 0, 'WITHSCORES')
+
+-- Check if queue is empty
+if #peek == 0 then
+    return nil
+end
+
+-- Check if the earliest job is due (score <= now)
+local score = tonumber(peek[2])
+if score > now then
+    return nil
+end
+
+-- Job is due, pop it atomically
+local result = redis.call('ZPOPMIN', queue_key, 1)
+
+-- Return both identity and score as table
+-- result[1] is the identity string, result[2] is the score
+return {result[1], result[2]}
+"#;

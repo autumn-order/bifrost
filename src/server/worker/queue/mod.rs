@@ -35,7 +35,7 @@ mod lua;
 #[cfg(test)]
 mod tests;
 
-use lua::{CLEANUP_STALE_JOBS_SCRIPT, PUSH_JOB_SCRIPT};
+use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
@@ -151,8 +151,49 @@ impl WorkerJobQueue {
     }
 
     /// Retrieve earliest job from queue
+    ///
+    /// Uses a Lua script to atomically retrieve and remove the job with the lowest score
+    /// (earliest timestamp) from the sorted set.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(Some(WorkerJob))` if a job was popped from the queue.
+    /// Returns `Ok(None)` if the queue is empty.
+    /// Returns `Err` on Redis communication errors or deserialization errors.
+    ///
+    /// # Note
+    ///
+    /// For affiliation batch jobs, this will fail because it has not yet been implemented
+    /// for this new job scheduler system.
     pub async fn pop(&self) -> Result<Option<WorkerJob>, Error> {
-        Ok(None)
+        // Execute Lua script to atomically pop earliest job that is due
+        let now = Utc::now().timestamp_millis();
+        let result: Option<Vec<Value>> = self
+            .pool
+            .eval(
+                POP_JOB_SCRIPT,
+                vec![&self.queue_name],
+                vec![now.to_string()],
+            )
+            .await?;
+
+        match result {
+            None => Ok(None),
+            Some(values) => {
+                // Extract identity string from result
+                // values[0] is the identity, values[1] is the score
+                if values.is_empty() {
+                    return Ok(None);
+                }
+
+                let identity: String = values[0].clone().convert()?;
+
+                // Parse identity back into WorkerJob
+                let job = WorkerJob::parse_identity(&identity)?;
+
+                Ok(Some(job))
+            }
+        }
     }
 
     /// Retrieve all worker jobs of type without removing from queue
