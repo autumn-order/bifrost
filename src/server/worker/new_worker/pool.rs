@@ -6,7 +6,7 @@ use tokio::sync::{RwLock, Semaphore};
 
 use crate::server::{error::Error, worker::queue::WorkerJobQueue};
 
-use super::{config::WorkerPoolConfig, dispatcher::DispatcherHandle};
+use super::{config::WorkerPoolConfig, context::DispatcherContext, dispatcher::DispatcherHandle};
 
 /// Worker pool for processing jobs from the WorkerJobQueue
 ///
@@ -15,12 +15,8 @@ use super::{config::WorkerPoolConfig, dispatcher::DispatcherHandle};
 /// with a semaphore controlling maximum concurrency.
 pub struct WorkerPool {
     config: WorkerPoolConfig,
-    db: Arc<DatabaseConnection>,
-    esi_client: Arc<eve_esi::Client>,
-    queue: Arc<WorkerJobQueue>,
+    context: DispatcherContext,
     dispatchers: Arc<RwLock<Vec<DispatcherHandle>>>,
-    shutdown_signal: Arc<tokio::sync::Notify>,
-    semaphore: Arc<Semaphore>,
 }
 
 impl WorkerPool {
@@ -39,15 +35,15 @@ impl WorkerPool {
     ) -> Self {
         // Create semaphore to limit concurrent job processing
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
+        let shutdown_signal = Arc::new(tokio::sync::Notify::new());
+
+        // Bundle shared resources into context
+        let context = DispatcherContext::new(queue, db, esi_client, semaphore, shutdown_signal);
 
         Self {
             config,
-            db,
-            esi_client,
-            queue,
+            context,
             dispatchers: Arc::new(RwLock::new(Vec::new())),
-            shutdown_signal: Arc::new(tokio::sync::Notify::new()),
-            semaphore,
         }
     }
 
@@ -76,15 +72,7 @@ impl WorkerPool {
 
         // Spawn dispatchers with staggered delays to prevent thundering herd
         for id in 0..dispatcher_count {
-            let handle = DispatcherHandle::spawn(
-                id,
-                self.config.clone(),
-                Arc::clone(&self.queue),
-                Arc::clone(&self.db),
-                Arc::clone(&self.esi_client),
-                Arc::clone(&self.semaphore),
-                Arc::clone(&self.shutdown_signal),
-            );
+            let handle = DispatcherHandle::spawn(id, self.config.clone(), self.context.clone());
             dispatchers.push(handle);
 
             // Add stagger delay between spawns (except after the last one)
@@ -115,7 +103,7 @@ impl WorkerPool {
         tracing::info!("Shutting down worker pool...");
 
         // Signal all dispatchers to stop
-        self.shutdown_signal.notify_waiters();
+        self.context.shutdown_signal.notify_waiters();
 
         // Wait for all dispatchers to finish
         let mut dispatchers = self.dispatchers.write().await;
@@ -133,7 +121,7 @@ impl WorkerPool {
         }
 
         // Close the semaphore to prevent new tasks from starting
-        self.semaphore.close();
+        self.context.semaphore.close();
 
         tracing::info!(
             "Worker pool shut down successfully ({} dispatchers stopped, in-flight tasks will complete)",
@@ -159,7 +147,7 @@ impl WorkerPool {
     /// This indicates how many more jobs can be spawned before hitting the
     /// concurrency limit. A value of 0 means the system is at capacity.
     pub fn available_permits(&self) -> usize {
-        self.semaphore.available_permits()
+        self.context.available_permits()
     }
 
     /// Get the maximum number of concurrent jobs configured
@@ -171,14 +159,14 @@ impl WorkerPool {
     ///
     /// This is calculated as: max_concurrent_jobs - available_permits
     pub fn active_job_count(&self) -> usize {
-        self.config.max_concurrent_jobs - self.semaphore.available_permits()
+        self.config.max_concurrent_jobs - self.context.available_permits()
     }
 }
 
 impl Drop for WorkerPool {
     fn drop(&mut self) {
         // Signal shutdown when pool is dropped
-        self.shutdown_signal.notify_waiters();
-        self.semaphore.close();
+        self.context.shutdown_signal.notify_waiters();
+        self.context.semaphore.close();
     }
 }
