@@ -81,3 +81,44 @@ local result = redis.call('ZPOPMIN', queue_key, 1)
 -- result[1] is the identity string, result[2] is the score
 return {result[1], result[2]}
 "#;
+
+// Lua script to atomically pop multiple jobs from the queue
+// Pops up to max_count jobs that are due for execution (score <= current time)
+// More efficient than calling POP_JOB_SCRIPT in a loop as it requires only one Redis round-trip
+//
+// KEYS[1]: sorted set key (queue name)
+// ARGV[1]: current timestamp in milliseconds
+// ARGV[2]: maximum number of jobs to pop
+//
+// Returns:
+//   empty table {} if queue is empty or no jobs are due
+//   table with {identity1, score1, identity2, score2, ...} for popped jobs
+pub static POP_BATCH_SCRIPT: &str = r#"
+local queue_key = KEYS[1]
+local now = tonumber(ARGV[1])
+local max_count = tonumber(ARGV[2])
+
+local results = {}
+
+-- Get up to max_count jobs with their scores
+-- Jobs are sorted by score (timestamp), so we can stop at first non-due job
+local jobs = redis.call('ZRANGE', queue_key, 0, max_count - 1, 'WITHSCORES')
+
+-- Iterate through jobs in pairs (identity, score)
+for i = 1, #jobs, 2 do
+    local identity = jobs[i]
+    local score = tonumber(jobs[i + 1])
+
+    -- Only pop jobs that are due
+    if score <= now then
+        redis.call('ZREM', queue_key, identity)
+        table.insert(results, identity)
+        table.insert(results, score)
+    else
+        -- Jobs are sorted, remaining jobs also not due
+        break
+    end
+end
+
+return results
+"#;

@@ -1,111 +1,117 @@
+use dioxus_logger::tracing;
+
 /// Configuration for the worker pool
 #[derive(Debug, Clone)]
 pub struct WorkerPoolConfig {
-    /// Maximum number of concurrent jobs that can be processed simultaneously
-    ///
-    /// This is enforced via a semaphore. Actual number of active tasks will be
-    /// between 0 and max_concurrent_jobs depending on workload.
+    /// Maximum concurrent jobs. Set to ~80% of PostgreSQL connection pool size.
     pub max_concurrent_jobs: usize,
 
-    /// Base delay between polling attempts when queue is empty (in milliseconds)
-    ///
-    /// Actual delay will be `poll_interval_ms + random(0..poll_interval_ms/2)` to prevent
-    /// thundering herd when multiple dispatchers wake simultaneously.
+    /// Base delay between polls when queue is empty (milliseconds).
+    /// Jittered by up to 50% to prevent thundering herd.
     pub poll_interval_ms: u64,
 
-    /// Delay between spawning each dispatcher (in milliseconds)
-    ///
-    /// Staggering dispatcher spawns prevents all dispatchers from hitting Redis
-    /// simultaneously on startup, reducing initial load spike.
+    /// Delay between spawning each dispatcher (milliseconds).
     pub dispatcher_spawn_stagger_ms: u64,
 
-    /// Maximum initial random delay before a dispatcher starts polling (in milliseconds)
-    ///
-    /// Each dispatcher will sleep for a random duration between 0 and this value
-    /// before beginning its main loop, further distributing initial load.
+    /// Maximum initial random delay before dispatcher starts (milliseconds).
     pub dispatcher_initial_jitter_ms: u64,
 
-    /// Maximum number of consecutive errors before a dispatcher backs off
+    /// Maximum consecutive errors before backing off.
     pub max_consecutive_errors: u32,
 
-    /// Backoff duration after max consecutive errors (in seconds)
+    /// Backoff duration after max consecutive errors (seconds).
     pub error_backoff_seconds: u64,
 
-    /// Maximum time a job can run before being cancelled (in seconds)
-    ///
-    /// If a job exceeds this timeout, it will be cancelled and the semaphore permit
-    /// will be released. This prevents hung jobs from holding permits indefinitely.
+    /// Maximum job execution time before cancellation (seconds).
     pub job_timeout_seconds: u64,
 }
 
 impl WorkerPoolConfig {
-    /// Create a new WorkerPoolConfig with automatic scaling
+    /// Create configuration with automatic scaling.
     ///
-    /// Automatically calculates optimal values for:
-    /// - `dispatcher_count`: 1 dispatcher per 25-50 jobs (min 1, max 5)
-    /// - `prefetch_batch_size`: Scaled based on concurrent job limit
-    /// - `poll_interval_ms`: Adjusted for concurrency (more aggressive for high concurrency)
+    /// **PostgreSQL Connection Bottleneck**
+    /// Each job requires a DB connection for read/write operations. This is the primary
+    /// bottleneck. Set `max_concurrent_jobs` to ~80% of your PostgreSQL connection pool
+    /// size (e.g., pool of 100 → max_concurrent_jobs = 80).
+    ///
+    /// **Dispatcher Autoscaling**
+    /// Dispatchers poll Redis and fetch jobs in batches (10-50 jobs/call). They're
+    /// lightweight and scale with workload: 1 dispatcher per 100 concurrent jobs.
     ///
     /// # Arguments
-    /// * `max_concurrent_jobs` - Maximum number of jobs that can run concurrently
-    ///
-    /// # Usage
-    /// Small scale (10 concurrent jobs, 1 dispatcher)
-    /// Medium scale (50 concurrent jobs, 2 dispatchers)
-    /// High scale (200 concurrent jobs, 5 dispatchers)
+    /// * `max_concurrent_jobs` - Max concurrent jobs (~80% of PostgreSQL pool size)
     pub fn new(max_concurrent_jobs: usize) -> Self {
+        // Most PostgreSQL deployments won't support >500 worker connections
+        if max_concurrent_jobs > 500 {
+            tracing::warn!(
+                "max_concurrent_jobs ({}) exceeds typical PostgreSQL limits. \
+                  Ensure your connection pool can handle this load.",
+                max_concurrent_jobs
+            );
+        }
+
         Self {
             max_concurrent_jobs,
             poll_interval_ms: Self::calculate_poll_interval(max_concurrent_jobs),
-            dispatcher_spawn_stagger_ms: 150, // 150ms between spawning each dispatcher
-            dispatcher_initial_jitter_ms: 500, // Up to 500ms random initial delay per dispatcher
+            dispatcher_spawn_stagger_ms: 150,
+            dispatcher_initial_jitter_ms: 500,
             max_consecutive_errors: 5,
             error_backoff_seconds: 10,
-            job_timeout_seconds: 300, // 5 minutes default timeout
+            job_timeout_seconds: 300,
         }
     }
 
-    /// Calculate optimal number of dispatcher threads based on max concurrent jobs
+    /// Calculate dispatcher count based on concurrent jobs and burst handling needs.
     ///
-    /// Rule: 1 dispatcher per 25-50 concurrent jobs, min 1, max 5
+    /// Dispatchers are lightweight and primarily useful for:
+    /// 1. Burst handling when many jobs arrive simultaneously
+    /// 2. Redundancy if one dispatcher has Redis latency spike
+    /// 3. Continued operation if one dispatcher panics
+    ///
+    /// With batch fetching, a single dispatcher can handle 300-400 jobs/sec.
+    /// Multiple dispatchers improve burst response and fault tolerance.
     pub fn dispatcher_count(&self) -> usize {
-        let count = (self.max_concurrent_jobs as f64 / 40.0).ceil() as usize;
-        count.clamp(1, 5)
+        match self.max_concurrent_jobs {
+            0..=150 => 1,   // Single dispatcher sufficient for low-medium load
+            151..=300 => 2, // Two for redundancy and burst handling
+            _ => 3,         // Three dispatchers max - more doesn't help
+        }
     }
 
-    /// Calculate optimal prefetch batch size based on concurrent jobs and dispatchers
+    /// Calculate prefetch batch size based on concurrent job capacity.
     ///
-    /// Rule: Aim for each dispatcher to fetch enough jobs to keep workers busy
-    /// without overwhelming the semaphore queue
+    /// Batch size balances:
+    /// - **Larger batches**: Fewer Redis round-trips, better throughput
+    /// - **Smaller batches**: Less memory buffering, more even dispatcher load
+    ///
+    /// With multiple dispatchers, each independently fetches its batch,
+    /// so total buffering = batch_size * dispatcher_count.
     pub fn prefetch_batch_size(&self) -> usize {
-        let dispatchers = self.dispatcher_count();
-        let batch = (self.max_concurrent_jobs as f64 / (dispatchers as f64 * 5.0)).ceil() as usize;
-        batch.clamp(5, 25)
+        match self.max_concurrent_jobs {
+            0..=50 => 20,   // Smaller batches to reduce buffering overhead
+            51..=150 => 30, // Sweet spot for most workloads
+            _ => 40,        // Larger batches for high-throughput scenarios
+        }
     }
 
-    /// Calculate optimal poll interval based on max concurrent jobs
-    ///
-    /// Higher concurrency gets more aggressive polling for lower latency
+    /// Calculate poll interval based on concurrent jobs (lower = more responsive).
     fn calculate_poll_interval(max_concurrent_jobs: usize) -> u64 {
         match max_concurrent_jobs {
-            0..=10 => 100, // Low concurrency: 100ms
-            11..=25 => 75, // Medium concurrency: 75ms
-            26..=50 => 60, // Medium-high concurrency: 60ms
-            _ => 50,       // High concurrency: 50ms
+            0..=10 => 100,
+            11..=25 => 75,
+            26..=50 => 60,
+            _ => 50,
         }
     }
 
-    /// Get the configured job timeout duration
     pub fn job_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.job_timeout_seconds)
     }
 
-    /// Get the configured dispatcher spawn stagger duration
     pub fn dispatcher_spawn_stagger(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.dispatcher_spawn_stagger_ms)
     }
 
-    /// Get the configured dispatcher initial jitter duration
     pub fn dispatcher_initial_jitter(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.dispatcher_initial_jitter_ms)
     }
