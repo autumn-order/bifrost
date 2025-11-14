@@ -37,17 +37,10 @@ impl WorkerPoolConfig {
     /// # Arguments
     /// * `max_concurrent_jobs` - Maximum number of jobs that can run concurrently
     ///
-    /// # Examples
-    /// ```
-    /// // Small scale (10 concurrent jobs, 1 dispatcher)
-    /// let config = WorkerPoolConfig::new(10);
-    ///
-    /// // Medium scale (50 concurrent jobs, 2 dispatchers)
-    /// let config = WorkerPoolConfig::new(50);
-    ///
-    /// // High scale (200 concurrent jobs, 5 dispatchers)
-    /// let config = WorkerPoolConfig::new(200);
-    /// ```
+    /// # Usage
+    /// Small scale (10 concurrent jobs, 1 dispatcher)
+    /// Medium scale (50 concurrent jobs, 2 dispatchers)
+    /// High scale (200 concurrent jobs, 5 dispatchers)
     pub fn new(max_concurrent_jobs: usize) -> Self {
         Self {
             max_concurrent_jobs,

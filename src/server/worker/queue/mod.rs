@@ -14,8 +14,8 @@
 //!
 //! ## TTL and Cleanup
 //!
-//! Jobs have a 24-hour TTL and are automatically cleaned up:
-//! - Passive cleanup runs every 1000 job pushes (background task, non-blocking)
+//! Jobs have a 1-hour TTL and are automatically cleaned up:
+//! - Passive cleanup runs every 5 minutes (background task, non-blocking)
 //! - Manual cleanup can be triggered via [`WorkerJobQueue::cleanup_stale_jobs`]
 //! - Stale jobs (older than TTL) are removed to prevent queue bloat
 //!
@@ -48,18 +48,16 @@ use crate::server::{
 
 const DEFAULT_QUEUE_NAME: &str = "bifrost:worker:queue";
 
-/// Maximum age for jobs in the queue before they're considered stale (24 hours in milliseconds)
+/// Maximum age for jobs in the queue before they're considered stale (1 hour in milliseconds)
 /// Jobs older than this will be removed by cleanup operations
-const JOB_TTL_MS: i64 = 24 * 60 * 60 * 1000;
+const JOB_TTL_MS: i64 = 60 * 60 * 1000;
 
-/// Cleanup stale jobs every time this many jobs are pushed (1000 pushes)
-/// This provides passive cleanup without requiring a separate background task
-const CLEANUP_INTERVAL: u64 = 1000;
+/// Cleanup interval in milliseconds (5 minutes)
+/// Cleanup will run at most once per this interval
+const CLEANUP_INTERVAL_MS: i64 = 5 * 60 * 1000;
 
 pub struct WorkerJobQueue {
     pool: Pool,
-    /// Counter for tracking when to run cleanup (uses atomic operations)
-    push_counter: std::sync::atomic::AtomicU64,
     /// Queue name in Redis (allows namespacing for test isolation)
     queue_name: String,
 }
@@ -71,16 +69,36 @@ pub struct QueuedJob {
 
 impl WorkerJobQueue {
     pub fn new(pool: Pool) -> Self {
-        Self::with_queue_name(pool, DEFAULT_QUEUE_NAME.to_string())
+        let queue = Self::with_queue_name(pool, DEFAULT_QUEUE_NAME.to_string());
+        queue.spawn_cleanup_task();
+        queue
     }
 
     /// Create a new WorkerJobQueue with a custom queue name (useful for testing)
     pub fn with_queue_name(pool: Pool, queue_name: String) -> Self {
-        Self {
-            pool,
-            push_counter: std::sync::atomic::AtomicU64::new(0),
-            queue_name,
-        }
+        Self { pool, queue_name }
+    }
+
+    /// Spawn a dedicated background task for periodic cleanup of stale jobs
+    ///
+    /// This task runs every CLEANUP_INTERVAL_MS and removes jobs older than JOB_TTL_MS.
+    /// The task runs for the lifetime of the application.
+    fn spawn_cleanup_task(&self) {
+        let pool = self.pool.clone();
+        let queue_name = self.queue_name.clone();
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
+                CLEANUP_INTERVAL_MS as u64,
+            ));
+
+            loop {
+                interval.tick().await;
+                if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
+                    tracing::warn!("Failed to cleanup stale jobs: {}", e);
+                }
+            }
+        });
     }
 
     /// Push a job to be executed as soon as possible
@@ -111,9 +129,6 @@ impl WorkerJobQueue {
 
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
-
-        // Periodically cleanup stale jobs (every 1000 job pushes)
-        self.trigger_periodic_cleanup(was_added);
 
         Ok(was_added)
     }
@@ -146,9 +161,6 @@ impl WorkerJobQueue {
 
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
-
-        // Periodically cleanup stale jobs (every 1000 job pushes)
-        self.trigger_periodic_cleanup(was_added);
 
         Ok(was_added)
     }
@@ -273,37 +285,13 @@ impl WorkerJobQueue {
 
     /// Remove all jobs older than JOB_TTL_MS from the queue
     ///
-    /// This method is called automatically during push operations, but can also be
-    /// called manually for immediate cleanup.
+    /// This method is called automatically by the background cleanup task every
+    /// CLEANUP_INTERVAL_MS, but can also be called manually for immediate cleanup.
     ///
     /// # Returns
     /// Returns the number of stale jobs that were removed from the queue.
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
         Self::cleanup_stale_jobs_internal(&self.pool, &self.queue_name).await
-    }
-
-    /// Trigger periodic cleanup if a job was added and cleanup interval is reached
-    ///
-    /// This method is called by push and schedule to periodically clean up stale jobs.
-    /// Cleanup runs in the background without blocking the caller.
-    fn trigger_periodic_cleanup(&self, was_added: bool) {
-        if was_added {
-            let count = self
-                .push_counter
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            // Check if we've reached the cleanup interval
-            // count + 1 because fetch_add returns the value BEFORE incrementing
-            if (count + 1) % CLEANUP_INTERVAL == 0 {
-                // Run cleanup in background, don't wait for it
-                let pool = self.pool.clone();
-                let queue_name = self.queue_name.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
-                        tracing::warn!("Failed to cleanup stale jobs: {}", e);
-                    }
-                });
-            }
-        }
     }
 
     /// Internal implementation of cleanup that can be called from spawn
