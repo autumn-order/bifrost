@@ -35,7 +35,9 @@ mod lua;
 #[cfg(test)]
 mod tests;
 
-use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_BATCH_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
+use lua::{
+    CLEANUP_STALE_JOBS_SCRIPT, POP_BATCH_SCRIPT, POP_JOB_SCRIPT, PUSH_BATCH_SCRIPT, PUSH_JOB_SCRIPT,
+};
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
@@ -274,6 +276,43 @@ impl WorkerJobQueue {
         }
 
         Ok(jobs)
+    }
+
+    /// Push multiple jobs to the queue in a single atomic operation
+    ///
+    /// Uses a Lua script to atomically check for duplicates and add all jobs
+    /// that don't already exist in the queue.
+    ///
+    /// # Arguments
+    /// * `jobs` - Vector of (job, scheduled_time) tuples to push to the queue
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(usize)` with the number of jobs that were successfully added.
+    /// Jobs that already exist in the queue (duplicates) are skipped and not counted.
+    /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
+    pub async fn push_batch(&self, jobs: Vec<(WorkerJob, DateTime<Utc>)>) -> Result<usize, Error> {
+        if jobs.is_empty() {
+            return Ok(0);
+        }
+
+        // Build ARGV array with alternating identity and score pairs
+        let mut argv = Vec::with_capacity(jobs.len() * 2);
+
+        for (job, scheduled_at) in jobs {
+            let identity = job.identity()?;
+            let score = scheduled_at.timestamp_millis() as f64;
+            argv.push(identity);
+            argv.push(score.to_string());
+        }
+
+        // Execute Lua script to atomically push all jobs
+        let added: i64 = self
+            .pool
+            .eval(PUSH_BATCH_SCRIPT, vec![&self.queue_name], argv)
+            .await?;
+
+        Ok(added as usize)
     }
 
     /// Internal implementation of cleanup that can be called from spawn

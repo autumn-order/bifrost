@@ -304,6 +304,7 @@ impl Dispatcher {
     /// Jobs are pushed back with their original scheduled time (now) so they can be
     /// processed by other dispatchers or when the pool restarts.
     ///
+    /// Uses batch push for efficient single-round-trip operation.
     /// Times out after 5 seconds to prevent hanging indefinitely if Redis is unavailable.
     async fn shutdown_cleanup(&mut self) {
         if self.job_buffer.is_empty() {
@@ -317,57 +318,47 @@ impl Dispatcher {
             buffer_size
         );
 
+        // Collect all jobs with current timestamp for immediate execution
+        let now = chrono::Utc::now();
+        let jobs: Vec<_> = self.job_buffer.drain(..).map(|job| (job, now)).collect();
+
         // Give ourselves 5 seconds to return jobs to prevent hanging on Redis issues
         let cleanup_timeout = Duration::from_secs(5);
-        let result = tokio::time::timeout(cleanup_timeout, async {
-            let mut returned = 0;
-            let mut failed = 0;
-
-            // Return jobs back to the queue
-            // We drain the buffer and push each job back individually
-            while let Some(job) = self.job_buffer.pop_front() {
-                match self.context.queue.push(job).await {
-                    Ok(_) => returned += 1,
-                    Err(e) => {
-                        failed += 1;
-                        tracing::error!(
-                            "Dispatcher {} failed to return job to queue during shutdown: {:?}",
-                            self.id,
-                            e
-                        );
-                    }
-                }
-            }
-
-            (returned, failed)
-        })
-        .await;
+        let result =
+            tokio::time::timeout(cleanup_timeout, self.context.queue.push_batch(jobs)).await;
 
         match result {
-            Ok((returned, failed)) => {
-                if failed > 0 {
-                    tracing::warn!(
-                        "Dispatcher {} returned {}/{} jobs to queue ({} failed)",
-                        self.id,
-                        returned,
-                        buffer_size,
-                        failed
-                    );
-                } else {
+            Ok(Ok(added)) => {
+                if added == buffer_size {
                     tracing::info!(
                         "Dispatcher {} successfully returned all {} jobs to queue",
                         self.id,
-                        returned
+                        added
+                    );
+                } else {
+                    tracing::warn!(
+                        "Dispatcher {} returned {}/{} jobs to queue ({} were duplicates)",
+                        self.id,
+                        added,
+                        buffer_size,
+                        buffer_size - added
                     );
                 }
             }
-            Err(_) => {
-                let remaining = self.job_buffer.len();
+            Ok(Err(e)) => {
                 tracing::error!(
-                    "Dispatcher {} timed out returning jobs to queue after {}s ({} jobs may be lost)",
+                    "Dispatcher {} failed to return {} jobs to queue during shutdown: {:?}",
                     self.id,
-                    cleanup_timeout.as_secs(),
-                    buffer_size - remaining
+                    buffer_size,
+                    e
+                );
+            }
+            Err(_) => {
+                tracing::error!(
+                    "Dispatcher {} timed out returning {} jobs to queue after {}s (jobs may be lost)",
+                    self.id,
+                    buffer_size,
+                    cleanup_timeout.as_secs()
                 );
             }
         }

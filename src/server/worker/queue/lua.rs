@@ -122,3 +122,32 @@ end
 
 return results
 "#;
+
+// Lua script to atomically push multiple jobs to the queue
+// Checks for duplicates and adds all non-duplicate jobs in a single operation
+//
+// KEYS[1]: sorted set key (queue name)
+// ARGV: pairs of (identity, score) - [identity1, score1, identity2, score2, ...]
+//
+// Returns:
+//   number of jobs that were added (duplicates are skipped)
+pub static PUSH_BATCH_SCRIPT: &str = r#"
+local queue_key = KEYS[1]
+local added_count = 0
+
+-- Process jobs in pairs (identity, score)
+for i = 1, #ARGV, 2 do
+    local identity = ARGV[i]
+    local score = tonumber(ARGV[i + 1])
+
+    -- Check if identity already exists in queue (O(1) operation)
+    local exists = redis.call('ZSCORE', queue_key, identity)
+    if not exists then
+        -- No duplicate found, add identity to sorted set
+        redis.call('ZADD', queue_key, score, identity)
+        added_count = added_count + 1
+    end
+end
+
+return added_count
+"#;
