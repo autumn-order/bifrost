@@ -70,6 +70,9 @@ impl WorkerPool {
             self.config.prefetch_batch_size()
         );
 
+        // Start the job queue cleanup task
+        self.context.queue.start_cleanup().await;
+
         // Spawn dispatchers with staggered delays to prevent thundering herd
         for id in 0..dispatcher_count {
             let handle = DispatcherHandle::spawn(id, self.config.clone(), self.context.clone());
@@ -102,16 +105,19 @@ impl WorkerPool {
     pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Shutting down worker pool...");
 
-        // Signal shutdown first so dispatchers can see it and break out of their loops cleanly
+        // Signal shutdown first so all tasks can see it and break out of their loops cleanly
         self.context.shutdown_signal.notify_waiters();
 
-        // Give dispatchers a brief moment to observe the shutdown signal and start cleanup
+        // Give dispatchers and cleanup task a brief moment to observe the shutdown signal
         // This prevents them from interpreting semaphore closure as an error
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 
         // Now close the semaphore to prevent any new job spawns
         // Dispatchers already handle semaphore closure gracefully by returning jobs to buffer
         self.context.semaphore.close();
+
+        // Stop the job queue cleanup task
+        self.context.queue.stop_cleanup().await;
 
         // Wait for all dispatchers to finish
         let mut dispatchers = self.dispatchers.write().await;
