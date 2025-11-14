@@ -102,31 +102,60 @@ impl WorkerPool {
     pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Shutting down worker pool...");
 
-        // Signal all dispatchers to stop
+        // Signal shutdown first so dispatchers can see it and break out of their loops cleanly
         self.context.shutdown_signal.notify_waiters();
+
+        // Give dispatchers a brief moment to observe the shutdown signal and start cleanup
+        // This prevents them from interpreting semaphore closure as an error
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Now close the semaphore to prevent any new job spawns
+        // Dispatchers already handle semaphore closure gracefully by returning jobs to buffer
+        self.context.semaphore.close();
 
         // Wait for all dispatchers to finish
         let mut dispatchers = self.dispatchers.write().await;
         let dispatcher_count = dispatchers.len();
+        let mut panicked_count = 0;
+        let mut error_count = 0;
 
         for dispatcher in dispatchers.drain(..) {
             tracing::debug!("Waiting for dispatcher {} to stop", dispatcher.id);
-            if let Err(e) = dispatcher.handle.await {
-                tracing::error!(
-                    "Dispatcher {} failed to stop cleanly: {:?}",
-                    dispatcher.id,
-                    e
-                );
+            match dispatcher.handle.await {
+                Ok(()) => {
+                    // Dispatcher stopped cleanly
+                }
+                Err(e) if e.is_panic() => {
+                    panicked_count += 1;
+                    tracing::error!(
+                        "Dispatcher {} panicked during execution: {:?}",
+                        dispatcher.id,
+                        e
+                    );
+                }
+                Err(e) if e.is_cancelled() => {
+                    tracing::warn!("Dispatcher {} was cancelled", dispatcher.id);
+                }
+                Err(e) => {
+                    error_count += 1;
+                    tracing::error!("Dispatcher {} failed with error: {:?}", dispatcher.id, e);
+                }
             }
         }
 
-        // Close the semaphore to prevent new tasks from starting
-        self.context.semaphore.close();
-
-        tracing::info!(
-            "Worker pool shut down successfully ({} dispatchers stopped, in-flight tasks will complete)",
-            dispatcher_count
-        );
+        if panicked_count > 0 || error_count > 0 {
+            tracing::warn!(
+                "Worker pool shut down with issues ({} dispatchers stopped, {} panicked, {} errored)",
+                dispatcher_count,
+                panicked_count,
+                error_count
+            );
+        } else {
+            tracing::info!(
+                "Worker pool shut down successfully ({} dispatchers stopped, in-flight tasks will complete)",
+                dispatcher_count
+            );
+        }
         Ok(())
     }
 

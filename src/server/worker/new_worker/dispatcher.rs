@@ -123,6 +123,9 @@ impl Dispatcher {
                 }
             }
         }
+
+        // Return any buffered jobs back to the queue to prevent job loss
+        self.shutdown_cleanup().await;
     }
 
     /// Process one iteration of the dispatcher loop
@@ -133,15 +136,19 @@ impl Dispatcher {
         // Process a job from buffer if available
         if let Some(job) = self.job_buffer.pop_front() {
             // Try to acquire permit and dispatch job
-            if !self.dispatch_job(job).await {
-                // Semaphore closed, shutdown - this will be caught by the select
-                return;
+            match self.dispatch_job(job).await {
+                Ok(()) => {
+                    // Job dispatched successfully
+                    self.jobs_dispatched += 1;
+                    self.log_stats();
+                }
+                Err(job) => {
+                    // Failed to dispatch (semaphore closed before acquire)
+                    // Return job to buffer so it can be pushed back to queue during shutdown
+                    self.job_buffer.push_front(job);
+                    return;
+                }
             }
-
-            self.jobs_dispatched += 1;
-
-            // Log stats periodically
-            self.log_stats();
         } else if self.job_buffer.is_empty() {
             // Buffer is empty, sleep before next iteration
             self.sleep_with_backoff().await;
@@ -188,16 +195,22 @@ impl Dispatcher {
     /// Dispatch a single job for processing
     ///
     /// Acquires a semaphore permit and spawns a task to handle the job with timeout.
-    /// Returns false if the semaphore is closed (shutdown), true otherwise.
-    async fn dispatch_job(&self, job: WorkerJob) -> bool {
+    ///
+    /// # Returns
+    /// - `Ok(())` if the job was successfully dispatched
+    /// - `Err(job)` if the semaphore was closed before acquiring permit (returns the job)
+    async fn dispatch_job(&self, job: WorkerJob) -> Result<(), WorkerJob> {
         // Acquire semaphore permit (blocks if at capacity)
         // This provides backpressure when system is overloaded
         let permit = match self.context.semaphore.clone().acquire_owned().await {
             Ok(permit) => permit,
             Err(_) => {
                 // Semaphore closed, likely shutdown
-                tracing::debug!("Dispatcher {} semaphore closed", self.id);
-                return false;
+                tracing::debug!(
+                    "Dispatcher {} semaphore closed before acquiring permit",
+                    self.id
+                );
+                return Err(job);
             }
         };
 
@@ -212,7 +225,7 @@ impl Dispatcher {
             Self::execute_job_with_timeout(job, db, esi_client, timeout_duration, permit).await;
         });
 
-        true
+        Ok(())
     }
 
     /// Execute a job with timeout and handle the result
@@ -282,6 +295,81 @@ impl Dispatcher {
             let jitter = rand::rng().random_range(0..self.config.poll_interval_ms / 2);
             let delay = self.config.poll_interval_ms + jitter;
             tokio::time::sleep(Duration::from_millis(delay)).await;
+        }
+    }
+
+    /// Cleanup buffered jobs on shutdown
+    ///
+    /// Returns all jobs remaining in the buffer back to the queue to prevent job loss.
+    /// Jobs are pushed back with their original scheduled time (now) so they can be
+    /// processed by other dispatchers or when the pool restarts.
+    ///
+    /// Times out after 5 seconds to prevent hanging indefinitely if Redis is unavailable.
+    async fn shutdown_cleanup(&mut self) {
+        if self.job_buffer.is_empty() {
+            return;
+        }
+
+        let buffer_size = self.job_buffer.len();
+        tracing::info!(
+            "Dispatcher {} returning {} buffered jobs back to queue",
+            self.id,
+            buffer_size
+        );
+
+        // Give ourselves 5 seconds to return jobs to prevent hanging on Redis issues
+        let cleanup_timeout = Duration::from_secs(5);
+        let result = tokio::time::timeout(cleanup_timeout, async {
+            let mut returned = 0;
+            let mut failed = 0;
+
+            // Return jobs back to the queue
+            // We drain the buffer and push each job back individually
+            while let Some(job) = self.job_buffer.pop_front() {
+                match self.context.queue.push(job).await {
+                    Ok(_) => returned += 1,
+                    Err(e) => {
+                        failed += 1;
+                        tracing::error!(
+                            "Dispatcher {} failed to return job to queue during shutdown: {:?}",
+                            self.id,
+                            e
+                        );
+                    }
+                }
+            }
+
+            (returned, failed)
+        })
+        .await;
+
+        match result {
+            Ok((returned, failed)) => {
+                if failed > 0 {
+                    tracing::warn!(
+                        "Dispatcher {} returned {}/{} jobs to queue ({} failed)",
+                        self.id,
+                        returned,
+                        buffer_size,
+                        failed
+                    );
+                } else {
+                    tracing::info!(
+                        "Dispatcher {} successfully returned all {} jobs to queue",
+                        self.id,
+                        returned
+                    );
+                }
+            }
+            Err(_) => {
+                let remaining = self.job_buffer.len();
+                tracing::error!(
+                    "Dispatcher {} timed out returning jobs to queue after {}s ({} jobs may be lost)",
+                    self.id,
+                    cleanup_timeout.as_secs(),
+                    buffer_size - remaining
+                );
+            }
         }
     }
 }
