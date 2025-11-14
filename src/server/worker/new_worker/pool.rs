@@ -74,7 +74,7 @@ impl WorkerPool {
             self.config.prefetch_batch_size()
         );
 
-        // Spawn dispatchers
+        // Spawn dispatchers with staggered delays to prevent thundering herd
         for id in 0..dispatcher_count {
             let handle = DispatcherHandle::spawn(
                 id,
@@ -86,6 +86,16 @@ impl WorkerPool {
                 Arc::clone(&self.shutdown_signal),
             );
             dispatchers.push(handle);
+
+            // Add stagger delay between spawns (except after the last one)
+            if id < dispatcher_count - 1 {
+                let stagger_delay = self.config.dispatcher_spawn_stagger();
+                tracing::debug!(
+                    "Staggering dispatcher spawn: waiting {}ms before spawning next dispatcher",
+                    stagger_delay.as_millis()
+                );
+                tokio::time::sleep(stagger_delay).await;
+            }
         }
 
         tracing::info!(

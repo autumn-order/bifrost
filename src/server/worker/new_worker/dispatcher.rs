@@ -34,6 +34,19 @@ impl DispatcherHandle {
     ) -> Self {
         let handle = tokio::spawn(async move {
             tracing::info!("Dispatcher {} started", id);
+
+            // Add initial jittered delay to prevent thundering herd on startup
+            let initial_jitter = config.dispatcher_initial_jitter();
+            if initial_jitter.as_millis() > 0 {
+                let jitter_ms = rand::rng().random_range(0..initial_jitter.as_millis() as u64);
+                tracing::debug!(
+                    "Dispatcher {} applying initial jitter: {}ms before starting poll loop",
+                    id,
+                    jitter_ms
+                );
+                tokio::time::sleep(Duration::from_millis(jitter_ms)).await;
+            }
+
             Self::dispatcher_loop(
                 id,
                 config,

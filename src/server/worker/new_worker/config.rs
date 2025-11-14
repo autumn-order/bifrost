@@ -13,6 +13,18 @@ pub struct WorkerPoolConfig {
     /// thundering herd when multiple dispatchers wake simultaneously.
     pub poll_interval_ms: u64,
 
+    /// Delay between spawning each dispatcher (in milliseconds)
+    ///
+    /// Staggering dispatcher spawns prevents all dispatchers from hitting Redis
+    /// simultaneously on startup, reducing initial load spike.
+    pub dispatcher_spawn_stagger_ms: u64,
+
+    /// Maximum initial random delay before a dispatcher starts polling (in milliseconds)
+    ///
+    /// Each dispatcher will sleep for a random duration between 0 and this value
+    /// before beginning its main loop, further distributing initial load.
+    pub dispatcher_initial_jitter_ms: u64,
+
     /// Maximum number of consecutive errors before a dispatcher backs off
     pub max_consecutive_errors: u32,
 
@@ -45,6 +57,8 @@ impl WorkerPoolConfig {
         Self {
             max_concurrent_jobs,
             poll_interval_ms: Self::calculate_poll_interval(max_concurrent_jobs),
+            dispatcher_spawn_stagger_ms: 150, // 150ms between spawning each dispatcher
+            dispatcher_initial_jitter_ms: 500, // Up to 500ms random initial delay per dispatcher
             max_consecutive_errors: 5,
             error_backoff_seconds: 10,
             job_timeout_seconds: 300, // 5 minutes default timeout
@@ -84,5 +98,15 @@ impl WorkerPoolConfig {
     /// Get the configured job timeout duration
     pub fn job_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.job_timeout_seconds)
+    }
+
+    /// Get the configured dispatcher spawn stagger duration
+    pub fn dispatcher_spawn_stagger(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.dispatcher_spawn_stagger_ms)
+    }
+
+    /// Get the configured dispatcher initial jitter duration
+    pub fn dispatcher_initial_jitter(&self) -> std::time::Duration {
+        std::time::Duration::from_millis(self.dispatcher_initial_jitter_ms)
     }
 }
