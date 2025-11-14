@@ -1,5 +1,3 @@
-use dioxus_logger::tracing;
-
 /// Configuration for the worker pool
 #[derive(Debug, Clone)]
 pub struct WorkerPoolConfig {
@@ -41,15 +39,6 @@ impl WorkerPoolConfig {
     /// # Arguments
     /// * `max_concurrent_jobs` - Max concurrent jobs (~80% of PostgreSQL pool size)
     pub fn new(max_concurrent_jobs: usize) -> Self {
-        // Most PostgreSQL deployments won't support >500 worker connections
-        if max_concurrent_jobs > 500 {
-            tracing::warn!(
-                "max_concurrent_jobs ({}) exceeds typical PostgreSQL limits. \
-                  Ensure your connection pool can handle this load.",
-                max_concurrent_jobs
-            );
-        }
-
         Self {
             max_concurrent_jobs,
             poll_interval_ms: Self::calculate_poll_interval(max_concurrent_jobs),

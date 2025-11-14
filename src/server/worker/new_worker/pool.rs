@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dioxus_logger::tracing;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult};
 use tokio::sync::{RwLock, Semaphore};
 
 use crate::server::{error::Error, worker::queue::WorkerJobQueue};
@@ -61,6 +61,9 @@ impl WorkerPool {
             tracing::warn!("Worker pool is already running");
             return Ok(());
         }
+
+        // Validate PostgreSQL connection pool capacity
+        self.validate_db_pool_capacity().await;
 
         let dispatcher_count = self.config.dispatcher_count();
         tracing::info!(
@@ -195,6 +198,88 @@ impl WorkerPool {
     /// This is calculated as: max_concurrent_jobs - available_permits
     pub fn active_job_count(&self) -> usize {
         self.config.max_concurrent_jobs - self.context.available_permits()
+    }
+
+    /// Validate that max_concurrent_jobs doesn't exceed 80% of PostgreSQL pool size
+    async fn validate_db_pool_capacity(&self) {
+        // Only validate for PostgreSQL connections
+        match self.context.db.get_database_backend() {
+            DatabaseBackend::Postgres => {
+                if let Some(pool_size) = self.get_postgres_pool_size().await {
+                    let recommended_max = (pool_size as f64 * 0.8) as usize;
+                    let max_concurrent = self.config.max_concurrent_jobs;
+
+                    if max_concurrent > recommended_max {
+                        tracing::warn!(
+                            "max concurrent jobs ({}) exceeds 80% of PostgreSQL connection pool size ({}). \
+                             Pool size: {}, recommended max concurrent jobs: {}. \
+                             This may lead to connection exhaustion and job failures.",
+                            max_concurrent,
+                            recommended_max,
+                            pool_size,
+                            recommended_max
+                        );
+                    } else {
+                        tracing::debug!(
+                            "PostgreSQL pool validation: max_concurrent_jobs ({}) is within safe limits \
+                             ({}% of pool size {})",
+                            max_concurrent,
+                            (max_concurrent as f64 / pool_size as f64 * 100.0) as usize,
+                            pool_size
+                        );
+                    }
+                } else {
+                    tracing::warn!(
+                        "Unable to determine PostgreSQL connection pool size. \
+                         Ensure max_concurrent_jobs ({}) doesn't exceed ~80% of your pool capacity.",
+                        self.config.max_concurrent_jobs
+                    );
+                }
+            }
+            DatabaseBackend::Sqlite => {
+                tracing::debug!("SQLite connection detected, skipping pool size validation");
+            }
+            DatabaseBackend::MySql => {
+                tracing::debug!("MySQL connection detected, pool size validation not implemented");
+            }
+            _ => {
+                tracing::debug!("Unknown database backend, skipping pool size validation");
+            }
+        }
+    }
+
+    /// Get PostgreSQL connection pool size
+    async fn get_postgres_pool_size(&self) -> Option<usize> {
+        #[derive(Debug, FromQueryResult)]
+        struct MaxConnections {
+            max_connections: String,
+        }
+
+        // Query PostgreSQL for max_connections setting
+        let result = MaxConnections::find_by_statement(sea_orm::Statement::from_string(
+            DatabaseBackend::Postgres,
+            "SHOW max_connections".to_string(),
+        ))
+        .one(self.context.db.as_ref())
+        .await;
+
+        match result {
+            Ok(Some(row)) => match row.max_connections.parse::<usize>() {
+                Ok(max_conn) => Some(max_conn),
+                Err(e) => {
+                    tracing::debug!("Failed to parse max_connections value: {}", e);
+                    None
+                }
+            },
+            Ok(None) => {
+                tracing::debug!("No result returned from SHOW max_connections query");
+                None
+            }
+            Err(e) => {
+                tracing::debug!("Failed to query PostgreSQL max_connections: {}", e);
+                None
+            }
+        }
     }
 }
 
