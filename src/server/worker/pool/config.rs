@@ -8,9 +8,6 @@ pub struct WorkerPoolConfig {
     /// Jittered by up to 50% to prevent thundering herd.
     pub poll_interval_ms: u64,
 
-    /// Delay between spawning each dispatcher (milliseconds).
-    pub dispatcher_spawn_stagger_ms: u64,
-
     /// Maximum initial random delay before dispatcher starts (milliseconds).
     pub dispatcher_initial_jitter_ms: u64,
 
@@ -45,7 +42,6 @@ impl WorkerPoolConfig {
         Self {
             max_concurrent_jobs,
             poll_interval_ms: Self::calculate_poll_interval(max_concurrent_jobs),
-            dispatcher_spawn_stagger_ms: 150,
             dispatcher_initial_jitter_ms: 500,
             max_consecutive_errors: 5,
             error_backoff_seconds: 10,
@@ -99,10 +95,6 @@ impl WorkerPoolConfig {
 
     pub fn job_timeout(&self) -> std::time::Duration {
         std::time::Duration::from_secs(self.job_timeout_seconds)
-    }
-
-    pub fn dispatcher_spawn_stagger(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(self.dispatcher_spawn_stagger_ms)
     }
 
     pub fn dispatcher_initial_jitter(&self) -> std::time::Duration {

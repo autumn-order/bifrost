@@ -89,20 +89,10 @@ impl WorkerPool {
         // Start the job queue cleanup task
         self.context.queue.start_cleanup().await;
 
-        // Spawn dispatchers with staggered delays to prevent thundering herd
+        // Spawn all dispatchers immediately (each applies its own initial jitter to prevent thundering herd)
         for id in 0..dispatcher_count {
             let handle = DispatcherHandle::spawn(id, self.config.clone(), self.context.clone());
             dispatchers.push(handle);
-
-            // Add stagger delay between spawns (except after the last one)
-            if id < dispatcher_count - 1 {
-                let stagger_delay = self.config.dispatcher_spawn_stagger();
-                tracing::debug!(
-                    "Staggering dispatcher spawn: waiting {}ms before spawning next dispatcher",
-                    stagger_delay.as_millis()
-                );
-                tokio::time::sleep(stagger_delay).await;
-            }
         }
 
         tracing::info!(
