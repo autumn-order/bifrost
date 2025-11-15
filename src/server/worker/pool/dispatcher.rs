@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,7 +8,11 @@ use tokio::task::JoinHandle;
 
 use crate::server::model::worker::WorkerJob;
 
-use super::{config::WorkerPoolConfig, context::DispatcherContext, handler::WorkerJobHandler};
+use super::{
+    config::WorkerPoolConfig,
+    context::{DispatcherBuffer, DispatcherContext},
+    handler::WorkerJobHandler,
+};
 
 /// Handle for a dispatcher task
 pub(super) struct DispatcherHandle {
@@ -49,6 +52,10 @@ impl DispatcherHandle {
 }
 
 /// Internal dispatcher instance that owns all state needed for job processing
+///
+/// The job buffer is stored externally in DispatcherContext to survive panics
+/// even with panic = "abort" set. Each dispatcher has exclusive access to its
+/// own buffer slot during normal operation (no contention).
 struct Dispatcher {
     id: usize,
     config: WorkerPoolConfig,
@@ -57,7 +64,7 @@ struct Dispatcher {
     // Runtime state
     consecutive_errors: u32,
     jobs_dispatched: u64,
-    job_buffer: VecDeque<WorkerJob>,
+    buffer: Arc<DispatcherBuffer>,
     prefetch_batch_size: usize,
     refill_threshold: usize,
 }
@@ -68,13 +75,19 @@ impl Dispatcher {
         let prefetch_batch_size = config.prefetch_batch_size();
         let refill_threshold = (prefetch_batch_size / 4).max(1);
 
+        // Get reference to this dispatcher's persistent buffer
+        let buffer = context
+            .get_buffer(id)
+            .expect("Dispatcher buffer must exist for valid dispatcher ID")
+            .clone();
+
         Self {
             id,
             config,
             context,
             consecutive_errors: 0,
             jobs_dispatched: 0,
-            job_buffer: VecDeque::with_capacity(prefetch_batch_size),
+            buffer,
             prefetch_batch_size,
             refill_threshold,
         }
@@ -107,7 +120,7 @@ impl Dispatcher {
     /// - Jittered sleep prevents all dispatchers from waking simultaneously
     async fn run(&mut self) {
         // Clone the shutdown signal Arc to avoid borrowing issues in the loop
-        let shutdown_signal = Arc::clone(&self.context.shutdown_signal);
+        let shutdown_signal: Arc<tokio::sync::Notify> = Arc::clone(&self.context.shutdown_signal);
 
         loop {
             // Check for shutdown signal with biased select to prioritize shutdown
@@ -115,10 +128,11 @@ impl Dispatcher {
                 biased;
 
                 _ = shutdown_signal.notified() => {
+                    let buffer_len = self.buffer.lock().await.len();
                     tracing::debug!(
                         "Dispatcher {} received shutdown signal ({} jobs left in buffer)",
                         self.id,
-                        self.job_buffer.len()
+                        buffer_len
                     );
                     break;
                 }
@@ -139,22 +153,28 @@ impl Dispatcher {
         self.refill_job_buffer().await;
 
         // Process a job from buffer if available
-        if let Some(job) = self.job_buffer.pop_front() {
+        let job = {
+            let mut buffer = self.buffer.lock().await;
+            buffer.pop_front()
+        };
+
+        if let Some(job) = job {
             // Try to acquire permit and dispatch job
             match self.dispatch_job(job).await {
                 Ok(()) => {
                     // Job dispatched successfully
                     self.jobs_dispatched += 1;
-                    self.log_stats();
+                    self.log_stats().await;
                 }
                 Err(job) => {
                     // Failed to dispatch (semaphore closed before acquire)
                     // Return job to buffer so it can be pushed back to queue during shutdown
-                    self.job_buffer.push_front(job);
+                    let mut buffer = self.buffer.lock().await;
+                    buffer.push_front(job);
                     return;
                 }
             }
-        } else if self.job_buffer.is_empty() {
+        } else {
             // Buffer is empty, sleep before next iteration
             self.sleep_with_backoff().await;
         }
@@ -164,7 +184,8 @@ impl Dispatcher {
     ///
     /// Uses batch popping to minimize Redis round-trips.
     async fn refill_job_buffer(&mut self) {
-        if self.job_buffer.len() >= self.refill_threshold {
+        let current_len = self.buffer.lock().await.len();
+        if current_len >= self.refill_threshold {
             return;
         }
 
@@ -172,13 +193,17 @@ impl Dispatcher {
             Ok(jobs) if !jobs.is_empty() => {
                 self.consecutive_errors = 0;
                 let fetched = jobs.len();
-                self.job_buffer.extend(jobs);
+
+                let mut buffer = self.buffer.lock().await;
+                buffer.extend(jobs);
+                let new_len = buffer.len();
+                drop(buffer);
 
                 tracing::trace!(
                     "Dispatcher {} fetched {} jobs from Redis (buffer now has {} jobs)",
                     self.id,
                     fetched,
-                    self.job_buffer.len()
+                    new_len
                 );
             }
             Ok(_) => {
@@ -284,14 +309,14 @@ impl Dispatcher {
     }
 
     /// Log dispatcher statistics periodically
-    fn log_stats(&self) {
+    async fn log_stats(&self) {
         if self.jobs_dispatched % 100 == 0 {
             tracing::debug!(
                 "Dispatcher {} has dispatched {} jobs ({} permits available, {} buffered)",
                 self.id,
                 self.jobs_dispatched,
                 self.context.available_permits(),
-                self.job_buffer.len()
+                self.buffer.lock().await.len()
             );
         }
     }
@@ -327,11 +352,10 @@ impl Dispatcher {
     /// Uses batch push for efficient single-round-trip operation.
     /// Times out after 5 seconds to prevent hanging indefinitely if Redis is unavailable.
     async fn shutdown_cleanup(&mut self) {
-        if self.job_buffer.is_empty() {
+        let buffer_size = self.buffer.lock().await.len();
+        if buffer_size == 0 {
             return;
         }
-
-        let buffer_size = self.job_buffer.len();
         tracing::info!(
             "Dispatcher {} returning {} buffered jobs back to queue",
             self.id,
@@ -340,7 +364,10 @@ impl Dispatcher {
 
         // Collect all jobs with current timestamp for immediate execution
         let now = chrono::Utc::now();
-        let jobs: Vec<_> = self.job_buffer.drain(..).map(|job| (job, now)).collect();
+        let jobs: Vec<_> = {
+            let mut buffer = self.buffer.lock().await;
+            buffer.drain(..).map(|job| (job, now)).collect()
+        };
 
         // Give ourselves 5 seconds to return jobs to prevent hanging on Redis issues
         let cleanup_timeout = Duration::from_secs(5);

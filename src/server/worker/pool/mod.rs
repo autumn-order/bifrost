@@ -49,8 +49,20 @@ impl WorkerPool {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let shutdown_signal = Arc::new(tokio::sync::Notify::new());
 
-        // Bundle shared resources into context
-        let context = DispatcherContext::new(queue, db, esi_client, semaphore, shutdown_signal);
+        // Calculate dispatcher configuration for persistent buffers
+        let dispatcher_count = config.dispatcher_count();
+        let buffer_capacity = config.prefetch_batch_size();
+
+        // Bundle shared resources into context with persistent buffers
+        let context = DispatcherContext::new(
+            queue,
+            db,
+            esi_client,
+            semaphore,
+            shutdown_signal,
+            dispatcher_count,
+            buffer_capacity,
+        );
 
         Self {
             config,

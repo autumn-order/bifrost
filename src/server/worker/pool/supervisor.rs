@@ -102,6 +102,10 @@ impl SupervisorHandle {
                 // Log failure reason by awaiting the finished handle
                 Self::log_dispatcher_failure(dead_dispatcher).await;
 
+                // Recover any jobs left in the dispatcher's buffer
+                // This is critical with panic = "abort" since Drop handlers don't run
+                Self::recover_dispatcher_buffer(context, dispatcher_id).await;
+
                 // Respawn with same ID
                 tracing::info!("Supervisor respawning dispatcher {}", dispatcher_id);
                 let new_dispatcher =
@@ -144,26 +148,44 @@ impl SupervisorHandle {
         match dispatcher.handle.await {
             Ok(()) => {
                 tracing::error!(
-                    "Dispatcher {} unexpectedly stopped (normal exit during supervision, buffer jobs may be lost)",
+                    "Dispatcher {} unexpectedly stopped (normal exit during supervision)",
                     dispatcher_id
                 );
             }
             Err(e) if e.is_panic() => {
-                tracing::error!(
-                    "Dispatcher {} panicked (buffer jobs may be lost): {:?}",
-                    dispatcher_id,
-                    e
-                );
+                tracing::error!("Dispatcher {} panicked: {:?}", dispatcher_id, e);
             }
             Err(e) if e.is_cancelled() => {
-                tracing::warn!(
-                    "Dispatcher {} was cancelled (buffer jobs may be lost)",
+                tracing::warn!("Dispatcher {} was cancelled", dispatcher_id);
+            }
+            Err(e) => {
+                tracing::error!("Dispatcher {} failed with error: {:?}", dispatcher_id, e);
+            }
+        }
+    }
+
+    /// Recover jobs from a dead dispatcher's buffer
+    ///
+    /// When a dispatcher dies (especially via panic with abort), its buffer
+    /// remains in the persistent storage. We drain it and return jobs to the queue.
+    async fn recover_dispatcher_buffer(context: &DispatcherContext, dispatcher_id: usize) {
+        match context.recover_buffer(dispatcher_id).await {
+            Ok(0) => {
+                tracing::debug!(
+                    "Dispatcher {} buffer was empty (no jobs to recover)",
+                    dispatcher_id
+                );
+            }
+            Ok(recovered) => {
+                tracing::info!(
+                    "Recovered {} jobs from dispatcher {} buffer and returned to queue",
+                    recovered,
                     dispatcher_id
                 );
             }
             Err(e) => {
                 tracing::error!(
-                    "Dispatcher {} failed with error (buffer jobs may be lost): {:?}",
+                    "Failed to recover buffer from dispatcher {}: {}",
                     dispatcher_id,
                     e
                 );
