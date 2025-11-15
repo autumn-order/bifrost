@@ -1,107 +1,55 @@
+use std::time::Duration;
+
 /// Configuration for the worker pool
 #[derive(Debug, Clone)]
 pub struct WorkerPoolConfig {
-    /// Maximum concurrent jobs. Set to ~80% of PostgreSQL connection pool size.
+    /// Maximum concurrent jobs that can be processed simultaneously.
+    ///
+    /// Set this to ~80% of your PostgreSQL connection pool size to avoid
+    /// connection exhaustion. For example, if your DB pool has 100 connections,
+    /// set this to 80.
     pub max_concurrent_jobs: usize,
 
-    /// Base delay between polls when queue is empty (milliseconds).
-    /// Jittered by up to 50% to prevent thundering herd.
+    /// Number of dispatcher tasks that poll Redis for jobs.
+    ///
+    /// 1-2 dispatchers work well for most workloads. More than 3 provides
+    /// diminishing returns.
+    pub dispatcher_count: usize,
+
+    /// How long to wait between polls when the queue is empty (milliseconds).
     pub poll_interval_ms: u64,
 
-    /// Maximum initial random delay before dispatcher starts (milliseconds).
-    pub dispatcher_initial_jitter_ms: u64,
-
-    /// Maximum consecutive errors before backing off.
-    pub max_consecutive_errors: u32,
-
-    /// Backoff duration after max consecutive errors (seconds).
-    pub error_backoff_seconds: u64,
-
-    /// Maximum job execution time before cancellation (seconds).
+    /// Maximum time a job can run before being cancelled (seconds).
     pub job_timeout_seconds: u64,
-
-    /// Supervisor health check interval (seconds).
-    pub supervisor_check_interval_seconds: u64,
 }
 
 impl WorkerPoolConfig {
-    /// Create configuration with automatic scaling.
-    ///
-    /// **PostgreSQL Connection Bottleneck**
-    /// Each job requires a DB connection for read/write operations. This is the primary
-    /// bottleneck. Set `max_concurrent_jobs` to ~80% of your PostgreSQL connection pool
-    /// size (e.g., pool of 100 → max_concurrent_jobs = 80).
-    ///
-    /// **Dispatcher Autoscaling**
-    /// Dispatchers poll Redis and fetch jobs in batches (10-50 jobs/call). They're
-    /// lightweight and scale with workload: 1 dispatcher per 100 concurrent jobs.
+    /// Create a new configuration with sensible defaults
     ///
     /// # Arguments
-    /// * `max_concurrent_jobs` - Max concurrent jobs (~80% of PostgreSQL pool size)
+    /// * `max_concurrent_jobs` - Maximum concurrent jobs (~80% of DB pool size)
     pub fn new(max_concurrent_jobs: usize) -> Self {
         Self {
             max_concurrent_jobs,
-            poll_interval_ms: Self::calculate_poll_interval(max_concurrent_jobs),
-            dispatcher_initial_jitter_ms: 500,
-            max_consecutive_errors: 5,
-            error_backoff_seconds: 10,
-            job_timeout_seconds: 300,
-            supervisor_check_interval_seconds: 5,
+            dispatcher_count: 2, // Good default for most workloads
+            poll_interval_ms: 50,
+            job_timeout_seconds: 300, // 5 minutes
         }
     }
 
-    /// Calculate dispatcher count based on concurrent jobs and burst handling needs.
-    ///
-    /// Dispatchers are lightweight and primarily useful for:
-    /// 1. Burst handling when many jobs arrive simultaneously
-    /// 2. Redundancy if one dispatcher has Redis latency spike
-    /// 3. Continued operation if one dispatcher panics
-    ///
-    /// With batch fetching, a single dispatcher can handle 300-400 jobs/sec.
-    /// Multiple dispatchers improve burst response and fault tolerance.
-    pub fn dispatcher_count(&self) -> usize {
-        match self.max_concurrent_jobs {
-            0..=150 => 1,   // Single dispatcher sufficient for low-medium load
-            151..=300 => 2, // Two for redundancy and burst handling
-            _ => 3,         // Three dispatchers max - more doesn't help
-        }
+    /// Get job timeout as Duration
+    pub fn job_timeout(&self) -> Duration {
+        Duration::from_secs(self.job_timeout_seconds)
     }
 
-    /// Calculate prefetch batch size based on concurrent job capacity.
-    ///
-    /// Batch size balances:
-    /// - **Larger batches**: Fewer Redis round-trips, better throughput
-    /// - **Smaller batches**: Less memory buffering, more even dispatcher load
-    ///
-    /// With multiple dispatchers, each independently fetches its batch,
-    /// so total buffering = batch_size * dispatcher_count.
-    pub fn prefetch_batch_size(&self) -> usize {
-        match self.max_concurrent_jobs {
-            0..=50 => 20,   // Smaller batches to reduce buffering overhead
-            51..=150 => 30, // Sweet spot for most workloads
-            _ => 40,        // Larger batches for high-throughput scenarios
-        }
+    /// Get poll interval as Duration
+    pub fn poll_interval(&self) -> Duration {
+        Duration::from_millis(self.poll_interval_ms)
     }
+}
 
-    /// Calculate poll interval based on concurrent jobs (lower = more responsive).
-    fn calculate_poll_interval(max_concurrent_jobs: usize) -> u64 {
-        match max_concurrent_jobs {
-            0..=10 => 100,
-            11..=25 => 75,
-            26..=50 => 60,
-            _ => 50,
-        }
-    }
-
-    pub fn job_timeout(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.job_timeout_seconds)
-    }
-
-    pub fn dispatcher_initial_jitter(&self) -> std::time::Duration {
-        std::time::Duration::from_millis(self.dispatcher_initial_jitter_ms)
-    }
-
-    pub fn supervisor_check_interval(&self) -> std::time::Duration {
-        std::time::Duration::from_secs(self.supervisor_check_interval_seconds)
+impl Default for WorkerPoolConfig {
+    fn default() -> Self {
+        Self::new(50)
     }
 }

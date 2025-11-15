@@ -1,34 +1,33 @@
 mod config;
-mod context;
-mod dispatcher;
-mod supervisor;
 
 pub mod handler;
 
 pub use config::WorkerPoolConfig;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use dioxus_logger::tracing;
-use sea_orm::{DatabaseBackend, DatabaseConnection, FromQueryResult};
-use tokio::sync::{RwLock, Semaphore};
+use sea_orm::DatabaseConnection;
+use tokio::sync::{Notify, RwLock, Semaphore};
+use tokio::task::JoinHandle;
 
 use crate::server::{error::Error, worker::queue::WorkerJobQueue};
 
-use self::{
-    context::DispatcherContext, dispatcher::DispatcherHandle, supervisor::SupervisorHandle,
-};
+use self::handler::WorkerJobHandler;
 
 /// Worker pool for processing jobs from the WorkerJobQueue
 ///
-/// Uses Tokio's work-stealing scheduler to efficiently distribute job processing
-/// across available threads. Dispatchers poll Redis and spawn tasks directly,
-/// with a semaphore controlling maximum concurrency.
+/// Simple implementation that spawns dispatcher tasks to poll Redis and
+/// process jobs with semaphore-based concurrency control.
 pub struct WorkerPool {
     config: WorkerPoolConfig,
-    context: DispatcherContext,
-    dispatchers: Arc<RwLock<Vec<DispatcherHandle>>>,
-    supervisor_handle: Arc<RwLock<Option<SupervisorHandle>>>,
+    queue: Arc<WorkerJobQueue>,
+    db: Arc<DatabaseConnection>,
+    esi_client: Arc<eve_esi::Client>,
+    semaphore: Arc<Semaphore>,
+    shutdown: Arc<Notify>,
+    dispatcher_handles: Arc<RwLock<Vec<JoinHandle<()>>>>,
 }
 
 impl WorkerPool {
@@ -45,190 +44,252 @@ impl WorkerPool {
         esi_client: Arc<eve_esi::Client>,
         queue: Arc<WorkerJobQueue>,
     ) -> Self {
-        // Create semaphore to limit concurrent job processing
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
-        let shutdown_signal = Arc::new(tokio::sync::Notify::new());
+        let shutdown = Arc::new(Notify::new());
 
-        // Calculate dispatcher configuration for persistent buffers
-        let dispatcher_count = config.dispatcher_count();
-        let buffer_capacity = config.prefetch_batch_size();
-
-        // Bundle shared resources into context with persistent buffers
-        let context = DispatcherContext::new(
+        Self {
+            config,
             queue,
             db,
             esi_client,
             semaphore,
-            shutdown_signal,
-            dispatcher_count,
-            buffer_capacity,
-        );
-
-        Self {
-            config,
-            context,
-            dispatchers: Arc::new(RwLock::new(Vec::new())),
-            supervisor_handle: Arc::new(RwLock::new(None)),
+            shutdown,
+            dispatcher_handles: Arc::new(RwLock::new(Vec::new())),
         }
     }
 
     /// Start the worker pool
     ///
-    /// Spawns the configured number of dispatcher tasks. Each dispatcher polls Redis
-    /// for jobs and spawns tasks to process them, with the semaphore controlling
-    /// maximum concurrency.
+    /// Spawns the configured number of dispatcher tasks that poll Redis for jobs
+    /// and spawn tasks to process them, with the semaphore controlling maximum
+    /// concurrency.
     ///
     /// This method is non-blocking and returns immediately after spawning dispatchers.
     pub async fn start(&self) -> Result<(), Error> {
-        let mut dispatchers = self.dispatchers.write().await;
+        let mut handles = self.dispatcher_handles.write().await;
 
-        if !dispatchers.is_empty() {
+        if !handles.is_empty() {
             tracing::warn!("Worker pool is already running");
             return Ok(());
         }
 
-        // Validate PostgreSQL connection pool capacity
-        self.validate_db_pool_capacity().await;
-
-        let dispatcher_count = self.config.dispatcher_count();
         tracing::info!(
-            "Starting worker pool with {} dispatchers (max {} concurrent jobs with queue prefetch batch: {})",
-            dispatcher_count,
-            self.config.max_concurrent_jobs,
-            self.config.prefetch_batch_size()
+            "Starting worker pool with {} dispatchers (max {} concurrent jobs)",
+            self.config.dispatcher_count,
+            self.config.max_concurrent_jobs
         );
 
         // Start the job queue cleanup task
-        self.context.queue.start_cleanup().await;
+        self.queue.start_cleanup().await;
 
-        // Spawn all dispatchers immediately (each applies its own initial jitter to prevent thundering herd)
-        for id in 0..dispatcher_count {
-            let handle = DispatcherHandle::spawn(id, self.config.clone(), self.context.clone());
-            dispatchers.push(handle);
+        // Spawn all dispatcher tasks
+        for id in 0..self.config.dispatcher_count {
+            let handle = self.spawn_dispatcher(id);
+            handles.push(handle);
         }
 
         tracing::info!(
             "Worker pool started successfully ({} dispatchers active)",
-            dispatcher_count
+            self.config.dispatcher_count
         );
-
-        // Release the dispatchers lock before starting supervisor
-        drop(dispatchers);
-
-        // Start the supervisor to monitor dispatcher health
-        self.start_supervisor().await;
 
         Ok(())
     }
 
-    /// Start the supervisor task that monitors dispatcher health
-    ///
-    /// The supervisor periodically checks if any dispatchers have died unexpectedly
-    /// and respawns them to maintain the configured dispatcher count.
-    async fn start_supervisor(&self) {
-        let mut supervisor_handle = self.supervisor_handle.write().await;
+    /// Spawn a single dispatcher task
+    fn spawn_dispatcher(&self, id: usize) -> JoinHandle<()> {
+        let queue = Arc::clone(&self.queue);
+        let db = Arc::clone(&self.db);
+        let esi_client = Arc::clone(&self.esi_client);
+        let semaphore = Arc::clone(&self.semaphore);
+        let shutdown = Arc::clone(&self.shutdown);
+        let config = self.config.clone();
 
-        if supervisor_handle.is_some() {
-            tracing::warn!("Supervisor is already running");
-            return;
+        tokio::spawn(async move {
+            tracing::info!("Dispatcher {} started", id);
+
+            loop {
+                tokio::select! {
+                    // Biased select ensures shutdown signal is prioritized
+                    // over processing new jobs, enabling faster shutdown.
+                    biased;
+
+                    _ = shutdown.notified() => {
+                        tracing::debug!("Dispatcher {} received shutdown signal", id);
+                        break;
+                    }
+
+                    _ = Self::process_jobs(
+                        id,
+                        &queue,
+                        &db,
+                        &esi_client,
+                        &semaphore,
+                        &config,
+                    ) => {
+                        // Continue to next iteration
+                    }
+                }
+            }
+
+            tracing::info!("Dispatcher {} stopped", id);
+        })
+    }
+
+    /// Process jobs from the queue
+    ///
+    /// Polls Redis for a job and spawns a task to process it if one is available.
+    /// Sleeps if the queue is empty or on error.
+    async fn process_jobs(
+        dispatcher_id: usize,
+        queue: &WorkerJobQueue,
+        db: &Arc<DatabaseConnection>,
+        esi_client: &Arc<eve_esi::Client>,
+        semaphore: &Arc<Semaphore>,
+        config: &WorkerPoolConfig,
+    ) {
+        match queue.pop().await {
+            Ok(Some(job)) => {
+                // Try to acquire a permit (blocks if at capacity)
+                match semaphore.clone().acquire_owned().await {
+                    Ok(permit) => {
+                        // Clone Arc references for the spawned task
+                        let db = Arc::clone(db);
+                        let esi_client = Arc::clone(esi_client);
+                        let timeout = config.job_timeout();
+
+                        // Spawn task to execute the job
+                        tokio::spawn(async move {
+                            Self::execute_job(job, db, esi_client, timeout, permit).await;
+                        });
+                    }
+                    Err(_) => {
+                        // Semaphore closed (shutting down), push job back
+                        let _ = queue.push(job).await;
+                        tracing::debug!(
+                            "Dispatcher {} semaphore closed, returned job to queue",
+                            dispatcher_id
+                        );
+                    }
+                }
+            }
+            Ok(None) => {
+                // Queue is empty, sleep before next poll
+                tokio::time::sleep(config.poll_interval()).await;
+            }
+            Err(e) => {
+                // Error fetching from queue, log and backoff
+                tracing::error!("Dispatcher {} queue error: {:?}", dispatcher_id, e);
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+        }
+    }
+
+    /// Execute a job with timeout
+    ///
+    /// Wraps job execution with timeout to prevent hung jobs.
+    /// The semaphore permit is held until this function completes, limiting concurrency.
+    async fn execute_job(
+        job: crate::server::model::worker::WorkerJob,
+        db: Arc<DatabaseConnection>,
+        esi_client: Arc<eve_esi::Client>,
+        timeout: Duration,
+        _permit: tokio::sync::OwnedSemaphorePermit,
+    ) {
+        let handler = WorkerJobHandler::new(&db, &esi_client);
+
+        // Execute job with timeout
+        let result = tokio::time::timeout(timeout, handler.handle(&job)).await;
+
+        match result {
+            Ok(Ok(())) => {
+                // Job completed successfully
+                tracing::debug!("Job completed: {:?}", job);
+            }
+            Ok(Err(e)) => {
+                tracing::error!("Job failed: {:?}, error: {:?}", job, e);
+            }
+            Err(_) => {
+                tracing::error!(
+                    "Job timed out after {} seconds: {:?}",
+                    timeout.as_secs(),
+                    job
+                );
+            }
         }
 
-        let handle = SupervisorHandle::spawn(
-            self.config.clone(),
-            self.context.clone(),
-            Arc::clone(&self.dispatchers),
-        );
-
-        *supervisor_handle = Some(handle);
+        // Permit automatically dropped here, releasing semaphore slot
     }
 
     /// Stop the worker pool gracefully
     ///
-    /// Signals all dispatchers to stop and waits for them to complete. In-flight
-    /// job-processing tasks will continue to completion naturally.
+    /// Signals all dispatchers to stop and waits for them to complete.
+    /// In-flight job-processing tasks will continue to completion naturally.
     ///
-    /// This method blocks until all dispatchers have shut down.
+    /// This method is idempotent and can be safely called multiple times.
+    /// It blocks until all dispatchers have shut down.
+    ///
+    /// # Note
+    ///
+    /// You should call this method before dropping the WorkerPool to ensure
+    /// clean shutdown. Dropping without calling stop() may leave orphaned tasks.
     pub async fn stop(&self) -> Result<(), Error> {
+        // Check if already stopped (idempotent)
+        if !self.is_running().await {
+            tracing::debug!("Worker pool is already stopped");
+            return Ok(());
+        }
+
         tracing::info!("Shutting down worker pool...");
 
-        // Set shutdown flag first so supervisor knows this is intentional
-        self.context.set_shutting_down();
+        // Close semaphore to prevent new jobs from starting
+        self.semaphore.close();
 
-        // Signal shutdown so all tasks can see it and break out of their loops cleanly
-        self.context.shutdown_signal.notify_waiters();
-
-        // Wait for supervisor to stop
-        let mut supervisor_handle = self.supervisor_handle.write().await;
-        if let Some(handle) = supervisor_handle.take() {
-            if let Err(e) = handle.shutdown().await {
-                tracing::error!("Supervisor task failed: {:?}", e);
-            }
-        }
-
-        // Close the semaphore to prevent any new job spawns
-        // Dispatchers check is_shutting_down() before acquiring permits, so they won't
-        // misinterpret semaphore closure as an error
-        self.context.semaphore.close();
+        // Signal all dispatchers to stop
+        self.shutdown.notify_waiters();
 
         // Stop the job queue cleanup task
-        self.context.queue.stop_cleanup().await;
+        self.queue.stop_cleanup().await;
 
-        // Wait for all dispatchers to finish
-        let mut dispatchers = self.dispatchers.write().await;
-        let dispatcher_count = dispatchers.len();
-        let mut panicked_count = 0;
-        let mut error_count = 0;
+        // Wait for all dispatchers to finish (with timeout)
+        let mut handles = self.dispatcher_handles.write().await;
+        let dispatcher_count = handles.len();
 
-        for dispatcher in dispatchers.drain(..) {
-            tracing::debug!("Waiting for dispatcher {} to stop", dispatcher.id);
-            match dispatcher.handle.await {
-                Ok(()) => {
+        for (i, handle) in handles.drain(..).enumerate() {
+            let timeout_result = tokio::time::timeout(Duration::from_secs(5), handle).await;
+
+            match timeout_result {
+                Ok(Ok(())) => {
                     // Dispatcher stopped cleanly
+                    tracing::debug!("Dispatcher {} stopped cleanly", i);
                 }
-                Err(e) if e.is_panic() => {
-                    panicked_count += 1;
-                    tracing::error!(
-                        "Dispatcher {} panicked during execution: {:?}",
-                        dispatcher.id,
-                        e
-                    );
+                Ok(Err(e)) => {
+                    tracing::error!("Dispatcher {} panicked: {:?}", i, e);
                 }
-                Err(e) if e.is_cancelled() => {
-                    tracing::warn!("Dispatcher {} was cancelled", dispatcher.id);
-                }
-                Err(e) => {
-                    error_count += 1;
-                    tracing::error!("Dispatcher {} failed with error: {:?}", dispatcher.id, e);
+                Err(_) => {
+                    tracing::warn!("Dispatcher {} did not stop within timeout", i);
                 }
             }
         }
 
-        if panicked_count > 0 || error_count > 0 {
-            tracing::warn!(
-                "Worker pool shut down with issues ({} dispatchers stopped, {} panicked, {} errored)",
-                dispatcher_count,
-                panicked_count,
-                error_count
-            );
-        } else {
-            tracing::info!(
-                "Worker pool shut down successfully ({} dispatchers stopped, in-flight tasks will complete)",
-                dispatcher_count
-            );
-        }
+        tracing::info!(
+            "Worker pool shut down ({} dispatchers stopped, in-flight tasks will complete)",
+            dispatcher_count
+        );
+
         Ok(())
     }
 
     /// Check if the worker pool is running
     pub async fn is_running(&self) -> bool {
-        let dispatchers = self.dispatchers.read().await;
-        !dispatchers.is_empty()
+        let handles = self.dispatcher_handles.read().await;
+        !handles.is_empty()
     }
 
     /// Get the number of active dispatchers
     pub async fn dispatcher_count(&self) -> usize {
-        let dispatchers = self.dispatchers.read().await;
-        dispatchers.len()
+        let handles = self.dispatcher_handles.read().await;
+        handles.len()
     }
 
     /// Get the number of available semaphore permits
@@ -236,7 +297,7 @@ impl WorkerPool {
     /// This indicates how many more jobs can be spawned before hitting the
     /// concurrency limit. A value of 0 means the system is at capacity.
     pub fn available_permits(&self) -> usize {
-        self.context.available_permits()
+        self.semaphore.available_permits()
     }
 
     /// Get the maximum number of concurrent jobs configured
@@ -248,96 +309,16 @@ impl WorkerPool {
     ///
     /// This is calculated as: max_concurrent_jobs - available_permits
     pub fn active_job_count(&self) -> usize {
-        self.config.max_concurrent_jobs - self.context.available_permits()
-    }
-
-    /// Validate that max_concurrent_jobs doesn't exceed 80% of PostgreSQL pool size
-    async fn validate_db_pool_capacity(&self) {
-        // Only validate for PostgreSQL connections
-        match self.context.db.get_database_backend() {
-            DatabaseBackend::Postgres => {
-                if let Some(pool_size) = self.get_postgres_pool_size().await {
-                    let recommended_max = (pool_size as f64 * 0.8) as usize;
-                    let max_concurrent = self.config.max_concurrent_jobs;
-
-                    if max_concurrent > recommended_max {
-                        tracing::warn!(
-                            "max concurrent jobs ({}) exceeds 80% of PostgreSQL connection pool size ({}). \
-                             Pool size: {}, recommended max concurrent jobs: {}. \
-                             This may lead to connection exhaustion and job failures.",
-                            max_concurrent,
-                            recommended_max,
-                            pool_size,
-                            recommended_max
-                        );
-                    } else {
-                        tracing::debug!(
-                            "PostgreSQL pool validation: max_concurrent_jobs ({}) is within safe limits \
-                             ({}% of pool size {})",
-                            max_concurrent,
-                            (max_concurrent as f64 / pool_size as f64 * 100.0) as usize,
-                            pool_size
-                        );
-                    }
-                } else {
-                    tracing::warn!(
-                        "Unable to determine PostgreSQL connection pool size. \
-                         Ensure max_concurrent_jobs ({}) doesn't exceed ~80% of your pool capacity.",
-                        self.config.max_concurrent_jobs
-                    );
-                }
-            }
-            DatabaseBackend::Sqlite => {
-                tracing::debug!("SQLite connection detected, skipping pool size validation");
-            }
-            DatabaseBackend::MySql => {
-                tracing::debug!("MySQL connection detected, pool size validation not implemented");
-            }
-            _ => {
-                tracing::debug!("Unknown database backend, skipping pool size validation");
-            }
-        }
-    }
-
-    /// Get PostgreSQL connection pool size
-    async fn get_postgres_pool_size(&self) -> Option<usize> {
-        #[derive(Debug, FromQueryResult)]
-        struct MaxConnections {
-            max_connections: String,
-        }
-
-        // Query PostgreSQL for max_connections setting
-        let result = MaxConnections::find_by_statement(sea_orm::Statement::from_string(
-            DatabaseBackend::Postgres,
-            "SHOW max_connections".to_string(),
-        ))
-        .one(self.context.db.as_ref())
-        .await;
-
-        match result {
-            Ok(Some(row)) => match row.max_connections.parse::<usize>() {
-                Ok(max_conn) => Some(max_conn),
-                Err(e) => {
-                    tracing::debug!("Failed to parse max_connections value: {}", e);
-                    None
-                }
-            },
-            Ok(None) => {
-                tracing::debug!("No result returned from SHOW max_connections query");
-                None
-            }
-            Err(e) => {
-                tracing::debug!("Failed to query PostgreSQL max_connections: {}", e);
-                None
-            }
-        }
+        self.config.max_concurrent_jobs - self.semaphore.available_permits()
     }
 }
 
 impl Drop for WorkerPool {
     fn drop(&mut self) {
-        // Signal shutdown when pool is dropped
-        self.context.shutdown_signal.notify_waiters();
-        self.context.semaphore.close();
+        // Signal shutdown when pool is dropped.
+        // Note: This does not wait for tasks to complete. For clean shutdown,
+        // call stop() before dropping the WorkerPool.
+        self.shutdown.notify_waiters();
+        self.semaphore.close();
     }
 }
