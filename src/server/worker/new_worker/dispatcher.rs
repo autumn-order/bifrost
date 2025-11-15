@@ -195,6 +195,7 @@ impl Dispatcher {
     /// Dispatch a single job for processing
     ///
     /// Acquires a semaphore permit and spawns a task to handle the job with timeout.
+    /// A wrapper task monitors for panics and logs them appropriately.
     ///
     /// # Returns
     /// - `Ok(())` if the job was successfully dispatched
@@ -219,10 +220,24 @@ impl Dispatcher {
         let esi_client = Arc::clone(&self.context.esi_client);
         let timeout_duration = self.config.job_timeout();
 
-        // Spawn task to process job with timeout
-        // Tokio's work-stealing scheduler distributes tasks efficiently
+        // Capture job identity for panic logging
+        let job_identity = job.identity().unwrap_or_else(|_| format!("{:?}", job));
+
+        // Spawn wrapper task that monitors for panics
+        // The wrapper awaits the inner job task and logs any panics that occur
         tokio::spawn(async move {
-            Self::execute_job_with_timeout(job, db, esi_client, timeout_duration, permit).await;
+            let handle = tokio::spawn(async move {
+                Self::execute_job_with_timeout(job, db, esi_client, timeout_duration, permit).await;
+            });
+
+            // Await the inner task and check for panic
+            if let Err(e) = handle.await {
+                if e.is_panic() {
+                    tracing::error!("Job {:?} panicked: {:?}", job_identity, e);
+                } else if e.is_cancelled() {
+                    tracing::warn!("Job {:?} was cancelled", job_identity);
+                }
+            }
         });
 
         Ok(())
