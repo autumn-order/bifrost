@@ -21,6 +21,8 @@ async fn test_pop_from_empty_queue() {
     let result = queue.pop().await;
     assert!(result.is_ok(), "Pop from empty queue should succeed");
     assert_eq!(result.unwrap(), None, "Should return None for empty queue");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -53,6 +55,8 @@ async fn test_pop_single_character_job() {
         }
         _ => panic!("Should be UpdateCharacterInfo job"),
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -85,6 +89,8 @@ async fn test_pop_single_alliance_job() {
         }
         _ => panic!("Should be UpdateAllianceInfo job"),
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -120,6 +126,8 @@ async fn test_pop_single_corporation_job() {
         }
         _ => panic!("Should be UpdateCorporationInfo job"),
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -146,6 +154,8 @@ async fn test_pop_removes_job_from_queue() {
         None,
         "Queue should be empty after first pop"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -221,6 +231,8 @@ async fn test_pop_returns_jobs_in_chronological_order() {
         }
         _ => panic!("Should be UpdateCharacterInfo"),
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -245,6 +257,8 @@ async fn test_pop_multiple_jobs_sequentially() {
     let result = queue.pop().await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), None, "Queue should be empty");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -310,6 +324,8 @@ async fn test_pop_mixed_job_types_in_order() {
         matches!(pop3, WorkerJob::UpdateAllianceInfo { .. }),
         "Third should be alliance job"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -331,6 +347,8 @@ async fn test_pop_after_push_immediate_availability() {
         result.unwrap().is_some(),
         "Job should be available immediately"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -357,6 +375,8 @@ async fn test_pop_future_scheduled_job_not_returned_until_due() {
         None,
         "Should NOT return job scheduled in future"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -382,4 +402,6 @@ async fn test_pop_past_scheduled_job_is_immediately_available() {
         result.unwrap().is_some(),
         "Should return job scheduled in past"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }

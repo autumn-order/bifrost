@@ -30,6 +30,8 @@ async fn test_push_new_character_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -53,6 +55,8 @@ async fn test_push_duplicate_character_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -67,6 +71,8 @@ async fn test_push_new_alliance_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -90,6 +96,8 @@ async fn test_push_duplicate_alliance_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -104,6 +112,8 @@ async fn test_push_new_corporation_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -127,6 +137,8 @@ async fn test_push_duplicate_corporation_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -140,6 +152,8 @@ async fn test_push_affiliation_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -165,6 +179,8 @@ async fn test_push_duplicate_affiliation_job_same_ids() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -195,6 +211,8 @@ async fn test_push_affiliation_job_different_order_is_duplicate() {
         false,
         "Job with same IDs in different order should be detected as duplicate"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -225,6 +243,8 @@ async fn test_push_affiliation_job_different_ids_not_duplicate() {
         true,
         "Job with different IDs should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -238,6 +258,8 @@ async fn test_push_affiliation_job_empty_ids_fails() {
 
     let result = queue.push(job).await;
     assert!(result.is_err(), "Push with empty IDs should fail");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -251,6 +273,8 @@ async fn test_push_affiliation_job_too_many_ids_fails() {
 
     let result = queue.push(job).await;
     assert!(result.is_err(), "Push with too many IDs should fail");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -265,6 +289,8 @@ async fn test_push_affiliation_job_max_size_succeeds() {
     let result = queue.push(job).await;
     assert!(result.is_ok(), "Push with max size should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -306,6 +332,8 @@ async fn test_push_multiple_different_job_types() {
         result4.is_ok() && result4.unwrap(),
         "Affiliation job should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -338,6 +366,8 @@ async fn test_push_same_id_different_job_types_not_duplicate() {
         result3.is_ok() && result3.unwrap(),
         "Corporation job should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -355,6 +385,8 @@ async fn test_push_multiple_jobs_successfully() {
             i
         );
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
@@ -390,4 +422,6 @@ async fn test_push_stores_with_correct_timestamp() {
         after,
         score_ms
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
