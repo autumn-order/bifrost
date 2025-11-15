@@ -1,3 +1,11 @@
+mod config;
+mod context;
+mod dispatcher;
+
+pub mod handler;
+
+pub use config::WorkerPoolConfig;
+
 use std::sync::Arc;
 
 use dioxus_logger::tracing;
@@ -6,7 +14,7 @@ use tokio::sync::{RwLock, Semaphore};
 
 use crate::server::{error::Error, worker::queue::WorkerJobQueue};
 
-use super::{config::WorkerPoolConfig, context::DispatcherContext, dispatcher::DispatcherHandle};
+use self::{context::DispatcherContext, dispatcher::DispatcherHandle};
 
 /// Worker pool for processing jobs from the WorkerJobQueue
 ///

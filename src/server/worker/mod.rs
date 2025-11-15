@@ -1,7 +1,6 @@
 mod handler;
+mod pool;
 mod queue;
-
-mod new_worker;
 
 use apalis::prelude::Data;
 use dioxus_logger::tracing;
