@@ -37,6 +37,8 @@ mod tests;
 
 use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
 use fred::prelude::*;
@@ -59,8 +61,8 @@ pub struct WorkerJobQueue {
     queue_name: String,
     /// Handle to the background cleanup task
     cleanup_task_handle: std::sync::Arc<tokio::sync::RwLock<Option<tokio::task::JoinHandle<()>>>>,
-    /// Shutdown signal for the cleanup task
-    shutdown_signal: std::sync::Arc<tokio::sync::Notify>,
+    /// Shutdown flag for the cleanup task
+    shutdown_flag: std::sync::Arc<AtomicBool>,
 }
 
 pub struct QueuedJob {
@@ -79,7 +81,7 @@ impl WorkerJobQueue {
             pool,
             queue_name,
             cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            shutdown_signal: std::sync::Arc::new(tokio::sync::Notify::new()),
+            shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -91,6 +93,23 @@ impl WorkerJobQueue {
     /// This method is idempotent - calling it multiple times has no effect if cleanup
     /// is already running.
     pub async fn start_cleanup(&self) {
+        self.start_cleanup_with_interval(std::time::Duration::from_millis(
+            CLEANUP_INTERVAL_MS as u64,
+        ))
+        .await;
+    }
+
+    /// Start the background cleanup task with a custom interval
+    ///
+    /// This task runs at the specified interval and removes jobs older than JOB_TTL_MS.
+    /// The task will stop when [`Self::stop_cleanup`] is called or the queue is dropped.
+    ///
+    /// This method is idempotent - calling it multiple times has no effect if cleanup
+    /// is already running.
+    ///
+    /// # Arguments
+    /// * `interval` - How often to run the cleanup task
+    pub async fn start_cleanup_with_interval(&self, interval: std::time::Duration) {
         let mut handle = self.cleanup_task_handle.write().await;
 
         if handle.is_some() {
@@ -100,25 +119,30 @@ impl WorkerJobQueue {
 
         let pool = self.pool.clone();
         let queue_name = self.queue_name.clone();
-        let shutdown_signal = self.shutdown_signal.clone();
+        let shutdown_flag = self.shutdown_flag.clone();
 
         let task_handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(
-                CLEANUP_INTERVAL_MS as u64,
-            ));
+            let mut interval_timer = tokio::time::interval(interval);
 
-            tracing::info!("Queue cleanup task started");
+            tracing::info!("Queue cleanup task started with interval {:?}", interval);
 
             loop {
+                // Check shutdown flag before waiting
+                if shutdown_flag.load(Ordering::Relaxed) {
+                    tracing::info!("Queue cleanup task received shutdown signal");
+                    break;
+                }
+
                 tokio::select! {
                     biased;
 
-                    _ = shutdown_signal.notified() => {
-                        tracing::info!("Queue cleanup task received shutdown signal");
-                        break;
-                    }
+                    _ = interval_timer.tick() => {
+                        // Check again after waking up
+                        if shutdown_flag.load(Ordering::Relaxed) {
+                            tracing::info!("Queue cleanup task received shutdown signal");
+                            break;
+                        }
 
-                    _ = interval.tick() => {
                         if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
                             tracing::warn!("Failed to cleanup stale jobs: {}", e);
                         }
@@ -138,7 +162,7 @@ impl WorkerJobQueue {
     /// It is safe to call even if the cleanup task is not running.
     pub async fn stop_cleanup(&self) {
         // Signal shutdown
-        self.shutdown_signal.notify_waiters();
+        self.shutdown_flag.store(true, Ordering::Relaxed);
 
         // Wait for the task to finish
         let mut handle = self.cleanup_task_handle.write().await;
@@ -159,6 +183,9 @@ impl WorkerJobQueue {
                 }
             }
         }
+
+        // Reset the shutdown flag for potential restart
+        self.shutdown_flag.store(false, Ordering::Relaxed);
     }
 
     /// Check if the cleanup task is currently running
@@ -312,6 +339,6 @@ impl WorkerJobQueue {
 impl Drop for WorkerJobQueue {
     fn drop(&mut self) {
         // Signal shutdown when queue is dropped
-        self.shutdown_signal.notify_waiters();
+        self.shutdown_flag.store(true, Ordering::Relaxed);
     }
 }

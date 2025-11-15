@@ -1,5 +1,8 @@
 mod config;
 
+#[cfg(test)]
+mod tests;
+
 pub mod handler;
 
 pub use config::WorkerPoolConfig;
@@ -79,8 +82,10 @@ impl WorkerPool {
             self.config.max_concurrent_jobs
         );
 
-        // Start the job queue cleanup task
-        self.queue.start_cleanup().await;
+        // Start the job queue cleanup task with configured interval
+        self.queue
+            .start_cleanup_with_interval(self.config.cleanup_interval())
+            .await;
 
         // Spawn all dispatcher tasks
         for id in 0..self.config.dispatcher_count {
@@ -256,7 +261,7 @@ impl WorkerPool {
         let dispatcher_count = handles.len();
 
         for (i, handle) in handles.drain(..).enumerate() {
-            let timeout_result = tokio::time::timeout(Duration::from_secs(5), handle).await;
+            let timeout_result = tokio::time::timeout(self.config.shutdown_timeout(), handle).await;
 
             match timeout_result {
                 Ok(Ok(())) => {
