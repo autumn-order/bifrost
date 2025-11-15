@@ -165,12 +165,9 @@ impl WorkerPool {
             }
         }
 
-        // Give dispatchers and cleanup task a brief moment to observe the shutdown signal
-        // This prevents them from interpreting semaphore closure as an error
-        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-
-        // Now close the semaphore to prevent any new job spawns
-        // Dispatchers already handle semaphore closure gracefully by returning jobs to buffer
+        // Close the semaphore to prevent any new job spawns
+        // Dispatchers check is_shutting_down() before acquiring permits, so they won't
+        // misinterpret semaphore closure as an error
         self.context.semaphore.close();
 
         // Stop the job queue cleanup task

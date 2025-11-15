@@ -81,62 +81,83 @@ impl SupervisorHandle {
         dispatchers: &Arc<RwLock<Vec<DispatcherHandle>>>,
         expected_count: usize,
     ) {
-        let mut dispatchers = dispatchers.write().await;
-        let mut respawned = 0;
+        // Collect information about dead dispatchers while holding the lock
+        let dead_dispatchers = {
+            let mut dispatchers = dispatchers.write().await;
+            let mut dead = Vec::new();
 
-        // Check for dead dispatchers (tasks that have finished)
-        for i in (0..dispatchers.len()).rev() {
-            if dispatchers[i].is_finished() {
-                let dead_dispatcher = dispatchers.remove(i);
-                let dispatcher_id = dead_dispatcher.id;
-
-                // During shutdown, dispatchers exit normally - don't respawn or log errors
-                if context.is_shutting_down() {
-                    tracing::debug!(
-                        "Dispatcher {} stopped during shutdown (expected)",
-                        dispatcher_id
-                    );
-                    continue;
+            // Identify dead dispatchers and remove them from the vec
+            for i in (0..dispatchers.len()).rev() {
+                if dispatchers[i].is_finished() {
+                    let dead_dispatcher = dispatchers.remove(i);
+                    dead.push((i, dead_dispatcher));
                 }
-
-                // Log failure reason by awaiting the finished handle
-                Self::log_dispatcher_failure(dead_dispatcher).await;
-
-                // Recover any jobs left in the dispatcher's buffer
-                // This is critical with panic = "abort" since Drop handlers don't run
-                Self::recover_dispatcher_buffer(context, dispatcher_id).await;
-
-                // Respawn with same ID
-                tracing::info!("Supervisor respawning dispatcher {}", dispatcher_id);
-                let new_dispatcher =
-                    DispatcherHandle::spawn(dispatcher_id, config.clone(), context.clone());
-                dispatchers.insert(i, new_dispatcher);
-                respawned += 1;
             }
+
+            dead
+        }; // Lock is released here
+
+        // Process dead dispatchers outside the lock to prevent blocking other operations
+        let mut respawned = 0;
+        for (index, dead_dispatcher) in dead_dispatchers {
+            let dispatcher_id = dead_dispatcher.id;
+
+            // During shutdown, dispatchers exit normally - don't respawn or log errors
+            if context.is_shutting_down() {
+                tracing::debug!(
+                    "Dispatcher {} stopped during shutdown (expected)",
+                    dispatcher_id
+                );
+                continue;
+            }
+
+            // Log failure reason by awaiting the finished handle
+            Self::log_dispatcher_failure(dead_dispatcher).await;
+
+            // Recover any jobs left in the dispatcher's buffer
+            // This is critical with panic = "abort" since Drop handlers don't run
+            Self::recover_dispatcher_buffer(context, dispatcher_id).await;
+
+            // Respawn with same ID and re-acquire lock to insert
+            tracing::info!("Supervisor respawning dispatcher {}", dispatcher_id);
+            let new_dispatcher =
+                DispatcherHandle::spawn(dispatcher_id, config.clone(), context.clone());
+
+            let mut dispatchers = dispatchers.write().await;
+            dispatchers.insert(index, new_dispatcher);
+            drop(dispatchers); // Explicitly release lock before next iteration
+
+            respawned += 1;
         }
 
         if respawned > 0 {
+            let current_count = dispatchers.read().await.len();
             tracing::warn!(
                 "Supervisor respawned {} dispatcher(s) ({}/{} now active)",
                 respawned,
-                dispatchers.len(),
+                current_count,
                 expected_count
             );
         }
 
         // Check if we're below expected count (shouldn't happen but defensive)
         // Skip this check during shutdown
-        let current_count = dispatchers.len();
-        if !context.is_shutting_down() && current_count < expected_count {
-            tracing::error!(
-                "Dispatcher count below expected ({}/{}), spawning additional dispatchers",
-                current_count,
-                expected_count
-            );
+        if !context.is_shutting_down() {
+            let mut dispatchers = dispatchers.write().await;
+            let current_count = dispatchers.len();
 
-            for id in current_count..expected_count {
-                let new_dispatcher = DispatcherHandle::spawn(id, config.clone(), context.clone());
-                dispatchers.push(new_dispatcher);
+            if current_count < expected_count {
+                tracing::error!(
+                    "Dispatcher count below expected ({}/{}), spawning additional dispatchers",
+                    current_count,
+                    expected_count
+                );
+
+                for id in current_count..expected_count {
+                    let new_dispatcher =
+                        DispatcherHandle::spawn(id, config.clone(), context.clone());
+                    dispatchers.push(new_dispatcher);
+                }
             }
         }
     }

@@ -229,14 +229,24 @@ impl Dispatcher {
     ///
     /// # Returns
     /// - `Ok(())` if the job was successfully dispatched
-    /// - `Err(job)` if the semaphore was closed before acquiring permit (returns the job)
+    /// - `Err(job)` if shutting down or semaphore closed (returns the job)
     async fn dispatch_job(&self, job: WorkerJob) -> Result<(), WorkerJob> {
+        // Check shutdown BEFORE acquiring semaphore to avoid race condition
+        // This prevents interpreting semaphore closure as an error during shutdown
+        if self.context.is_shutting_down() {
+            tracing::debug!(
+                "Dispatcher {} skipping job dispatch due to shutdown",
+                self.id
+            );
+            return Err(job);
+        }
+
         // Acquire semaphore permit (blocks if at capacity)
         // This provides backpressure when system is overloaded
         let permit = match self.context.semaphore.clone().acquire_owned().await {
             Ok(permit) => permit,
             Err(_) => {
-                // Semaphore closed, likely shutdown
+                // Semaphore closed - should only happen during shutdown
                 tracing::debug!(
                     "Dispatcher {} semaphore closed before acquiring permit",
                     self.id
