@@ -22,6 +22,9 @@ pub struct WorkerPoolConfig {
 
     /// Maximum job execution time before cancellation (seconds).
     pub job_timeout_seconds: u64,
+
+    /// Supervisor health check interval (seconds).
+    pub supervisor_check_interval_seconds: u64,
 }
 
 impl WorkerPoolConfig {
@@ -47,6 +50,7 @@ impl WorkerPoolConfig {
             max_consecutive_errors: 5,
             error_backoff_seconds: 10,
             job_timeout_seconds: 300,
+            supervisor_check_interval_seconds: 5,
         }
     }
 
@@ -103,5 +107,9 @@ impl WorkerPoolConfig {
 
     pub fn dispatcher_initial_jitter(&self) -> std::time::Duration {
         std::time::Duration::from_millis(self.dispatcher_initial_jitter_ms)
+    }
+
+    pub fn supervisor_check_interval(&self) -> std::time::Duration {
+        std::time::Duration::from_secs(self.supervisor_check_interval_seconds)
     }
 }

@@ -13,11 +13,16 @@ use super::{config::WorkerPoolConfig, context::DispatcherContext, handler::Worke
 
 /// Handle for a dispatcher task
 pub(super) struct DispatcherHandle {
-    pub id: usize,
-    pub handle: JoinHandle<()>,
+    pub(super) id: usize,
+    pub(super) handle: JoinHandle<()>,
 }
 
 impl DispatcherHandle {
+    /// Check if the dispatcher task has finished
+    pub fn is_finished(&self) -> bool {
+        self.handle.is_finished()
+    }
+
     /// Spawn a new dispatcher task
     ///
     /// Dispatchers continuously poll Redis for jobs and spawn tasks to process them.

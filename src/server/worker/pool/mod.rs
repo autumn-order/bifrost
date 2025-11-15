@@ -1,6 +1,7 @@
 mod config;
 mod context;
 mod dispatcher;
+mod supervisor;
 
 pub mod handler;
 
@@ -14,7 +15,9 @@ use tokio::sync::{RwLock, Semaphore};
 
 use crate::server::{error::Error, worker::queue::WorkerJobQueue};
 
-use self::{context::DispatcherContext, dispatcher::DispatcherHandle};
+use self::{
+    context::DispatcherContext, dispatcher::DispatcherHandle, supervisor::SupervisorHandle,
+};
 
 /// Worker pool for processing jobs from the WorkerJobQueue
 ///
@@ -25,6 +28,7 @@ pub struct WorkerPool {
     config: WorkerPoolConfig,
     context: DispatcherContext,
     dispatchers: Arc<RwLock<Vec<DispatcherHandle>>>,
+    supervisor_handle: Arc<RwLock<Option<SupervisorHandle>>>,
 }
 
 impl WorkerPool {
@@ -52,6 +56,7 @@ impl WorkerPool {
             config,
             context,
             dispatchers: Arc::new(RwLock::new(Vec::new())),
+            supervisor_handle: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -104,7 +109,35 @@ impl WorkerPool {
             "Worker pool started successfully ({} dispatchers active)",
             dispatcher_count
         );
+
+        // Release the dispatchers lock before starting supervisor
+        drop(dispatchers);
+
+        // Start the supervisor to monitor dispatcher health
+        self.start_supervisor().await;
+
         Ok(())
+    }
+
+    /// Start the supervisor task that monitors dispatcher health
+    ///
+    /// The supervisor periodically checks if any dispatchers have died unexpectedly
+    /// and respawns them to maintain the configured dispatcher count.
+    async fn start_supervisor(&self) {
+        let mut supervisor_handle = self.supervisor_handle.write().await;
+
+        if supervisor_handle.is_some() {
+            tracing::warn!("Supervisor is already running");
+            return;
+        }
+
+        let handle = SupervisorHandle::spawn(
+            self.config.clone(),
+            self.context.clone(),
+            Arc::clone(&self.dispatchers),
+        );
+
+        *supervisor_handle = Some(handle);
     }
 
     /// Stop the worker pool gracefully
@@ -116,8 +149,19 @@ impl WorkerPool {
     pub async fn stop(&self) -> Result<(), Error> {
         tracing::info!("Shutting down worker pool...");
 
-        // Signal shutdown first so all tasks can see it and break out of their loops cleanly
+        // Set shutdown flag first so supervisor knows this is intentional
+        self.context.set_shutting_down();
+
+        // Signal shutdown so all tasks can see it and break out of their loops cleanly
         self.context.shutdown_signal.notify_waiters();
+
+        // Wait for supervisor to stop
+        let mut supervisor_handle = self.supervisor_handle.write().await;
+        if let Some(handle) = supervisor_handle.take() {
+            if let Err(e) = handle.shutdown().await {
+                tracing::error!("Supervisor task failed: {:?}", e);
+            }
+        }
 
         // Give dispatchers and cleanup task a brief moment to observe the shutdown signal
         // This prevents them from interpreting semaphore closure as an error

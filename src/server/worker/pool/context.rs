@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
@@ -16,6 +17,7 @@ pub struct DispatcherContext {
     pub esi_client: Arc<eve_esi::Client>,
     pub semaphore: Arc<Semaphore>,
     pub shutdown_signal: Arc<Notify>,
+    pub is_shutting_down: Arc<AtomicBool>,
 }
 
 impl DispatcherContext {
@@ -33,11 +35,22 @@ impl DispatcherContext {
             esi_client,
             semaphore,
             shutdown_signal,
+            is_shutting_down: Arc::new(AtomicBool::new(false)),
         }
     }
 
     /// Get the number of available semaphore permits
     pub fn available_permits(&self) -> usize {
         self.semaphore.available_permits()
+    }
+
+    /// Check if shutdown has been initiated
+    pub fn is_shutting_down(&self) -> bool {
+        self.is_shutting_down.load(Ordering::Relaxed)
+    }
+
+    /// Mark shutdown as initiated
+    pub fn set_shutting_down(&self) {
+        self.is_shutting_down.store(true, Ordering::Relaxed);
     }
 }
