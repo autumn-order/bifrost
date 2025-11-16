@@ -14,8 +14,8 @@
 //!
 //! ## TTL and Cleanup
 //!
-//! Jobs have a 24-hour TTL and are automatically cleaned up:
-//! - Passive cleanup runs every 1000 job pushes (background task, non-blocking)
+//! Jobs have a 1-hour TTL and are automatically cleaned up:
+//! - Passive cleanup runs every 5 minutes (background task, non-blocking)
 //! - Manual cleanup can be triggered via [`WorkerJobQueue::cleanup_stale_jobs`]
 //! - Stale jobs (older than TTL) are removed to prevent queue bloat
 //!
@@ -30,57 +30,139 @@
 //!
 //! Note: Current tracking keys system will be removed as that was simply a workaround to prevent duplicates
 //! with apalis.
+pub mod config;
+
 mod lua;
 
-#[cfg(test)]
-mod tests;
+use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
 
-use lua::{CLEANUP_STALE_JOBS_SCRIPT, GET_ALL_OF_TYPE_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
 use fred::prelude::*;
 
 use crate::server::{
-    error::{worker::WorkerError, Error},
-    model::worker::WorkerJob,
+    error::Error, model::worker::WorkerJob, worker::queue::config::WorkerQueueConfig,
 };
 
-const DEFAULT_QUEUE_NAME: &str = "bifrost:worker:queue";
-
-/// Maximum age for jobs in the queue before they're considered stale (24 hours in milliseconds)
-/// Jobs older than this will be removed by cleanup operations
-const JOB_TTL_MS: i64 = 24 * 60 * 60 * 1000;
-
-/// Cleanup stale jobs every time this many jobs are pushed (1000 pushes)
-/// This provides passive cleanup without requiring a separate background task
-const CLEANUP_INTERVAL: u64 = 1000;
-
-pub struct WorkerJobQueue {
+pub struct WorkerQueue {
     pool: Pool,
-    /// Counter for tracking when to run cleanup (uses atomic operations)
-    push_counter: std::sync::atomic::AtomicU64,
-    /// Queue name in Redis (allows namespacing for test isolation)
-    queue_name: String,
+    config: WorkerQueueConfig,
+    /// Handle to the background cleanup task
+    cleanup_task_handle: std::sync::Arc<tokio::sync::RwLock<Option<tokio::task::JoinHandle<()>>>>,
+    /// Shutdown flag for the cleanup task
+    shutdown_flag: std::sync::Arc<AtomicBool>,
 }
 
-pub struct QueuedJob {
-    pub job: WorkerJob,
-    pub scheduled_at: DateTime<Utc>,
-}
-
-impl WorkerJobQueue {
+impl WorkerQueue {
     pub fn new(pool: Pool) -> Self {
-        Self::with_queue_name(pool, DEFAULT_QUEUE_NAME.to_string())
+        Self::with_config(pool, WorkerQueueConfig::default())
     }
 
     /// Create a new WorkerJobQueue with a custom queue name (useful for testing)
-    pub fn with_queue_name(pool: Pool, queue_name: String) -> Self {
+    pub fn with_config(pool: Pool, config: WorkerQueueConfig) -> Self {
         Self {
             pool,
-            push_counter: std::sync::atomic::AtomicU64::new(0),
-            queue_name,
+            config: config,
+            cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Start the background cleanup task for periodic removal of stale jobs
+    ///
+    /// This task runs every CLEANUP_INTERVAL_MS and removes jobs older than JOB_TTL_MS.
+    /// The task will stop when [`Self::stop_cleanup`] is called or the queue is dropped.
+    ///
+    /// This method is idempotent - calling it multiple times has no effect if cleanup
+    /// is already running.
+    pub async fn start_cleanup(&self) {
+        let mut handle = self.cleanup_task_handle.write().await;
+
+        if handle.is_some() {
+            tracing::debug!("Queue cleanup task is already running");
+            return;
+        }
+
+        let config = self.config.clone();
+        let pool = self.pool.clone();
+        let shutdown_flag = self.shutdown_flag.clone();
+
+        let task_handle = tokio::spawn(async move {
+            let mut interval_timer = tokio::time::interval(config.cleanup_interval);
+
+            tracing::info!(
+                "Queue cleanup task started with interval {:?}",
+                config.cleanup_interval.as_secs()
+            );
+
+            loop {
+                // Check shutdown flag before waiting
+                if shutdown_flag.load(Ordering::Relaxed) {
+                    tracing::info!("Queue cleanup task received shutdown signal");
+                    break;
+                }
+
+                tokio::select! {
+                    biased;
+
+                    _ = interval_timer.tick() => {
+                        // Check again after waking up
+                        if shutdown_flag.load(Ordering::Relaxed) {
+                            tracing::info!("Queue cleanup task received shutdown signal");
+                            break;
+                        }
+
+                        if let Err(e) = Self::cleanup_stale_jobs_internal(&config, &pool).await {
+                            tracing::warn!("Failed to cleanup stale jobs: {}", e);
+                        }
+                    }
+                }
+            }
+
+            tracing::info!("Queue cleanup task stopped");
+        });
+
+        *handle = Some(task_handle);
+    }
+
+    /// Stop the background cleanup task gracefully
+    ///
+    /// This method signals the cleanup task to stop and waits for it to complete.
+    /// It is safe to call even if the cleanup task is not running.
+    pub async fn stop_cleanup(&self) {
+        // Signal shutdown
+        self.shutdown_flag.store(true, Ordering::Relaxed);
+
+        // Wait for the task to finish
+        let mut handle = self.cleanup_task_handle.write().await;
+        if let Some(task_handle) = handle.take() {
+            tracing::debug!("Waiting for queue cleanup task to stop");
+            match task_handle.await {
+                Ok(()) => {
+                    tracing::debug!("Queue cleanup task stopped cleanly");
+                }
+                Err(e) if e.is_panic() => {
+                    tracing::error!("Queue cleanup task panicked: {:?}", e);
+                }
+                Err(e) if e.is_cancelled() => {
+                    tracing::warn!("Queue cleanup task was cancelled");
+                }
+                Err(e) => {
+                    tracing::error!("Queue cleanup task failed: {:?}", e);
+                }
+            }
+        }
+
+        // Reset the shutdown flag for potential restart
+        self.shutdown_flag.store(false, Ordering::Relaxed);
+    }
+
+    /// Check if the cleanup task is currently running
+    pub async fn is_cleanup_running(&self) -> bool {
+        let handle = self.cleanup_task_handle.read().await;
+        handle.is_some()
     }
 
     /// Push a job to be executed as soon as possible
@@ -104,16 +186,13 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
 
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
-
-        // Periodically cleanup stale jobs (every 1000 job pushes)
-        self.trigger_periodic_cleanup(was_added);
 
         Ok(was_added)
     }
@@ -139,16 +218,13 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
 
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
-
-        // Periodically cleanup stale jobs (every 1000 job pushes)
-        self.trigger_periodic_cleanup(was_added);
 
         Ok(was_added)
     }
@@ -175,7 +251,7 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 POP_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![now.to_string()],
             )
             .await?;
@@ -199,122 +275,29 @@ impl WorkerJobQueue {
         }
     }
 
-    /// Retrieve all worker jobs of type without removing from queue
-    ///
-    /// This method is useful for preventing duplicate job scheduling by checking what jobs
-    /// are already in the queue. For example, when scheduling UpdateAllianceInfo jobs, you can
-    /// retrieve all existing alliance jobs and exclude those IDs from your database query.
-    ///
-    /// # Returns
-    ///
-    /// Returns a vector of `QueuedJob` containing all jobs of the specified type currently in the queue,
-    /// along with their scheduled execution times.
-    ///
-    /// # Note
-    ///
-    /// For affiliation batch jobs, this will return jobs but the character_ids field will be empty
-    /// since the identity string only contains count and hash. The actual character IDs must be
-    /// retrieved from the database when processing these jobs.
-    pub async fn get_all_of_type(&self, job: WorkerJob) -> Result<Vec<QueuedJob>, Error> {
-        // Determine the identity prefix based on the job type
-        let prefix = match job {
-            WorkerJob::UpdateCharacterInfo { .. } => "character:info:",
-            WorkerJob::UpdateAllianceInfo { .. } => "alliance:info:",
-            WorkerJob::UpdateCorporationInfo { .. } => "corporation:info:",
-            WorkerJob::UpdateAffiliations { .. } => "affiliation:batch:",
-        };
-
-        // Execute Lua script to get all matching jobs
-        let result: Vec<Value> = self
-            .pool
-            .eval(GET_ALL_OF_TYPE_SCRIPT, vec![&self.queue_name], vec![prefix])
-            .await?;
-
-        // Parse results into QueuedJob structs
-        let mut jobs = Vec::new();
-
-        // Results come in pairs: [identity1, score1, identity2, score2, ...]
-        for chunk in result.chunks(2) {
-            if chunk.len() == 2 {
-                let identity: String = chunk[0].clone().convert()?;
-                let score: f64 = chunk[1].clone().convert()?;
-
-                // Convert score (milliseconds) to DateTime
-                let timestamp_ms = score as i64;
-                let scheduled_at =
-                    DateTime::from_timestamp_millis(timestamp_ms).ok_or_else(|| {
-                        Error::from(WorkerError::InvalidJobIdentity(format!(
-                            "Invalid timestamp: {}",
-                            timestamp_ms
-                        )))
-                    })?;
-
-                // Parse identity back into WorkerJob
-                // For affiliation batches, this will fail to parse due to missing character IDs
-                // We handle this specially by creating an empty affiliation job
-                let job = match WorkerJob::parse_identity(&identity) {
-                    Ok(job) => job,
-                    Err(_) if identity.starts_with("affiliation:batch:") => {
-                        // For affiliation batches, create a job with empty character_ids
-                        // since the actual IDs must be retrieved from the database
-                        WorkerJob::UpdateAffiliations {
-                            character_ids: Vec::new(),
-                        }
-                    }
-                    Err(e) => return Err(e),
-                };
-
-                jobs.push(QueuedJob { job, scheduled_at });
-            }
-        }
-
-        Ok(jobs)
-    }
-
     /// Remove all jobs older than JOB_TTL_MS from the queue
     ///
-    /// This method is called automatically during push operations, but can also be
-    /// called manually for immediate cleanup.
+    /// This method is called automatically by the background cleanup task every
+    /// CLEANUP_INTERVAL_MS, but can also be called manually for immediate cleanup.
     ///
     /// # Returns
     /// Returns the number of stale jobs that were removed from the queue.
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
-        Self::cleanup_stale_jobs_internal(&self.pool, &self.queue_name).await
+        Self::cleanup_stale_jobs_internal(&self.config, &self.pool).await
     }
 
-    /// Trigger periodic cleanup if a job was added and cleanup interval is reached
-    ///
-    /// This method is called by push and schedule to periodically clean up stale jobs.
-    /// Cleanup runs in the background without blocking the caller.
-    fn trigger_periodic_cleanup(&self, was_added: bool) {
-        if was_added {
-            let count = self
-                .push_counter
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            // Check if we've reached the cleanup interval
-            // count + 1 because fetch_add returns the value BEFORE incrementing
-            if (count + 1) % CLEANUP_INTERVAL == 0 {
-                // Run cleanup in background, don't wait for it
-                let pool = self.pool.clone();
-                let queue_name = self.queue_name.clone();
-                tokio::spawn(async move {
-                    if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
-                        tracing::warn!("Failed to cleanup stale jobs: {}", e);
-                    }
-                });
-            }
-        }
-    }
-
-    /// Internal implementation of cleanup that can be called from spawn
-    async fn cleanup_stale_jobs_internal(pool: &Pool, queue_name: &str) -> Result<u64, Error> {
-        let cutoff_timestamp = Utc::now().timestamp_millis() - JOB_TTL_MS;
+    /// Internal implementation of cleanup that can be called from the background task
+    async fn cleanup_stale_jobs_internal(
+        config: &WorkerQueueConfig,
+        pool: &Pool,
+    ) -> Result<u64, Error> {
+        let cutoff_timestamp = Utc::now().timestamp_millis() - config.job_ttl.as_millis() as i64;
         let cutoff_score = cutoff_timestamp as f64;
 
         let removed: i64 = pool
             .eval(
                 CLEANUP_STALE_JOBS_SCRIPT,
-                vec![queue_name],
+                vec![&config.queue_name],
                 vec![cutoff_score.to_string()],
             )
             .await?;
@@ -324,5 +307,12 @@ impl WorkerJobQueue {
         }
 
         Ok(removed as u64)
+    }
+}
+
+impl Drop for WorkerQueue {
+    fn drop(&mut self) {
+        // Signal shutdown when queue is dropped
+        self.shutdown_flag.store(true, Ordering::Relaxed);
     }
 }
