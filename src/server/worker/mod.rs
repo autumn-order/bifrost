@@ -4,10 +4,9 @@ pub mod queue;
 
 use fred::prelude::Pool;
 pub use pool::WorkerPool;
+pub use queue::WorkerQueue;
 
-use crate::server::worker::{
-    handler::WorkerJobHandler, pool::WorkerPoolConfig, queue::WorkerQueue,
-};
+use crate::server::worker::{handler::WorkerJobHandler, pool::WorkerPoolConfig};
 
 #[derive(Clone)]
 pub struct Worker {

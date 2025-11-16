@@ -8,12 +8,14 @@
 //! - Multiple concurrent jobs
 //! - Semaphore capacity limits
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use bifrost::server::{
     model::worker::WorkerJob,
-    worker::pool::{WorkerPool, WorkerPoolConfig},
+    worker::{
+        handler::WorkerJobHandler,
+        pool::{WorkerPool, WorkerPoolConfig},
+    },
 };
 use bifrost_test_utils::prelude::*;
 
@@ -34,12 +36,11 @@ fn test_config() -> WorkerPoolConfig {
 
 /// Create a test worker pool with test-optimized config
 async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
-    let db = Arc::new(test.state.db.clone());
-    let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(setup_test_queue(redis));
+    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let queue = setup_test_queue(redis);
 
     let config = test_config();
-    WorkerPool::new(config, db, esi_client, queue)
+    WorkerPool::new(config, queue, handler)
 }
 
 /// Create a test worker pool with custom config
@@ -48,11 +49,10 @@ async fn create_test_pool_with_config(
     redis: &RedisTest,
     config: WorkerPoolConfig,
 ) -> WorkerPool {
-    let db = Arc::new(test.state.db.clone());
-    let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(setup_test_queue(redis));
+    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let queue = setup_test_queue(redis);
 
-    WorkerPool::new(config, db, esi_client, queue)
+    WorkerPool::new(config, queue, handler)
 }
 
 #[tokio::test]

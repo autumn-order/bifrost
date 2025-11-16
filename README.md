@@ -238,12 +238,13 @@ docker compose -f docker-compose.dev.yml up -d
 2. Run tests including redis
 
 ```bash
-cargo test --features server redis-test
+cargo test --features redis-test
 ```
 
 ### Code Coverage Report
 
 Generate code coverage report with [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov):
+- Use `redis-test` feature to include redis-related tests as well
 
 ```bash
 cargo llvm-cov --open --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/"

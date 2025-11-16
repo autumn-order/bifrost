@@ -47,7 +47,7 @@ jobs:
         run: bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --minify
 
       - name: Generate code coverage
-        run: cargo llvm-cov --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/" --lcov --output-path lcov.info
+        run: cargo llvm-cov --features redis-test --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/" --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

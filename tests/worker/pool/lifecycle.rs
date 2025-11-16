@@ -8,10 +8,12 @@
 //! - Idempotent start/stop operations
 //! - Pool state transitions
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use bifrost::server::worker::pool::{WorkerPool, WorkerPoolConfig};
+use bifrost::server::worker::{
+    handler::WorkerJobHandler,
+    pool::{WorkerPool, WorkerPoolConfig},
+};
 use bifrost_test_utils::prelude::*;
 
 use crate::redis::RedisTest;
@@ -31,12 +33,11 @@ fn test_config() -> WorkerPoolConfig {
 
 /// Create a test worker pool with test-optimized config
 async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
-    let db = Arc::new(test.state.db.clone());
-    let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(setup_test_queue(redis));
+    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let queue = setup_test_queue(redis);
 
     let config = test_config();
-    WorkerPool::new(config, db, esi_client, queue)
+    WorkerPool::new(config, queue, handler)
 }
 
 #[tokio::test]
@@ -223,13 +224,12 @@ async fn test_pool_with_single_dispatcher() {
 async fn test_pool_with_many_dispatchers() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let db = Arc::new(test.state.db.clone());
-    let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(setup_test_queue(&redis));
+    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let queue = setup_test_queue(&redis);
 
     // 119 jobs = 3 dispatchers (ceiling division ensures max 40 per dispatcher)
     let config = WorkerPoolConfig::new(119);
-    let pool = WorkerPool::new(config, db, esi_client, queue);
+    let pool = WorkerPool::new(config, queue, handler);
 
     pool.start().await.expect("Failed to start pool");
     assert_eq!(
@@ -246,12 +246,11 @@ async fn test_pool_with_many_dispatchers() {
 async fn test_pool_cleanup_task_starts_with_pool() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let db = Arc::new(test.state.db.clone());
-    let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(setup_test_queue(&redis));
+    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let queue = setup_test_queue(&redis);
 
     let config = test_config();
-    let pool = WorkerPool::new(config, db, esi_client, queue.clone());
+    let pool = WorkerPool::new(config, queue.clone(), handler);
 
     assert!(
         !queue.is_cleanup_running().await,
