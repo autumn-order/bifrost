@@ -16,9 +16,15 @@ use crate::server::{error::Error, worker::queue::WorkerQueue};
 ///
 /// Simple implementation that spawns dispatcher tasks to poll Redis and
 /// process jobs with semaphore-based concurrency control.
+#[derive(Clone)]
 pub struct WorkerPool {
+    inner: Arc<WorkerPoolRef>,
+}
+
+#[derive(Clone)]
+pub struct WorkerPoolRef {
     config: WorkerPoolConfig,
-    queue: Arc<WorkerQueue>,
+    queue: WorkerQueue,
     handler: Arc<WorkerJobHandler>,
     semaphore: Arc<Semaphore>,
     shutdown: Arc<Notify>,
@@ -38,12 +44,14 @@ impl WorkerPool {
         let shutdown = Arc::new(Notify::new());
 
         Self {
-            config,
-            handler: Arc::new(handler),
-            queue: Arc::new(queue),
-            semaphore,
-            shutdown,
-            dispatcher_handles: Arc::new(RwLock::new(Vec::new())),
+            inner: Arc::new(WorkerPoolRef {
+                config,
+                handler: Arc::new(handler),
+                queue: queue,
+                semaphore,
+                shutdown,
+                dispatcher_handles: Arc::new(RwLock::new(Vec::new())),
+            }),
         }
     }
 
@@ -55,7 +63,7 @@ impl WorkerPool {
     ///
     /// This method is non-blocking and returns immediately after spawning dispatchers.
     pub async fn start(&self) -> Result<(), Error> {
-        let mut handles = self.dispatcher_handles.write().await;
+        let mut handles = self.inner.dispatcher_handles.write().await;
 
         if !handles.is_empty() {
             tracing::warn!("Worker pool is already running");
@@ -63,23 +71,23 @@ impl WorkerPool {
         }
 
         tracing::info!(
-            "Starting worker pool with {} dispatchers (max {} concurrent jobs)",
-            self.config.dispatcher_count,
-            self.config.max_concurrent_jobs
+            "Starting worker pool with {} dispatcher(s) (max {} concurrent jobs)",
+            self.inner.config.dispatcher_count,
+            self.inner.config.max_concurrent_jobs
         );
 
         // Start the job queue cleanup task
-        self.queue.start_cleanup().await;
+        self.inner.queue.start_cleanup().await;
 
         // Spawn all dispatcher tasks
-        for id in 0..self.config.dispatcher_count {
+        for id in 0..self.inner.config.dispatcher_count {
             let handle = self.spawn_dispatcher(id);
             handles.push(handle);
         }
 
         tracing::info!(
             "Worker pool started successfully ({} dispatcher(s) active)",
-            self.config.dispatcher_count
+            self.inner.config.dispatcher_count
         );
 
         Ok(())
@@ -87,11 +95,11 @@ impl WorkerPool {
 
     /// Spawn a single dispatcher task
     fn spawn_dispatcher(&self, id: usize) -> JoinHandle<()> {
-        let config = self.config.clone();
-        let queue = Arc::clone(&self.queue);
-        let handler = Arc::clone(&self.handler);
-        let semaphore = Arc::clone(&self.semaphore);
-        let shutdown = Arc::clone(&self.shutdown);
+        let config = self.inner.config.clone();
+        let queue = self.inner.queue.clone();
+        let handler = Arc::clone(&self.inner.handler);
+        let semaphore = Arc::clone(&self.inner.semaphore);
+        let shutdown = Arc::clone(&self.inner.shutdown);
 
         tokio::spawn(async move {
             tracing::info!("Dispatcher {} started", id);
@@ -225,20 +233,21 @@ impl WorkerPool {
         tracing::info!("Shutting down worker pool...");
 
         // Close semaphore to prevent new jobs from starting
-        self.semaphore.close();
+        self.inner.semaphore.close();
 
         // Signal all dispatchers to stop
-        self.shutdown.notify_waiters();
+        self.inner.shutdown.notify_waiters();
 
         // Stop the job queue cleanup task
-        self.queue.stop_cleanup().await;
+        self.inner.queue.stop_cleanup().await;
 
         // Wait for all dispatchers to finish (with timeout)
-        let mut handles = self.dispatcher_handles.write().await;
+        let mut handles = self.inner.dispatcher_handles.write().await;
         let dispatcher_count = handles.len();
 
         for (i, handle) in handles.drain(..).enumerate() {
-            let timeout_result = tokio::time::timeout(self.config.shutdown_timeout(), handle).await;
+            let timeout_result =
+                tokio::time::timeout(self.inner.config.shutdown_timeout(), handle).await;
 
             match timeout_result {
                 Ok(Ok(())) => {
@@ -264,13 +273,13 @@ impl WorkerPool {
 
     /// Check if the worker pool is running
     pub async fn is_running(&self) -> bool {
-        let handles = self.dispatcher_handles.read().await;
+        let handles = self.inner.dispatcher_handles.read().await;
         !handles.is_empty()
     }
 
     /// Get the number of active dispatchers
     pub async fn dispatcher_count(&self) -> usize {
-        let handles = self.dispatcher_handles.read().await;
+        let handles = self.inner.dispatcher_handles.read().await;
         handles.len()
     }
 
@@ -279,28 +288,18 @@ impl WorkerPool {
     /// This indicates how many more jobs can be spawned before hitting the
     /// concurrency limit. A value of 0 means the system is at capacity.
     pub fn available_permits(&self) -> usize {
-        self.semaphore.available_permits()
+        self.inner.semaphore.available_permits()
     }
 
     /// Get the maximum number of concurrent jobs configured
     pub fn max_concurrent_jobs(&self) -> usize {
-        self.config.max_concurrent_jobs
+        self.inner.config.max_concurrent_jobs
     }
 
     /// Get the current number of jobs being processed
     ///
     /// This is calculated as: max_concurrent_jobs - available_permits
     pub fn active_job_count(&self) -> usize {
-        self.config.max_concurrent_jobs - self.semaphore.available_permits()
-    }
-}
-
-impl Drop for WorkerPool {
-    fn drop(&mut self) {
-        // Signal shutdown when pool is dropped.
-        // Note: This does not wait for tasks to complete. For clean shutdown,
-        // call stop() before dropping the WorkerPool.
-        self.shutdown.notify_waiters();
-        self.semaphore.close();
+        self.inner.config.max_concurrent_jobs - self.inner.semaphore.available_permits()
     }
 }

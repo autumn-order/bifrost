@@ -32,11 +32,10 @@ fn main() {
         let session = startup::connect_to_session(redis_pool.clone())
             .await
             .unwrap();
-        let worker_queue =
-            startup::start_workers(&config, db.clone(), redis_pool, esi_client.clone())
-                .await
-                .unwrap();
-        let _ = start_scheduler(db.clone(), worker_queue, esi_client.clone())
+        let worker = startup::start_workers(&config, db.clone(), redis_pool, esi_client.clone())
+            .await
+            .unwrap();
+        let _ = start_scheduler(db.clone(), worker.queue.clone(), esi_client.clone())
             .await
             .unwrap();
 
@@ -44,7 +43,11 @@ fn main() {
 
         let mut router = dioxus::server::router(client::App);
         let server_routes = server::router::routes()
-            .with_state(AppState { db, esi_client })
+            .with_state(AppState {
+                db,
+                esi_client,
+                worker,
+            })
             .layer(session);
         router = router.merge(server_routes);
 

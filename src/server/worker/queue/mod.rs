@@ -36,7 +36,10 @@ mod lua;
 
 use lua::{CLEANUP_STALE_JOBS_SCRIPT, POP_JOB_SCRIPT, PUSH_JOB_SCRIPT};
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
@@ -48,6 +51,11 @@ use crate::server::{
 
 #[derive(Clone)]
 pub struct WorkerQueue {
+    inner: Arc<WorkerQueueRef>,
+}
+
+#[derive(Clone)]
+pub struct WorkerQueueRef {
     pool: Pool,
     config: WorkerQueueConfig,
     /// Handle to the background cleanup task
@@ -64,10 +72,12 @@ impl WorkerQueue {
     /// Create a new WorkerJobQueue with a custom queue name (useful for testing)
     pub fn with_config(pool: Pool, config: WorkerQueueConfig) -> Self {
         Self {
-            pool,
-            config: config,
-            cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
-            shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
+            inner: Arc::new(WorkerQueueRef {
+                pool,
+                config: config,
+                cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+                shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
+            }),
         }
     }
 
@@ -79,16 +89,16 @@ impl WorkerQueue {
     /// This method is idempotent - calling it multiple times has no effect if cleanup
     /// is already running.
     pub async fn start_cleanup(&self) {
-        let mut handle = self.cleanup_task_handle.write().await;
+        let mut handle = self.inner.cleanup_task_handle.write().await;
 
         if handle.is_some() {
             tracing::debug!("Worker queue cleanup task is already running");
             return;
         }
 
-        let config = self.config.clone();
-        let pool = self.pool.clone();
-        let shutdown_flag = self.shutdown_flag.clone();
+        let config = self.inner.config.clone();
+        let pool = self.inner.pool.clone();
+        let shutdown_flag = self.inner.shutdown_flag.clone();
 
         let task_handle = tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(config.cleanup_interval);
@@ -134,10 +144,10 @@ impl WorkerQueue {
     /// It is safe to call even if the cleanup task is not running.
     pub async fn stop_cleanup(&self) {
         // Signal shutdown
-        self.shutdown_flag.store(true, Ordering::Relaxed);
+        self.inner.shutdown_flag.store(true, Ordering::Relaxed);
 
         // Wait for the task to finish
-        let mut handle = self.cleanup_task_handle.write().await;
+        let mut handle = self.inner.cleanup_task_handle.write().await;
         if let Some(task_handle) = handle.take() {
             tracing::debug!("Waiting for worker queue cleanup task to stop");
             match task_handle.await {
@@ -157,12 +167,12 @@ impl WorkerQueue {
         }
 
         // Reset the shutdown flag for potential restart
-        self.shutdown_flag.store(false, Ordering::Relaxed);
+        self.inner.shutdown_flag.store(false, Ordering::Relaxed);
     }
 
     /// Check if the cleanup task is currently running
     pub async fn is_cleanup_running(&self) -> bool {
-        let handle = self.cleanup_task_handle.read().await;
+        let handle = self.inner.cleanup_task_handle.read().await;
         handle.is_some()
     }
 
@@ -184,10 +194,11 @@ impl WorkerQueue {
         // Uses ZSCORE for O(1) duplicate check, then ZADD with identity as member
         // Note: For affiliation batches, identity only contains count+hash, not actual character IDs
         let result: i64 = self
+            .inner
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.config.queue_name],
+                vec![&self.inner.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
@@ -216,10 +227,11 @@ impl WorkerQueue {
         // Uses ZSCORE for O(1) duplicate check, then ZADD with identity as member
         // Note: For affiliation batches, identity only contains count+hash, not actual character IDs
         let result: i64 = self
+            .inner
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.config.queue_name],
+                vec![&self.inner.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
@@ -249,10 +261,11 @@ impl WorkerQueue {
         // Execute Lua script to atomically pop earliest job that is due
         let now = Utc::now().timestamp_millis();
         let result: Option<Vec<Value>> = self
+            .inner
             .pool
             .eval(
                 POP_JOB_SCRIPT,
-                vec![&self.config.queue_name],
+                vec![&self.inner.config.queue_name],
                 vec![now.to_string()],
             )
             .await?;
@@ -284,7 +297,7 @@ impl WorkerQueue {
     /// # Returns
     /// Returns the number of stale jobs that were removed from the queue.
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
-        Self::cleanup_stale_jobs_internal(&self.config, &self.pool).await
+        Self::cleanup_stale_jobs_internal(&self.inner.config, &self.inner.pool).await
     }
 
     /// Internal implementation of cleanup that can be called from the background task
@@ -308,12 +321,5 @@ impl WorkerQueue {
         }
 
         Ok(removed as u64)
-    }
-}
-
-impl Drop for WorkerQueue {
-    fn drop(&mut self) {
-        // Signal shutdown when queue is dropped
-        self.shutdown_flag.store(true, Ordering::Relaxed);
     }
 }

@@ -6,11 +6,7 @@ use tower_sessions_redis_store::RedisStore;
 use crate::server::{
     config::Config,
     error::Error,
-    worker::{
-        handler::WorkerJobHandler,
-        pool::{WorkerPool, WorkerPoolConfig},
-        queue::WorkerQueue,
-    },
+    worker::{handler::WorkerJobHandler, Worker},
 };
 
 /// Build and configure the ESI client with the provided credentials
@@ -81,14 +77,11 @@ pub async fn start_workers(
     db: DatabaseConnection,
     redis_pool: Pool,
     esi_client: eve_esi::Client,
-) -> Result<WorkerQueue, Error> {
-    let config = WorkerPoolConfig::new(config.workers);
+) -> Result<Worker, Error> {
     let handler = WorkerJobHandler::new(db, esi_client);
-    let queue = WorkerQueue::new(redis_pool);
+    let worker = Worker::new(config.workers, redis_pool.clone(), handler);
 
-    let workers = WorkerPool::new(config, queue.clone(), handler);
+    worker.pool.start().await?;
 
-    workers.start().await?;
-
-    Ok(queue)
+    Ok(worker)
 }
