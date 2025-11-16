@@ -1,6 +1,6 @@
 [package]
 name = "bifrost"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2021"
 description = "Authentication platform for EVE Online corporations, alliances, and coalitions"
 repository = "https://github.com/autumn-order/bifrost"
