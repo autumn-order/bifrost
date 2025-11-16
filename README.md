@@ -221,7 +221,30 @@ Run tests for the server with:
 cargo test --features server
 ```
 
+For tests which include redis
+
+### Redis-Related Tests
+
+Redis-related tests include anything involving the worker or scheduler. Including redis-related
+tests will increase test execution time by about 5 seconds & requires an active redis instance,
+hence why it is feature-gated.
+
+1. Start development docker compose which contains a redis instance
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+2. Run tests including redis
+
+```bash
+cargo test --features server redis-test
+```
+
+### Code Coverage Report
+
 Generate code coverage report with [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov):
+
 ```bash
 cargo llvm-cov --open --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/"
 ```

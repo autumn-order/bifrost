@@ -1,4 +1,4 @@
-use crate::TestError;
+use bifrost_test_utils::prelude::*;
 use fred::prelude::*;
 
 /// Redis test setup with automatic cleanup
@@ -54,20 +54,13 @@ impl RedisTest {
 
         format!("test:{}:{:x}:worker:queue", timestamp, hash)
     }
-}
 
-impl Drop for RedisTest {
-    fn drop(&mut self) {
-        // Clean up Redis data when RedisTest is dropped
-        // We spawn a task instead of blocking to avoid "runtime within runtime" errors
-        let pool = self.redis_pool.clone();
-        let queue_name = self.queue_name.clone();
-
-        // Spawn cleanup task in the background
-        if let Ok(handle) = tokio::runtime::Handle::try_current() {
-            handle.spawn(async move {
-                let _: Result<(), fred::error::Error> = pool.del(&queue_name).await;
-            });
-        }
+    /// Explicitly clean up Redis data
+    ///
+    /// Call this at the end of your test to ensure cleanup completes.
+    /// If not called, cleanup will be attempted on drop but may not complete.
+    pub async fn cleanup(self) -> Result<(), TestError> {
+        self.redis_pool.del::<(), _>(&self.queue_name).await?;
+        Ok(())
     }
 }
