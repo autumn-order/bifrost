@@ -1,5 +1,3 @@
-use apalis_redis::RedisStorage;
-use fred::prelude::*;
 use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 
 use crate::server::{
@@ -9,6 +7,7 @@ use crate::server::{
         entity_refresh::{EntityRefreshTracker, SchedulableEntity},
     },
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
+    worker::queue::WorkerQueue,
 };
 
 pub struct CharacterAffiliation;
@@ -28,11 +27,9 @@ impl SchedulableEntity for CharacterAffiliation {
 /// Checks for character affiliation nearing expiration & schedules an update
 pub async fn schedule_character_affiliation_update(
     db: &DatabaseConnection,
-    redis_pool: &Pool,
-    job_storage: &mut RedisStorage<WorkerJob>,
+    worker_queue: &WorkerQueue,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker =
-        EntityRefreshTracker::new(db, redis_pool, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need affiliation updates
     let characters_needing_update = refresh_tracker
@@ -58,7 +55,7 @@ pub async fn schedule_character_affiliation_update(
         .collect();
 
     let scheduled_job_count = refresh_tracker
-        .schedule_jobs::<CharacterAffiliation>(job_storage, jobs)
+        .schedule_jobs::<CharacterAffiliation>(&worker_queue, jobs)
         .await?;
 
     Ok(scheduled_job_count)

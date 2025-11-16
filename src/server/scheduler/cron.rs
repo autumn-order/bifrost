@@ -1,15 +1,13 @@
 use crate::server::{
-    model::worker::WorkerJob,
     scheduler::eve::{
         affiliation::schedule_character_affiliation_update,
         alliance::schedule_alliance_info_update, character::schedule_character_info_update,
         corporation::schedule_corporation_info_update,
     },
     service::eve::faction::FactionService,
+    worker::queue::WorkerQueue,
 };
-use apalis_redis::RedisStorage;
 use dioxus_logger::tracing;
-use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
 
@@ -20,19 +18,17 @@ use super::config::eve::corporation as corporation_config;
 use super::config::eve::faction as faction_config;
 
 macro_rules! add_cron_job {
-    ($sched:expr, $cron:expr, $db:expr, $redis:expr, $storage:expr, $fn:expr, $name:expr) => {{
+    ($sched:expr, $cron:expr, $db:expr, $worker_queue:expr, $fn:expr, $name:expr) => {{
         let db_clone = $db.clone();
-        let redis_clone = $redis.clone();
-        let storage_clone = $storage.clone();
+        let worker_queue = $worker_queue.clone();
 
         $sched
             .add(Job::new_async($cron, move |_, _| {
                 let db = db_clone.clone();
-                let redis = redis_clone.clone();
-                let mut job_storage = storage_clone.clone();
+                let worker_queue = worker_queue.clone();
 
                 Box::pin(async move {
-                    match $fn(&db, &redis, &mut job_storage).await {
+                    match $fn(&db, &worker_queue).await {
                         Ok(count) => tracing::debug!("Scheduled {} {} update(s)", count, $name),
                         Err(e) => tracing::error!("Error scheduling {} update: {:?}", $name, e),
                     }
@@ -44,10 +40,9 @@ macro_rules! add_cron_job {
 
 /// Initialize and start the cron job scheduler
 pub async fn start_scheduler(
-    db: &DatabaseConnection,
-    redis_pool: &Pool,
-    esi_client: &eve_esi::Client,
-    job_storage: &mut RedisStorage<WorkerJob>,
+    db: DatabaseConnection,
+    worker_queue: WorkerQueue,
+    esi_client: eve_esi::Client,
 ) -> Result<(), JobSchedulerError> {
     let sched = JobScheduler::new().await?;
 
@@ -55,8 +50,7 @@ pub async fn start_scheduler(
         sched,
         alliance_config::CRON_EXPRESSION,
         db,
-        redis_pool,
-        job_storage,
+        worker_queue,
         schedule_alliance_info_update,
         "alliance info"
     );
@@ -65,8 +59,7 @@ pub async fn start_scheduler(
         sched,
         corporation_config::CRON_EXPRESSION,
         db,
-        redis_pool,
-        job_storage,
+        worker_queue,
         schedule_corporation_info_update,
         "corporation info"
     );
@@ -75,8 +68,7 @@ pub async fn start_scheduler(
         sched,
         character_config::CRON_EXPRESSION,
         db,
-        redis_pool,
-        job_storage,
+        worker_queue,
         schedule_character_info_update,
         "character info"
     );
@@ -85,8 +77,7 @@ pub async fn start_scheduler(
         sched,
         character_affiliation_config::CRON_EXPRESSION,
         db,
-        redis_pool,
-        job_storage,
+        worker_queue,
         schedule_character_affiliation_update,
         "character affiliation"
     );

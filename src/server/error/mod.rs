@@ -36,8 +36,6 @@ pub enum Error {
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
     SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
-    #[error(transparent)]
-    ApalisRedisError(#[from] apalis_redis::RedisError),
 }
 
 impl IntoResponse for Error {

@@ -1,14 +1,12 @@
-use apalis_redis::RedisStorage;
 use chrono::{Duration, Utc};
 use dioxus_logger::tracing;
-use fred::prelude::*;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, IntoSimpleExpr, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect,
 };
 
 use super::schedule::{calculate_batch_limit, create_job_schedule};
-use crate::server::{error::Error, model::worker::WorkerJob};
+use crate::server::{error::Error, model::worker::WorkerJob, worker::queue::WorkerQueue};
 
 /// Trait for entities that support scheduled cache updates
 pub trait SchedulableEntity {
@@ -24,7 +22,6 @@ pub trait SchedulableEntity {
 
 pub struct EntityRefreshTracker<'a> {
     db: &'a DatabaseConnection,
-    redis_pool: &'a Pool,
     cache_duration: Duration,
     schedule_interval: Duration,
 }
@@ -32,13 +29,11 @@ pub struct EntityRefreshTracker<'a> {
 impl<'a> EntityRefreshTracker<'a> {
     pub fn new(
         db: &'a DatabaseConnection,
-        redis_pool: &'a Pool,
         cache_duration: Duration,
         schedule_interval: Duration,
     ) -> Self {
         Self {
             db,
-            redis_pool,
             cache_duration,
             schedule_interval,
         }
@@ -77,22 +72,18 @@ impl<'a> EntityRefreshTracker<'a> {
 
     pub async fn schedule_jobs<S>(
         &self,
-        job_storage: &mut RedisStorage<WorkerJob>,
+        worker_queue: &WorkerQueue,
         jobs: Vec<WorkerJob>,
     ) -> Result<usize, Error>
     where
         S: SchedulableEntity + Send + Sync,
     {
-        use apalis::prelude::Storage;
-
         let job_schedule = create_job_schedule(jobs, self.schedule_interval).await?;
 
         let mut scheduled_count = 0;
-        let mut skipped_count = 0;
 
         // Try to schedule each job, checking for duplicates
         for (job, scheduled_at) in job_schedule {
-            let tracking_key = job.tracking_key();
             let ttl_seconds = (self.schedule_interval * 2).num_seconds();
 
             if ttl_seconds <= 0 {
@@ -100,61 +91,14 @@ impl<'a> EntityRefreshTracker<'a> {
                 continue;
             }
 
-            // Atomically claim this job slot using SET NX (set if not exists)
-            // This prevents race conditions between checking and setting the key
-            let claimed: Result<bool, _> = self
-                .redis_pool
-                .set(
-                    &tracking_key,
-                    "1",
-                    Some(Expiration::EX(ttl_seconds)),
-                    Some(SetOptions::NX),
-                    false,
-                )
-                .await;
-
-            match claimed {
-                Ok(true) => {
-                    // Successfully claimed - now schedule the job
-                    match job_storage.schedule(job, scheduled_at.timestamp()).await {
-                        Ok(_) => {
-                            scheduled_count += 1;
-                        }
-                        Err(e) => {
-                            // Failed to schedule - clean up the tracking key to allow retry
-                            let cleanup_result: Result<(), _> =
-                                self.redis_pool.del(&tracking_key).await;
-                            if let Err(cleanup_err) = cleanup_result {
-                                tracing::error!(
-                                    "Failed to clean up tracking key after scheduling failure: {}",
-                                    cleanup_err
-                                );
-                            }
-                            return Err(e.into());
-                        }
-                    }
-                }
-                Ok(false) => {
-                    // Job already claimed by another scheduler instance
-                    skipped_count += 1;
-                    tracing::debug!("Job already pending, skipping: {}", tracking_key);
+            match worker_queue.schedule(job, scheduled_at).await {
+                Ok(_) => {
+                    scheduled_count += 1;
                 }
                 Err(e) => {
-                    // Redis error - log and skip this job to avoid scheduling duplicates
-                    tracing::error!(
-                        "Failed to check/set tracking key, skipping job to prevent duplicates: {}",
-                        e
-                    );
+                    return Err(e.into());
                 }
             }
-        }
-
-        if skipped_count > 0 {
-            tracing::info!(
-                "Scheduled {} jobs, skipped {} already-pending jobs",
-                scheduled_count,
-                skipped_count
-            );
         }
 
         Ok(scheduled_count)

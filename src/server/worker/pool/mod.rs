@@ -1,20 +1,16 @@
 mod config;
 
-pub mod handler;
-
 pub use config::WorkerPoolConfig;
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use dioxus_logger::tracing;
-use sea_orm::DatabaseConnection;
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 
+use crate::server::worker::handler::WorkerJobHandler;
 use crate::server::{error::Error, worker::queue::WorkerQueue};
-
-use self::handler::WorkerJobHandler;
 
 /// Worker pool for processing jobs from the WorkerJobQueue
 ///
@@ -23,8 +19,7 @@ use self::handler::WorkerJobHandler;
 pub struct WorkerPool {
     config: WorkerPoolConfig,
     queue: Arc<WorkerQueue>,
-    db: Arc<DatabaseConnection>,
-    esi_client: Arc<eve_esi::Client>,
+    handler: Arc<WorkerJobHandler>,
     semaphore: Arc<Semaphore>,
     shutdown: Arc<Notify>,
     dispatcher_handles: Arc<RwLock<Vec<JoinHandle<()>>>>,
@@ -38,20 +33,14 @@ impl WorkerPool {
     /// - `db`: Database connection pool (shared across all job tasks)
     /// - `esi_client`: EVE ESI API client (shared across all job tasks)
     /// - `queue`: Redis-backed job queue
-    pub fn new(
-        config: WorkerPoolConfig,
-        db: Arc<DatabaseConnection>,
-        esi_client: Arc<eve_esi::Client>,
-        queue: Arc<WorkerQueue>,
-    ) -> Self {
+    pub fn new(config: WorkerPoolConfig, queue: WorkerQueue, handler: WorkerJobHandler) -> Self {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let shutdown = Arc::new(Notify::new());
 
         Self {
             config,
-            queue,
-            db,
-            esi_client,
+            handler: Arc::new(handler),
+            queue: Arc::new(queue),
             semaphore,
             shutdown,
             dispatcher_handles: Arc::new(RwLock::new(Vec::new())),
@@ -89,7 +78,7 @@ impl WorkerPool {
         }
 
         tracing::info!(
-            "Worker pool started successfully ({} dispatchers active)",
+            "Worker pool started successfully ({} dispatcher(s) active)",
             self.config.dispatcher_count
         );
 
@@ -98,12 +87,11 @@ impl WorkerPool {
 
     /// Spawn a single dispatcher task
     fn spawn_dispatcher(&self, id: usize) -> JoinHandle<()> {
+        let config = self.config.clone();
         let queue = Arc::clone(&self.queue);
-        let db = Arc::clone(&self.db);
-        let esi_client = Arc::clone(&self.esi_client);
+        let handler = Arc::clone(&self.handler);
         let semaphore = Arc::clone(&self.semaphore);
         let shutdown = Arc::clone(&self.shutdown);
-        let config = self.config.clone();
 
         tokio::spawn(async move {
             tracing::info!("Dispatcher {} started", id);
@@ -121,11 +109,10 @@ impl WorkerPool {
 
                     _ = Self::process_jobs(
                         id,
-                        &queue,
-                        &db,
-                        &esi_client,
-                        &semaphore,
                         &config,
+                        &queue,
+                        &handler,
+                        &semaphore,
                     ) => {
                         // Continue to next iteration
                     }
@@ -142,11 +129,10 @@ impl WorkerPool {
     /// Sleeps if the queue is empty or on error.
     async fn process_jobs(
         dispatcher_id: usize,
-        queue: &WorkerQueue,
-        db: &Arc<DatabaseConnection>,
-        esi_client: &Arc<eve_esi::Client>,
-        semaphore: &Arc<Semaphore>,
         config: &WorkerPoolConfig,
+        queue: &WorkerQueue,
+        handler: &Arc<WorkerJobHandler>,
+        semaphore: &Arc<Semaphore>,
     ) {
         match queue.pop().await {
             Ok(Some(job)) => {
@@ -154,13 +140,12 @@ impl WorkerPool {
                 match semaphore.clone().acquire_owned().await {
                     Ok(permit) => {
                         // Clone Arc references for the spawned task
-                        let db = Arc::clone(db);
-                        let esi_client = Arc::clone(esi_client);
+                        let handler = Arc::clone(handler);
                         let timeout = config.job_timeout();
 
                         // Spawn task to execute the job
                         tokio::spawn(async move {
-                            Self::execute_job(job, db, esi_client, timeout, permit).await;
+                            Self::execute_job(job, handler, timeout, permit).await;
                         });
                     }
                     Err(_) => {
@@ -191,13 +176,10 @@ impl WorkerPool {
     /// The semaphore permit is held until this function completes, limiting concurrency.
     async fn execute_job(
         job: crate::server::model::worker::WorkerJob,
-        db: Arc<DatabaseConnection>,
-        esi_client: Arc<eve_esi::Client>,
+        handler: Arc<WorkerJobHandler>,
         timeout: Duration,
         _permit: tokio::sync::OwnedSemaphorePermit,
     ) {
-        let handler = WorkerJobHandler::new(&db, &esi_client);
-
         // Execute job with timeout
         let result = tokio::time::timeout(timeout, handler.handle(&job)).await;
 

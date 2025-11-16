@@ -3,6 +3,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
+    model::worker::WorkerJob,
     service::eve::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
         corporation::CorporationService,
@@ -10,14 +11,41 @@ use crate::server::{
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
 
-pub struct WorkerJobHandler<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+/// Handler for processing worker jobs from the queue
+///
+/// This handler provides a centralized interface for executing different types
+/// of worker jobs. Each job type has a corresponding method that handles the
+/// specific business logic.
+pub struct WorkerJobHandler {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> WorkerJobHandler<'a> {
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+impl WorkerJobHandler {
+    /// Create a new WorkerJobHandler
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
+    }
+
+    /// Handle a worker job by delegating to the appropriate handler method
+    ///
+    /// This is the main entry point for job processing. It dispatches the job
+    /// to the correct handler method based on the job type.
+    pub async fn handle(&self, job: &WorkerJob) -> Result<(), Error> {
+        match job {
+            WorkerJob::UpdateAllianceInfo { alliance_id } => {
+                self.update_alliance_info(*alliance_id).await
+            }
+            WorkerJob::UpdateCorporationInfo { corporation_id } => {
+                self.update_corporation_info(*corporation_id).await
+            }
+            WorkerJob::UpdateCharacterInfo { character_id } => {
+                self.update_character_info(*character_id).await
+            }
+            WorkerJob::UpdateAffiliations { character_ids } => {
+                self.update_affiliations(character_ids.clone()).await
+            }
+        }
     }
 
     pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
@@ -110,7 +138,7 @@ impl<'a> WorkerJobHandler<'a> {
             );
         }
 
-        AffiliationService::new(self.db, self.esi_client)
+        AffiliationService::new(&self.db, &self.esi_client)
             .update_affiliations(character_ids)
             .await
             .map_err(|e| {
