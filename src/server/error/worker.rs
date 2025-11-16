@@ -5,10 +5,10 @@ use crate::server::error::InternalServerError;
 
 #[derive(Error, Debug)]
 pub enum WorkerError {
-    #[error("Invalid job identity string: {0}")]
-    InvalidJobIdentity(String),
     #[error("Affiliation job batch size {size} exceeds maximum of {max}")]
     AffiliationBatchTooLarge { size: usize, max: usize },
+    #[error("Failed to serialize/deserialize WorkerJob: {0}")]
+    SerializationError(String),
 }
 
 impl IntoResponse for WorkerError {

@@ -2,10 +2,8 @@
 //!
 //! These tests verify the schedule method's behavior including:
 //! - Successfully scheduling jobs at future times
-//! - Preventing duplicate scheduled jobs
+//! - Preventing duplicate scheduled jobs (exact matches only)
 //! - Handling different job types (Character, Alliance, Corporation, Affiliation)
-//! - Validation errors (empty/oversized affiliation batches)
-//! - Duplicate detection for affiliation jobs (order-independent)
 //! - Timestamp storage verification
 //! - Scheduling multiple jobs at different times
 
@@ -197,43 +195,6 @@ async fn test_schedule_duplicate_affiliation_job_same_ids() {
 }
 
 #[tokio::test]
-async fn test_schedule_affiliation_job_different_order_is_duplicate() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    let character_ids_1 = vec![12345, 67890, 11111];
-    let character_ids_2 = vec![67890, 11111, 12345]; // Same IDs, different order
-
-    let job1 = WorkerJob::UpdateAffiliations {
-        character_ids: character_ids_1,
-    };
-    let job2 = WorkerJob::UpdateAffiliations {
-        character_ids: character_ids_2,
-    };
-    let schedule_time_1 = Utc::now() + Duration::minutes(5);
-    let schedule_time_2 = Utc::now() + Duration::minutes(10);
-
-    // Schedule first job
-    let result1 = queue.schedule(job1, schedule_time_1).await;
-    assert!(result1.is_ok(), "First schedule should succeed");
-    assert_eq!(result1.unwrap(), true, "First job should be added");
-
-    // Schedule second job with same IDs in different order
-    let result2 = queue.schedule(job2, schedule_time_2).await;
-    assert!(
-        result2.is_ok(),
-        "Second schedule should succeed (but not add)"
-    );
-    assert_eq!(
-        result2.unwrap(),
-        false,
-        "Job with same IDs in different order should be detected as duplicate"
-    );
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
 async fn test_schedule_affiliation_job_different_ids_not_duplicate() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
@@ -263,38 +224,6 @@ async fn test_schedule_affiliation_job_different_ids_not_duplicate() {
         true,
         "Job with different IDs should be added"
     );
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
-async fn test_schedule_affiliation_job_empty_ids_fails() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    let job = WorkerJob::UpdateAffiliations {
-        character_ids: vec![],
-    };
-    let schedule_time = Utc::now() + Duration::minutes(5);
-
-    let result = queue.schedule(job, schedule_time).await;
-    assert!(result.is_err(), "Schedule with empty IDs should fail");
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
-async fn test_schedule_affiliation_job_too_many_ids_fails() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    // Create a batch larger than MAX_AFFILIATION_BATCH_SIZE
-    let character_ids: Vec<i64> = (1..=(MAX_AFFILIATION_BATCH_SIZE + 1) as i64).collect();
-    let job = WorkerJob::UpdateAffiliations { character_ids };
-    let schedule_time = Utc::now() + Duration::minutes(5);
-
-    let result = queue.schedule(job, schedule_time).await;
-    assert!(result.is_err(), "Schedule with too many IDs should fail");
 
     redis.cleanup().await.expect("Failed to cleanup Redis");
 }
@@ -432,10 +361,10 @@ async fn test_schedule_stores_with_correct_timestamp() {
     assert!(result.is_ok() && result.unwrap(), "Job should be added");
 
     // Verify job was stored with the correct timestamp
-    let identity = job.identity().expect("Should generate identity");
+    let serialized = serde_json::to_string(&job).expect("Should serialize job");
     let score: Option<f64> = redis
         .redis_pool
-        .zscore(&redis.queue_name(), &identity)
+        .zscore(&redis.queue_name(), &serialized)
         .await
         .expect("Should get score");
 

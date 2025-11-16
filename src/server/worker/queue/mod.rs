@@ -46,7 +46,9 @@ use dioxus_logger::tracing;
 use fred::prelude::*;
 
 use crate::server::{
-    error::Error, model::worker::WorkerJob, worker::queue::config::WorkerQueueConfig,
+    error::{worker::WorkerError, Error},
+    model::worker::WorkerJob,
+    worker::queue::config::WorkerQueueConfig,
 };
 
 #[derive(Clone)]
@@ -179,7 +181,7 @@ impl WorkerQueue {
     /// Push a job to be executed as soon as possible
     ///
     /// Uses a Lua script to atomically check for duplicates and add the job to the queue.
-    /// Jobs with the same identity will not be added if they already exist in the queue.
+    /// Jobs with the same serialized JSON representation will not be added if they already exist in the queue.
     ///
     /// # Returns
     ///
@@ -187,19 +189,19 @@ impl WorkerQueue {
     /// Returns `Ok(false)` if a duplicate already exists in the queue.
     /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
     pub async fn push(&self, job: WorkerJob) -> Result<bool, Error> {
-        let identity = job.identity()?;
+        let serialized = serde_json::to_string(&job)
+            .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
         let score = Utc::now().timestamp_millis() as f64;
 
         // Execute Lua script atomically
-        // Uses ZSCORE for O(1) duplicate check, then ZADD with identity as member
-        // Note: For affiliation batches, identity only contains count+hash, not actual character IDs
+        // Uses ZSCORE for O(1) duplicate check, then ZADD with serialized JSON as member
         let result: i64 = self
             .inner
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
                 vec![&self.inner.config.queue_name],
-                vec![identity, score.to_string()],
+                vec![serialized, score.to_string()],
             )
             .await?;
 
@@ -212,7 +214,7 @@ impl WorkerQueue {
     /// Schedule job to be executed at provided time
     ///
     /// Uses a Lua script to atomically check for duplicates and add the job to the queue.
-    /// Jobs with the same identity will not be added if they already exist in the queue.
+    /// Jobs with the same serialized JSON representation will not be added if they already exist in the queue.
     ///
     /// # Returns
     ///
@@ -220,19 +222,19 @@ impl WorkerQueue {
     /// Returns `Ok(false)` if a duplicate already exists in the queue.
     /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
     pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, Error> {
-        let identity = job.identity()?;
+        let serialized = serde_json::to_string(&job)
+            .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
         let score = time.timestamp_millis() as f64;
 
         // Execute Lua script atomically
-        // Uses ZSCORE for O(1) duplicate check, then ZADD with identity as member
-        // Note: For affiliation batches, identity only contains count+hash, not actual character IDs
+        // Uses ZSCORE for O(1) duplicate check, then ZADD with serialized JSON as member
         let result: i64 = self
             .inner
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
                 vec![&self.inner.config.queue_name],
-                vec![identity, score.to_string()],
+                vec![serialized, score.to_string()],
             )
             .await?;
 
@@ -252,11 +254,6 @@ impl WorkerQueue {
     /// Returns `Ok(Some(WorkerJob))` if a job was popped from the queue.
     /// Returns `Ok(None)` if the queue is empty.
     /// Returns `Err` on Redis communication errors or deserialization errors.
-    ///
-    /// # Note
-    ///
-    /// For affiliation batch jobs, this will fail because it has not yet been implemented
-    /// for this new job scheduler system.
     pub async fn pop(&self) -> Result<Option<WorkerJob>, Error> {
         // Execute Lua script to atomically pop earliest job that is due
         let now = Utc::now().timestamp_millis();
@@ -273,16 +270,18 @@ impl WorkerQueue {
         match result {
             None => Ok(None),
             Some(values) => {
-                // Extract identity string from result
-                // values[0] is the identity, values[1] is the score
+                // Extract serialized JSON from result
+                // values[0] is the serialized job, values[1] is the score
                 if values.is_empty() {
                     return Ok(None);
                 }
 
-                let identity: String = values[0].clone().convert()?;
+                let serialized: String = values[0].clone().convert()?;
 
-                // Parse identity back into WorkerJob
-                let job = WorkerJob::parse_identity(&identity)?;
+                // Deserialize JSON back into WorkerJob
+                let job: WorkerJob = serde_json::from_str(&serialized).map_err(|e| {
+                    Error::WorkerError(WorkerError::SerializationError(e.to_string()))
+                })?;
 
                 Ok(Some(job))
             }

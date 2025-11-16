@@ -2,10 +2,8 @@
 //!
 //! These tests verify the push method's behavior including:
 //! - Successfully pushing new jobs
-//! - Preventing duplicate jobs
+//! - Preventing duplicate jobs (exact matches only)
 //! - Handling different job types (Character, Alliance, Corporation, Affiliation)
-//! - Validation errors (empty/oversized affiliation batches)
-//! - Duplicate detection for affiliation jobs (order-independent)
 //! - Timestamp storage verification
 //! - Multiple job handling
 
@@ -185,38 +183,6 @@ async fn test_push_duplicate_affiliation_job_same_ids() {
 }
 
 #[tokio::test]
-async fn test_push_affiliation_job_different_order_is_duplicate() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    let character_ids_1 = vec![12345, 67890, 11111];
-    let character_ids_2 = vec![67890, 11111, 12345]; // Same IDs, different order
-
-    let job1 = WorkerJob::UpdateAffiliations {
-        character_ids: character_ids_1,
-    };
-    let job2 = WorkerJob::UpdateAffiliations {
-        character_ids: character_ids_2,
-    };
-
-    // Push first job
-    let result1 = queue.push(job1).await;
-    assert!(result1.is_ok(), "First push should succeed");
-    assert_eq!(result1.unwrap(), true, "First job should be added");
-
-    // Push second job with same IDs in different order
-    let result2 = queue.push(job2).await;
-    assert!(result2.is_ok(), "Second push should succeed (but not add)");
-    assert_eq!(
-        result2.unwrap(),
-        false,
-        "Job with same IDs in different order should be detected as duplicate"
-    );
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
 async fn test_push_affiliation_job_different_ids_not_duplicate() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
@@ -244,36 +210,6 @@ async fn test_push_affiliation_job_different_ids_not_duplicate() {
         true,
         "Job with different IDs should be added"
     );
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
-async fn test_push_affiliation_job_empty_ids_fails() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    let job = WorkerJob::UpdateAffiliations {
-        character_ids: vec![],
-    };
-
-    let result = queue.push(job).await;
-    assert!(result.is_err(), "Push with empty IDs should fail");
-
-    redis.cleanup().await.expect("Failed to cleanup Redis");
-}
-
-#[tokio::test]
-async fn test_push_affiliation_job_too_many_ids_fails() {
-    let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = setup_test_queue(&redis);
-
-    // Create a batch larger than MAX_AFFILIATION_BATCH_SIZE
-    let character_ids: Vec<i64> = (1..=(MAX_AFFILIATION_BATCH_SIZE + 1) as i64).collect();
-    let job = WorkerJob::UpdateAffiliations { character_ids };
-
-    let result = queue.push(job).await;
-    assert!(result.is_err(), "Push with too many IDs should fail");
 
     redis.cleanup().await.expect("Failed to cleanup Redis");
 }
@@ -407,10 +343,10 @@ async fn test_push_stores_with_correct_timestamp() {
     let after = Utc::now().timestamp_millis();
 
     // Verify job was stored with a timestamp in the correct range
-    let identity = job.identity().expect("Should generate identity");
+    let serialized = serde_json::to_string(&job).expect("Should serialize job");
     let score: Option<f64> = redis
         .redis_pool
-        .zscore(&redis.queue_name(), &identity)
+        .zscore(&redis.queue_name(), &serialized)
         .await
         .expect("Should get score");
 
