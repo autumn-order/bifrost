@@ -36,7 +36,7 @@ pub fn Home() -> Element {
                         "Bifrost"
                     }
                     p {
-                        "v0.1.0-Alpha.1"
+                        {env!("CARGO_PKG_VERSION")}
                     }
                 }
                 div {
@@ -47,14 +47,13 @@ pub fn Home() -> Element {
                         "This is a test instance of Bifrost"
                     }
                     p {
-                        "Currently we are testing authentication with EVE Online, character linking, and the update job scheduler & worker for updating character, corporation, alliance, & faction information as well as affiliations.
-                        This is a very basic implementation of a frontend for the purposes of testing."
+                        "Alpha 2 of Bifrost is centered around testing a refactor of the worker pool/queue to handle background jobs which we have just replaced with our own implementation. This test simply confirms the stability & longevity of the new workers in production as well as the resource utilization over time."
                     }
                     p {
                         "To participate in the test, simply login with EVE Online and play around with the character linking system. You can link characters to an account, then logout, login with a character not yet linked and then try to link your previous logged in characters to the new account to see how well transferring characters between accounts behaves. Try to break it."
                     }
                     p {
-                        "Additionally, keep an eye on the metadata on the auth page that shows when your character information was last updated, your data should update at a rate of:"
+                        "Keep an eye on the metadata on the auth page that shows when your character information was last updated, your data should update at a rate of:"
                     }
                     ul { class: "list-disc pl-6",
                         li { "Faction Information: 24 hours" }

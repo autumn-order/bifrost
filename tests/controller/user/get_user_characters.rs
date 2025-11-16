@@ -15,7 +15,7 @@ async fn success_with_empty_list_for_user_with_no_additional_characters() -> Res
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -37,7 +37,7 @@ async fn success_with_single_character() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -75,7 +75,7 @@ async fn success_with_multiple_characters() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -109,7 +109,7 @@ async fn success_with_characters_having_alliance_and_faction() -> Result<(), Tes
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -123,7 +123,7 @@ async fn success_with_characters_having_alliance_and_faction() -> Result<(), Tes
 async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -143,7 +143,7 @@ async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session.clone()).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session.clone()).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -168,7 +168,7 @@ async fn error_when_tables_missing() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -207,7 +207,7 @@ async fn returns_only_characters_for_logged_in_user() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user_characters(State(test.state()), test.session).await;
+    let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();

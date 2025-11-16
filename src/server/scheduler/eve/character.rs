@@ -1,11 +1,12 @@
-use apalis_redis::RedisStorage;
-use fred::prelude::*;
 use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
 
 use crate::server::{
     model::worker::WorkerJob,
-    scheduler::config::eve::character::{CACHE_DURATION, SCHEDULE_INTERVAL},
-    scheduler::entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+    scheduler::{
+        config::eve::character::{CACHE_DURATION, SCHEDULE_INTERVAL},
+        entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+    },
+    worker::queue::WorkerQueue,
 };
 
 pub struct CharacterInfo;
@@ -25,11 +26,9 @@ impl SchedulableEntity for CharacterInfo {
 /// Checks for character information nearing expiration & schedules an update
 pub async fn schedule_character_info_update(
     db: &DatabaseConnection,
-    redis_pool: &Pool,
-    job_storage: &mut RedisStorage<WorkerJob>,
+    worker_queue: &WorkerQueue,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker =
-        EntityRefreshTracker::new(db, redis_pool, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need updating
     let characters_needing_update = refresh_tracker
@@ -52,7 +51,7 @@ pub async fn schedule_character_info_update(
         .collect();
 
     let scheduled_job_count = refresh_tracker
-        .schedule_jobs::<CharacterInfo>(job_storage, jobs)
+        .schedule_jobs::<CharacterInfo>(&worker_queue, jobs)
         .await?;
 
     Ok(scheduled_job_count)

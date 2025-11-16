@@ -1,9 +1,13 @@
-use apalis_redis::RedisStorage;
+use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 use tower_sessions::SessionManagerLayer;
 use tower_sessions_redis_store::RedisStore;
 
-use crate::server::{config::Config, error::Error, model::worker::WorkerJob, worker::handle_job};
+use crate::server::{
+    config::Config,
+    error::Error,
+    worker::{handler::WorkerJobHandler, Worker},
+};
 
 /// Build and configure the ESI client with the provided credentials
 pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, Error> {
@@ -36,22 +40,24 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
     Ok(db)
 }
 
-/// Connect to Valkey/Redis and configure session management
-pub async fn connect_to_session(
-    config: &Config,
-) -> Result<SessionManagerLayer<RedisStore<tower_sessions_redis_store::fred::prelude::Pool>>, Error>
-{
-    use time::Duration;
-    use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
-    use tower_sessions_redis_store::fred::prelude::*;
-
-    let config = Config::from_url(&config.valkey_url)?;
-    let pool = tower_sessions_redis_store::fred::prelude::Pool::new(config, None, None, None, 6)?;
+pub async fn connect_to_redis(config: &Config) -> Result<Pool, Error> {
+    let config = fred::prelude::Config::from_url(&config.valkey_url)?;
+    let pool = Pool::new(config, None, None, None, 6)?;
 
     pool.connect();
     pool.wait_for_connect().await?;
 
-    let session_store = RedisStore::new(pool);
+    Ok(pool)
+}
+
+/// Connect to Valkey/Redis and configure session management
+pub async fn connect_to_session(
+    redis_pool: Pool,
+) -> Result<SessionManagerLayer<RedisStore<Pool>>, Error> {
+    use time::Duration;
+    use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
+
+    let session_store = RedisStore::new(redis_pool);
 
     // Set secure based on build mode: in development (debug) use false, otherwise true.
     let development_mode = cfg!(debug_assertions);
@@ -66,44 +72,16 @@ pub async fn connect_to_session(
     Ok(session)
 }
 
-/// Connect to Redis for job tracking
-pub async fn connect_to_job_tracker(config: &Config) -> Result<fred::prelude::Pool, Error> {
-    use fred::prelude::*;
-
-    let redis_config = Config::from_url(&config.valkey_url)?;
-    let pool = Pool::new(redis_config, None, None, None, 6)?;
-
-    pool.connect();
-    pool.wait_for_connect().await?;
-
-    Ok(pool)
-}
-
 pub async fn start_workers(
     config: &Config,
     db: DatabaseConnection,
+    redis_pool: Pool,
     esi_client: eve_esi::Client,
-    redis_pool: fred::prelude::Pool,
-) -> Result<RedisStorage<WorkerJob>, Error> {
-    use apalis::prelude::*;
+) -> Result<Worker, Error> {
+    let handler = WorkerJobHandler::new(db, esi_client);
+    let worker = Worker::new(config.workers, redis_pool.clone(), handler);
 
-    let conn = apalis_redis::connect(config.valkey_url.to_string()).await?;
-    let storage = RedisStorage::new(conn);
-    let workers = config.workers;
+    worker.pool.start().await?;
 
-    let storage_clone = storage.clone();
-
-    let _ = tokio::spawn(async move {
-        WorkerBuilder::new("bifrost-worker")
-            .concurrency(workers)
-            .data(db)
-            .data(esi_client)
-            .data(redis_pool)
-            .backend(storage_clone)
-            .build_fn(handle_job)
-            .run()
-            .await;
-    });
-
-    Ok(storage)
+    Ok(worker)
 }

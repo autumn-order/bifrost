@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod config;
 pub mod eve;
+pub mod worker;
 
 use axum::{
     http::StatusCode,
@@ -12,7 +13,7 @@ use thiserror::Error;
 
 use crate::{
     model::api::ErrorDto,
-    server::error::{auth::AuthError, config::ConfigError, eve::EveError},
+    server::error::{auth::AuthError, config::ConfigError, eve::EveError, worker::WorkerError},
 };
 
 #[derive(Error, Debug)]
@@ -23,6 +24,8 @@ pub enum Error {
     AuthError(#[from] AuthError),
     #[error(transparent)]
     EveError(#[from] EveError),
+    #[error(transparent)]
+    WorkerError(#[from] WorkerError),
     #[error("Failed to parse value: {0:?}")]
     ParseError(String),
     #[error(transparent)]
@@ -33,8 +36,6 @@ pub enum Error {
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
     SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
-    #[error(transparent)]
-    ApalisRedisError(#[from] apalis_redis::RedisError),
 }
 
 impl IntoResponse for Error {
