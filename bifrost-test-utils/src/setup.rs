@@ -62,10 +62,7 @@ impl TestSetup {
 
         Ok(TestSetup {
             server: mock_server,
-            state: TestAppState {
-                db,
-                esi_client: esi_client,
-            },
+            state: TestAppState { db, esi_client },
             session,
         })
     }
