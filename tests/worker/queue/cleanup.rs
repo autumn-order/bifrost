@@ -13,7 +13,7 @@ use std::time::Duration;
 use bifrost::server::model::worker::WorkerJob;
 use chrono::Utc;
 
-use crate::redis::RedisTest;
+use crate::util::redis::RedisTest;
 
 use super::setup_test_queue;
 

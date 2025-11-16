@@ -11,7 +11,7 @@ use bifrost::server::model::worker::WorkerJob;
 use chrono::Utc;
 use fred::interfaces::SortedSetsInterface;
 
-use crate::redis::RedisTest;
+use crate::util::redis::RedisTest;
 
 use super::setup_test_queue;
 

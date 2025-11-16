@@ -3,7 +3,7 @@ mod pool;
 
 use bifrost::server::worker::{queue::config::WorkerQueueConfig, WorkerQueue};
 
-use crate::redis::RedisTest;
+use crate::util::redis::RedisTest;
 
 pub fn setup_test_queue(redis: &RedisTest) -> WorkerQueue {
     let config = WorkerQueueConfig {

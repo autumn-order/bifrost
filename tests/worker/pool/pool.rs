@@ -19,7 +19,7 @@ use bifrost::server::{
 };
 use bifrost_test_utils::prelude::*;
 
-use crate::redis::RedisTest;
+use crate::util::redis::RedisTest;
 
 use super::setup_test_queue;
 

@@ -3,4 +3,4 @@ mod user;
 
 use bifrost_test_utils::prelude::*;
 
-use crate::TestSetupExt;
+use crate::util::TestSetupExt;
