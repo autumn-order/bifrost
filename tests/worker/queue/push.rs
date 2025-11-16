@@ -9,19 +9,20 @@
 //! - Timestamp storage verification
 //! - Multiple job handling
 
-use bifrost_test_utils::RedisTest;
+use bifrost::server::model::worker::WorkerJob;
 use chrono::Utc;
-use fred::prelude::*;
+use fred::interfaces::SortedSetsInterface;
 
-use crate::server::{
-    model::worker::{WorkerJob, MAX_AFFILIATION_BATCH_SIZE},
-    worker::queue::WorkerJobQueue,
-};
+use crate::redis::RedisTest;
+
+use super::setup_test_queue;
+
+static MAX_AFFILIATION_BATCH_SIZE: i64 = 1000;
 
 #[tokio::test]
 async fn test_push_new_character_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,
@@ -30,12 +31,14 @@ async fn test_push_new_character_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_duplicate_character_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,
@@ -53,12 +56,14 @@ async fn test_push_duplicate_character_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_new_alliance_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateAllianceInfo {
         alliance_id: 99000001,
@@ -67,12 +72,14 @@ async fn test_push_new_alliance_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_duplicate_alliance_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateAllianceInfo {
         alliance_id: 99000001,
@@ -90,12 +97,14 @@ async fn test_push_duplicate_alliance_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_new_corporation_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCorporationInfo {
         corporation_id: 98000001,
@@ -104,12 +113,14 @@ async fn test_push_new_corporation_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_duplicate_corporation_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCorporationInfo {
         corporation_id: 98000001,
@@ -127,12 +138,14 @@ async fn test_push_duplicate_corporation_job() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let character_ids = vec![12345, 67890, 11111, 22222, 33333];
     let job = WorkerJob::UpdateAffiliations { character_ids };
@@ -140,12 +153,14 @@ async fn test_push_affiliation_job() {
     let result = queue.push(job.clone()).await;
     assert!(result.is_ok(), "Push should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_duplicate_affiliation_job_same_ids() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let character_ids = vec![12345, 67890, 11111, 22222, 33333];
     let job = WorkerJob::UpdateAffiliations {
@@ -165,12 +180,14 @@ async fn test_push_duplicate_affiliation_job_same_ids() {
         "Duplicate push should succeed (but not add)"
     );
     assert_eq!(result2.unwrap(), false, "Duplicate job should not be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job_different_order_is_duplicate() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let character_ids_1 = vec![12345, 67890, 11111];
     let character_ids_2 = vec![67890, 11111, 12345]; // Same IDs, different order
@@ -195,12 +212,14 @@ async fn test_push_affiliation_job_different_order_is_duplicate() {
         false,
         "Job with same IDs in different order should be detected as duplicate"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job_different_ids_not_duplicate() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let character_ids_1 = vec![12345, 67890, 11111];
     let character_ids_2 = vec![99999, 88888, 77777]; // Different IDs
@@ -225,12 +244,14 @@ async fn test_push_affiliation_job_different_ids_not_duplicate() {
         true,
         "Job with different IDs should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job_empty_ids_fails() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateAffiliations {
         character_ids: vec![],
@@ -238,12 +259,14 @@ async fn test_push_affiliation_job_empty_ids_fails() {
 
     let result = queue.push(job).await;
     assert!(result.is_err(), "Push with empty IDs should fail");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job_too_many_ids_fails() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Create a batch larger than MAX_AFFILIATION_BATCH_SIZE
     let character_ids: Vec<i64> = (1..=(MAX_AFFILIATION_BATCH_SIZE + 1) as i64).collect();
@@ -251,12 +274,14 @@ async fn test_push_affiliation_job_too_many_ids_fails() {
 
     let result = queue.push(job).await;
     assert!(result.is_err(), "Push with too many IDs should fail");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_affiliation_job_max_size_succeeds() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Create a batch exactly at MAX_AFFILIATION_BATCH_SIZE
     let character_ids: Vec<i64> = (1..=MAX_AFFILIATION_BATCH_SIZE as i64).collect();
@@ -265,12 +290,14 @@ async fn test_push_affiliation_job_max_size_succeeds() {
     let result = queue.push(job).await;
     assert!(result.is_ok(), "Push with max size should succeed");
     assert_eq!(result.unwrap(), true, "Job should be added");
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_multiple_different_job_types() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job1 = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,
@@ -306,12 +333,14 @@ async fn test_push_multiple_different_job_types() {
         result4.is_ok() && result4.unwrap(),
         "Affiliation job should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_same_id_different_job_types_not_duplicate() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Same ID (12345) but different job types should not be considered duplicates
     let job1 = WorkerJob::UpdateCharacterInfo {
@@ -338,12 +367,14 @@ async fn test_push_same_id_different_job_types_not_duplicate() {
         result3.is_ok() && result3.unwrap(),
         "Corporation job should be added"
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_multiple_jobs_successfully() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Push multiple jobs to verify they all get added successfully
     for i in 1..=10 {
@@ -355,12 +386,14 @@ async fn test_push_multiple_jobs_successfully() {
             i
         );
     }
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
 
 #[tokio::test]
 async fn test_push_stores_with_correct_timestamp() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let before = Utc::now().timestamp_millis();
 
@@ -390,4 +423,6 @@ async fn test_push_stores_with_correct_timestamp() {
         after,
         score_ms
     );
+
+    redis.cleanup().await.expect("Failed to cleanup Redis");
 }
