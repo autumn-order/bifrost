@@ -36,7 +36,12 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = callback(State(test.state()), test.session.clone(), Query(params)).await;
+    let result = callback(
+        State(test.into_app_state()),
+        test.session.clone(),
+        Query(params),
+    )
+    .await;
 
     let resp = result.unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -86,7 +91,12 @@ async fn redirects_for_existing_user() -> Result<(), TestError> {
     SessionAuthCsrf::insert(&test.session, &params.state)
         .await
         .unwrap();
-    let result = callback(State(test.state()), test.session.clone(), Query(params)).await;
+    let result = callback(
+        State(test.into_app_state()),
+        test.session.clone(),
+        Query(params),
+    )
+    .await;
 
     let resp = result.unwrap().into_response();
     assert_eq!(resp.status(), StatusCode::PERMANENT_REDIRECT);
@@ -122,7 +132,7 @@ async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
         .unwrap();
     params.state = "incorrect_state".to_string();
 
-    let result = callback(State(test.state()), test.session, Query(params)).await;
+    let result = callback(State(test.into_app_state()), test.session, Query(params)).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -143,7 +153,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     SessionAuthCsrf::insert(&test.session, &params.state)
         .await
         .unwrap();
-    let result = callback(State(test.state()), test.session, Query(params)).await;
+    let result = callback(State(test.into_app_state()), test.session, Query(params)).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();

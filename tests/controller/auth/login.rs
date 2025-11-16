@@ -14,7 +14,7 @@ async fn redirects_to_eve_login() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let params = LoginParams { change_main: None };
-    let result = login(State(test.state()), test.session, Query(params)).await;
+    let result = login(State(test.into_app_state()), test.session, Query(params)).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -32,7 +32,7 @@ async fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
     test.state.esi_client = esi_client;
 
     let params = LoginParams { change_main: None };
-    let result = login(State(test.state()), test.session, Query(params)).await;
+    let result = login(State(test.into_app_state()), test.session, Query(params)).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();

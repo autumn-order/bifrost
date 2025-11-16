@@ -1,0 +1,39 @@
+//! Test utilities for creating AppState with dummy workers for non-Redis tests
+
+use bifrost::server::{
+    model::app::AppState,
+    worker::{handler::WorkerJobHandler, Worker},
+};
+use bifrost_test_utils::setup::TestSetup;
+use fred::prelude::*;
+use sea_orm::DatabaseConnection;
+
+/// Creates a dummy Worker instance for testing purposes.
+/// This worker uses a disconnected Redis pool and won't actually process jobs.
+pub fn create_dummy_worker(db: DatabaseConnection, esi_client: eve_esi::Client) -> Worker {
+    // Create a Redis config that won't actually connect
+    let config = Config::default();
+    let pool = Pool::new(config, None, None, None, 1).expect("Failed to create dummy Redis pool");
+
+    let handler = WorkerJobHandler::new(db, esi_client);
+
+    // Create worker with minimal concurrent jobs for testing
+    Worker::new(1, pool, handler)
+}
+
+/// Extension trait for TestSetup to create AppState with dummy worker
+pub trait TestSetupExt {
+    fn into_app_state(&self) -> AppState;
+}
+
+impl TestSetupExt for TestSetup {
+    fn into_app_state(&self) -> AppState {
+        let worker = create_dummy_worker(self.state.db.clone(), self.state.esi_client.clone());
+
+        AppState {
+            db: self.state.db.clone(),
+            esi_client: self.state.esi_client.clone(),
+            worker,
+        }
+    }
+}

@@ -15,7 +15,7 @@ async fn found_for_logged_in_user() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user(State(test.state()), test.session).await;
+    let result = get_user(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_ok());
     let resp = result.unwrap().into_response();
@@ -29,7 +29,7 @@ async fn found_for_logged_in_user() -> Result<(), TestError> {
 async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
-    let result = get_user(State(test.state()), test.session).await;
+    let result = get_user(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -49,7 +49,7 @@ async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user(State(test.state()), test.session).await;
+    let result = get_user(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
@@ -69,7 +69,7 @@ async fn error_when_tables_missing() -> Result<(), TestError> {
         .await
         .unwrap();
 
-    let result = get_user(State(test.state()), test.session).await;
+    let result = get_user(State(test.into_app_state()), test.session).await;
 
     assert!(result.is_err());
     let resp = result.err().unwrap().into_response();
