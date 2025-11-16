@@ -16,43 +16,6 @@ pub enum WorkerJob {
 }
 
 impl WorkerJob {
-    /// Generate a Redis key for tracking pending jobs
-    ///
-    /// These keys are used to prevent duplicate job scheduling via atomic SET NX operations.
-    /// Workers are responsible for deleting these keys upon job completion.
-    ///
-    /// WARNING: Will be replaced with identity methods, do not use
-    pub fn tracking_key(&self) -> String {
-        match self {
-            WorkerJob::UpdateCharacterInfo { character_id } => {
-                format!("job:pending:character:info:{}", character_id)
-            }
-            WorkerJob::UpdateAllianceInfo { alliance_id } => {
-                format!("job:pending:alliance:info:{}", alliance_id)
-            }
-            WorkerJob::UpdateCorporationInfo { corporation_id } => {
-                format!("job:pending:corporation:info:{}", corporation_id)
-            }
-            WorkerJob::UpdateAffiliations { character_ids } => {
-                // Generate unique key per batch based on the character IDs in the job
-                //
-                // We use a hash of the sorted character IDs to create a stable identifier
-                // that's unique per batch but doesn't grow linearly with batch size.
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-
-                let mut sorted_ids = character_ids.clone();
-                sorted_ids.sort_unstable();
-
-                let mut hasher = DefaultHasher::new();
-                sorted_ids.hash(&mut hasher);
-                let hash = hasher.finish();
-
-                format!("job:pending:affiliation:batch:{:x}", hash)
-            }
-        }
-    }
-
     /// Get identity for worker job
     ///
     /// Returns a unique identifier for the job. For affiliation batches, uses a hash
