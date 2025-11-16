@@ -82,10 +82,8 @@ impl WorkerPool {
             self.config.max_concurrent_jobs
         );
 
-        // Start the job queue cleanup task with configured interval
-        self.queue
-            .start_cleanup_with_interval(self.config.cleanup_interval())
-            .await;
+        // Start the job queue cleanup task
+        self.queue.start_cleanup().await;
 
         // Spawn all dispatcher tasks
         for id in 0..self.config.dispatcher_count {

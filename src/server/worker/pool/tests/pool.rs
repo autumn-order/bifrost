@@ -15,7 +15,7 @@ use bifrost_test_utils::{prelude::*, RedisTest};
 
 use crate::server::{
     model::worker::WorkerJob,
-    worker::{pool::WorkerPool, pool::WorkerPoolConfig, queue::WorkerJobQueue},
+    worker::pool::{tests::setup_test_queue, WorkerPool, WorkerPoolConfig},
 };
 
 /// Create a test-optimized config with fast timeouts for testing
@@ -36,10 +36,7 @@ async fn create_test_pool_with_config(
 ) -> WorkerPool {
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(redis));
 
     WorkerPool::new(config, db, esi_client, queue)
 }
@@ -85,7 +82,7 @@ async fn test_pool_max_concurrent_jobs() {
 async fn test_pool_processes_single_job() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Push a job to the queue
     let job = WorkerJob::UpdateCharacterInfo {
@@ -117,7 +114,7 @@ async fn test_pool_processes_single_job() {
 async fn test_pool_processes_multiple_jobs() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Push multiple jobs
     let jobs = vec![
@@ -225,7 +222,7 @@ async fn test_pool_handles_empty_queue() {
 async fn test_pool_processes_different_job_types() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Push different types of jobs
     let jobs = vec![
@@ -293,7 +290,7 @@ async fn test_pool_configuration_preserved() {
 async fn test_pool_permits_available_after_processing() {
     let test = test_setup_with_tables!().expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,

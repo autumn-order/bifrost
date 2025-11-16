@@ -13,7 +13,8 @@ use std::time::Duration;
 use bifrost_test_utils::RedisTest;
 use chrono::Utc;
 
-use crate::server::{model::worker::WorkerJob, worker::queue::WorkerJobQueue};
+use super::setup_test_queue;
+use crate::server::model::worker::WorkerJob;
 
 /// Job TTL is 1 hour in milliseconds
 const JOB_TTL_MS: i64 = 60 * 60 * 1000;
@@ -21,7 +22,7 @@ const JOB_TTL_MS: i64 = 60 * 60 * 1000;
 #[tokio::test]
 async fn test_cleanup_removes_stale_jobs() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Schedule a job more than 1 hour in the past (stale)
     let stale_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS + 1000);
@@ -50,7 +51,7 @@ async fn test_cleanup_removes_stale_jobs() {
 #[tokio::test]
 async fn test_cleanup_preserves_fresh_jobs() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Schedule a job in the future (fresh)
     let fresh_time = Utc::now() + chrono::Duration::minutes(5);
@@ -74,7 +75,7 @@ async fn test_cleanup_preserves_fresh_jobs() {
 #[tokio::test]
 async fn test_cleanup_removes_only_stale_jobs() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Add stale jobs
     let stale_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS + 1000);
@@ -118,7 +119,7 @@ async fn test_cleanup_removes_only_stale_jobs() {
 #[tokio::test]
 async fn test_cleanup_on_empty_queue() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Run cleanup on empty queue
     let removed = queue.cleanup_stale_jobs().await.expect("Failed to cleanup");
@@ -131,7 +132,7 @@ async fn test_cleanup_on_empty_queue() {
 #[tokio::test]
 async fn test_cleanup_task_lifecycle() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Initially not running
     assert!(
@@ -161,7 +162,7 @@ async fn test_cleanup_task_lifecycle() {
 #[tokio::test]
 async fn test_cleanup_task_idempotent_start() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Start cleanup twice
     queue.start_cleanup().await;
@@ -180,7 +181,7 @@ async fn test_cleanup_task_idempotent_start() {
 #[tokio::test]
 async fn test_cleanup_task_idempotent_stop() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     queue.start_cleanup().await;
     queue.stop_cleanup().await;
@@ -197,7 +198,7 @@ async fn test_cleanup_task_idempotent_stop() {
 #[tokio::test]
 async fn test_cleanup_task_can_restart() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Start, stop, start again
     queue.start_cleanup().await;
@@ -220,12 +221,10 @@ async fn test_cleanup_task_can_restart() {
 #[tokio::test]
 async fn test_cleanup_task_with_custom_interval() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Start with very short interval for testing
-    queue
-        .start_cleanup_with_interval(Duration::from_millis(50))
-        .await;
+    queue.start_cleanup().await;
 
     assert!(
         queue.is_cleanup_running().await,
@@ -243,7 +242,7 @@ async fn test_cleanup_task_with_custom_interval() {
 #[tokio::test]
 async fn test_cleanup_task_removes_stale_jobs_automatically() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Add stale jobs
     let stale_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS + 1000);
@@ -258,9 +257,7 @@ async fn test_cleanup_task_removes_stale_jobs_automatically() {
     }
 
     // Start cleanup with very fast interval
-    queue
-        .start_cleanup_with_interval(Duration::from_millis(50))
-        .await;
+    queue.start_cleanup().await;
 
     // Wait for cleanup to run
     tokio::time::sleep(Duration::from_millis(200)).await;
@@ -280,7 +277,7 @@ async fn test_cleanup_task_removes_stale_jobs_automatically() {
 #[tokio::test]
 async fn test_cleanup_boundary_job_exactly_at_ttl() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Schedule a job exactly at the TTL boundary (should be removed)
     let boundary_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS);
@@ -304,7 +301,7 @@ async fn test_cleanup_boundary_job_exactly_at_ttl() {
 #[tokio::test]
 async fn test_cleanup_multiple_job_types() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let stale_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS + 1000);
 
@@ -342,7 +339,7 @@ async fn test_cleanup_multiple_job_types() {
 #[tokio::test]
 async fn test_cleanup_preserves_jobs_just_under_ttl() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Schedule a job just under the TTL (should be preserved)
     let recent_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS - 1000);
@@ -370,7 +367,7 @@ async fn test_cleanup_preserves_jobs_just_under_ttl() {
 #[tokio::test]
 async fn test_cleanup_task_stops_gracefully_during_cleanup() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Add many stale jobs to make cleanup take some time
     let stale_time = Utc::now() - chrono::Duration::milliseconds(JOB_TTL_MS + 1000);
@@ -385,9 +382,7 @@ async fn test_cleanup_task_stops_gracefully_during_cleanup() {
     }
 
     // Start cleanup with very fast interval
-    queue
-        .start_cleanup_with_interval(Duration::from_millis(10))
-        .await;
+    queue.start_cleanup().await;
 
     // Let it run for a bit
     tokio::time::sleep(Duration::from_millis(50)).await;
@@ -406,7 +401,7 @@ async fn test_cleanup_task_stops_gracefully_during_cleanup() {
 #[tokio::test]
 async fn test_cleanup_stop_without_start() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     // Stopping without starting should be safe
     queue.stop_cleanup().await;

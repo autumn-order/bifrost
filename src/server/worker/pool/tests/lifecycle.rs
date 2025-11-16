@@ -13,7 +13,7 @@ use std::time::Duration;
 
 use bifrost_test_utils::{prelude::*, RedisTest};
 
-use crate::server::worker::{pool::WorkerPool, pool::WorkerPoolConfig, queue::WorkerJobQueue};
+use crate::server::worker::pool::{tests::setup_test_queue, WorkerPool, WorkerPoolConfig};
 
 /// Create a test-optimized config with fast timeouts for testing
 fn test_config(max_concurrent_jobs: usize) -> WorkerPoolConfig {
@@ -29,10 +29,7 @@ fn test_config(max_concurrent_jobs: usize) -> WorkerPoolConfig {
 async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(redis));
 
     let config = test_config(10);
     WorkerPool::new(config, db, esi_client, queue)
@@ -101,10 +98,7 @@ async fn test_pool_dispatcher_count_after_start() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(&redis));
 
     let mut config = test_config(10);
     config.dispatcher_count = 3;
@@ -221,10 +215,7 @@ async fn test_pool_with_single_dispatcher() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(&redis));
 
     let mut config = test_config(10);
     config.dispatcher_count = 1;
@@ -244,10 +235,7 @@ async fn test_pool_with_many_dispatchers() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(&redis));
 
     let mut config = test_config(10);
     config.dispatcher_count = 5;
@@ -271,10 +259,7 @@ async fn test_pool_cleanup_task_starts_with_pool() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let db = Arc::new(test.state.db.clone());
     let esi_client = Arc::new(test.state.esi_client.clone());
-    let queue = Arc::new(WorkerJobQueue::with_queue_name(
-        redis.redis_pool.clone(),
-        redis.queue_name(),
-    ));
+    let queue = Arc::new(setup_test_queue(&redis));
 
     let config = test_config(10);
     let pool = WorkerPool::new(config, db, esi_client, queue.clone());

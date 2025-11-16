@@ -11,12 +11,13 @@
 use bifrost_test_utils::RedisTest;
 use chrono::{Duration, Utc};
 
-use crate::server::{model::worker::WorkerJob, worker::queue::WorkerJobQueue};
+use super::setup_test_queue;
+use crate::server::model::worker::WorkerJob;
 
 #[tokio::test]
 async fn test_pop_from_empty_queue() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let result = queue.pop().await;
     assert!(result.is_ok(), "Pop from empty queue should succeed");
@@ -28,7 +29,7 @@ async fn test_pop_from_empty_queue() {
 #[tokio::test]
 async fn test_pop_single_character_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
+    let queue = setup_test_queue(&redis);
 
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,
@@ -62,8 +63,7 @@ async fn test_pop_single_character_job() {
 #[tokio::test]
 async fn test_pop_single_alliance_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateAllianceInfo {
         alliance_id: 99000001,
     };
@@ -96,8 +96,7 @@ async fn test_pop_single_alliance_job() {
 #[tokio::test]
 async fn test_pop_single_corporation_job() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateCorporationInfo {
         corporation_id: 98000001,
     };
@@ -133,8 +132,7 @@ async fn test_pop_single_corporation_job() {
 #[tokio::test]
 async fn test_pop_removes_job_from_queue() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 12345,
     };
@@ -161,8 +159,7 @@ async fn test_pop_removes_job_from_queue() {
 #[tokio::test]
 async fn test_pop_returns_jobs_in_chronological_order() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let now = Utc::now();
 
     // Schedule jobs at different times (all in the past so they're immediately available)
@@ -238,8 +235,7 @@ async fn test_pop_returns_jobs_in_chronological_order() {
 #[tokio::test]
 async fn test_pop_multiple_jobs_sequentially() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     // Push 5 different jobs
     for i in 1..=5 {
         let job = WorkerJob::UpdateCharacterInfo { character_id: i };
@@ -264,8 +260,7 @@ async fn test_pop_multiple_jobs_sequentially() {
 #[tokio::test]
 async fn test_pop_mixed_job_types_in_order() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let now = Utc::now();
 
     // Schedule different job types at different times (all in the past so they're immediately available)
@@ -331,8 +326,7 @@ async fn test_pop_mixed_job_types_in_order() {
 #[tokio::test]
 async fn test_pop_after_push_immediate_availability() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 99999,
     };
@@ -354,8 +348,7 @@ async fn test_pop_after_push_immediate_availability() {
 #[tokio::test]
 async fn test_pop_future_scheduled_job_not_returned_until_due() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 55555,
     };
@@ -382,8 +375,7 @@ async fn test_pop_future_scheduled_job_not_returned_until_due() {
 #[tokio::test]
 async fn test_pop_past_scheduled_job_is_immediately_available() {
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let queue = WorkerJobQueue::with_queue_name(redis.redis_pool.clone(), redis.queue_name());
-
+    let queue = setup_test_queue(&redis);
     let job = WorkerJob::UpdateCharacterInfo {
         character_id: 77777,
     };

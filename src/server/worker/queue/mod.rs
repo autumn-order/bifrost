@@ -30,6 +30,8 @@
 //!
 //! Note: Current tracking keys system will be removed as that was simply a workaround to prevent duplicates
 //! with apalis.
+pub mod config;
+
 mod lua;
 
 #[cfg(test)]
@@ -43,43 +45,29 @@ use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
 use fred::prelude::*;
 
-use crate::server::{error::Error, model::worker::WorkerJob};
-
-const DEFAULT_QUEUE_NAME: &str = "bifrost:worker:queue";
-
-/// Maximum age for jobs in the queue before they're considered stale (1 hour in milliseconds)
-/// Jobs older than this will be removed by cleanup operations
-const JOB_TTL_MS: i64 = 60 * 60 * 1000;
-
-/// Cleanup interval in milliseconds (5 minutes)
-/// Cleanup will run at most once per this interval
-const CLEANUP_INTERVAL_MS: i64 = 5 * 60 * 1000;
+use crate::server::{
+    error::Error, model::worker::WorkerJob, worker::queue::config::WorkerQueueConfig,
+};
 
 pub struct WorkerJobQueue {
     pool: Pool,
-    /// Queue name in Redis (allows namespacing for test isolation)
-    queue_name: String,
+    config: WorkerQueueConfig,
     /// Handle to the background cleanup task
     cleanup_task_handle: std::sync::Arc<tokio::sync::RwLock<Option<tokio::task::JoinHandle<()>>>>,
     /// Shutdown flag for the cleanup task
     shutdown_flag: std::sync::Arc<AtomicBool>,
 }
 
-pub struct QueuedJob {
-    pub job: WorkerJob,
-    pub scheduled_at: DateTime<Utc>,
-}
-
 impl WorkerJobQueue {
     pub fn new(pool: Pool) -> Self {
-        Self::with_queue_name(pool, DEFAULT_QUEUE_NAME.to_string())
+        Self::with_config(pool, WorkerQueueConfig::default())
     }
 
     /// Create a new WorkerJobQueue with a custom queue name (useful for testing)
-    pub fn with_queue_name(pool: Pool, queue_name: String) -> Self {
+    pub fn with_config(pool: Pool, config: WorkerQueueConfig) -> Self {
         Self {
             pool,
-            queue_name,
+            config: config,
             cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
             shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
         }
@@ -93,23 +81,6 @@ impl WorkerJobQueue {
     /// This method is idempotent - calling it multiple times has no effect if cleanup
     /// is already running.
     pub async fn start_cleanup(&self) {
-        self.start_cleanup_with_interval(std::time::Duration::from_millis(
-            CLEANUP_INTERVAL_MS as u64,
-        ))
-        .await;
-    }
-
-    /// Start the background cleanup task with a custom interval
-    ///
-    /// This task runs at the specified interval and removes jobs older than JOB_TTL_MS.
-    /// The task will stop when [`Self::stop_cleanup`] is called or the queue is dropped.
-    ///
-    /// This method is idempotent - calling it multiple times has no effect if cleanup
-    /// is already running.
-    ///
-    /// # Arguments
-    /// * `interval` - How often to run the cleanup task
-    pub async fn start_cleanup_with_interval(&self, interval: std::time::Duration) {
         let mut handle = self.cleanup_task_handle.write().await;
 
         if handle.is_some() {
@@ -117,14 +88,17 @@ impl WorkerJobQueue {
             return;
         }
 
+        let config = self.config.clone();
         let pool = self.pool.clone();
-        let queue_name = self.queue_name.clone();
         let shutdown_flag = self.shutdown_flag.clone();
 
         let task_handle = tokio::spawn(async move {
-            let mut interval_timer = tokio::time::interval(interval);
+            let mut interval_timer = tokio::time::interval(config.cleanup_interval);
 
-            tracing::info!("Queue cleanup task started with interval {:?}", interval);
+            tracing::info!(
+                "Queue cleanup task started with interval {:?}",
+                config.cleanup_interval.as_secs()
+            );
 
             loop {
                 // Check shutdown flag before waiting
@@ -143,7 +117,7 @@ impl WorkerJobQueue {
                             break;
                         }
 
-                        if let Err(e) = Self::cleanup_stale_jobs_internal(&pool, &queue_name).await {
+                        if let Err(e) = Self::cleanup_stale_jobs_internal(&config, &pool).await {
                             tracing::warn!("Failed to cleanup stale jobs: {}", e);
                         }
                     }
@@ -215,7 +189,7 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
@@ -247,7 +221,7 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 PUSH_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![identity, score.to_string()],
             )
             .await?;
@@ -280,7 +254,7 @@ impl WorkerJobQueue {
             .pool
             .eval(
                 POP_JOB_SCRIPT,
-                vec![&self.queue_name],
+                vec![&self.config.queue_name],
                 vec![now.to_string()],
             )
             .await?;
@@ -312,18 +286,21 @@ impl WorkerJobQueue {
     /// # Returns
     /// Returns the number of stale jobs that were removed from the queue.
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
-        Self::cleanup_stale_jobs_internal(&self.pool, &self.queue_name).await
+        Self::cleanup_stale_jobs_internal(&self.config, &self.pool).await
     }
 
     /// Internal implementation of cleanup that can be called from the background task
-    async fn cleanup_stale_jobs_internal(pool: &Pool, queue_name: &str) -> Result<u64, Error> {
-        let cutoff_timestamp = Utc::now().timestamp_millis() - JOB_TTL_MS;
+    async fn cleanup_stale_jobs_internal(
+        config: &WorkerQueueConfig,
+        pool: &Pool,
+    ) -> Result<u64, Error> {
+        let cutoff_timestamp = Utc::now().timestamp_millis() - config.job_ttl.as_millis() as i64;
         let cutoff_score = cutoff_timestamp as f64;
 
         let removed: i64 = pool
             .eval(
                 CLEANUP_STALE_JOBS_SCRIPT,
-                vec![queue_name],
+                vec![&config.queue_name],
                 vec![cutoff_score.to_string()],
             )
             .await?;
