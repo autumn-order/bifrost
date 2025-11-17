@@ -16,7 +16,8 @@ pub trait SchedulableEntity {
     /// Get the column representing when the entity was last updated
     fn updated_at_column() -> impl ColumnTrait + IntoSimpleExpr;
 
-    /// Get the ID column for this entity
+    /// Get the resource ID column for this entity (e.g., alliance_id, character_id)
+    /// This should return the EVE entity ID, not the database primary key
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr;
 }
 
@@ -40,9 +41,11 @@ impl<'a> EntityRefreshTracker<'a> {
     }
 
     /// Finds entries that need their information updated
+    /// Returns a vector of resource IDs (e.g., alliance_id, character_id) for entries
+    /// that have expired cache and need to be refreshed
     pub async fn find_entries_needing_update<S>(
         &self,
-    ) -> Result<Vec<<S::Entity as EntityTrait>::Model>, crate::server::error::Error>
+    ) -> Result<Vec<i64>, crate::server::error::Error>
     where
         S: SchedulableEntity + Send + Sync,
         S::Entity: Send + Sync,
@@ -59,15 +62,18 @@ impl<'a> EntityRefreshTracker<'a> {
         let max_batch_size =
             calculate_batch_limit(table_entries, self.cache_duration, self.schedule_interval);
 
-        let entries = S::Entity::find()
+        let ids: Vec<i64> = S::Entity::find()
             // Only update entries after their cache has expired to get fresh data
             .filter(S::updated_at_column().lt(cache_expiry_threshold))
             .order_by_asc(S::updated_at_column())
             .limit(max_batch_size)
+            .select_only()
+            .column(S::id_column())
+            .into_tuple()
             .all(self.db)
             .await?;
 
-        Ok(entries)
+        Ok(ids)
     }
 
     pub async fn schedule_jobs<S>(

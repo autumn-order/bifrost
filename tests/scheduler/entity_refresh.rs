@@ -33,7 +33,7 @@ impl SchedulableEntity for AllianceInfo {
     }
 
     fn id_column() -> impl ColumnTrait + sea_orm::IntoSimpleExpr {
-        entity::eve_alliance::Column::Id
+        entity::eve_alliance::Column::AllianceId
     }
 }
 
@@ -53,8 +53,8 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert!(entries.is_empty());
+        let ids = result.unwrap();
+        assert!(ids.is_empty());
 
         Ok(())
     }
@@ -73,8 +73,8 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert!(entries.is_empty());
+        let ids = result.unwrap();
+        assert!(ids.is_empty());
 
         Ok(())
     }
@@ -104,9 +104,9 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].id, alliance.id);
+        let ids = result.unwrap();
+        assert_eq!(ids.len(), 1);
+        assert_eq!(ids[0], alliance.alliance_id);
 
         Ok(())
     }
@@ -150,12 +150,12 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 3);
+        let ids = result.unwrap();
+        assert_eq!(ids.len(), 3);
         // Should be ordered: alliance2 (oldest), alliance1 (middle), alliance3 (newest)
-        assert_eq!(entries[0].id, alliance2.id);
-        assert_eq!(entries[1].id, alliance1.id);
-        assert_eq!(entries[2].id, alliance3.id);
+        assert_eq!(ids[0], alliance2.alliance_id);
+        assert_eq!(ids[1], alliance1.alliance_id);
+        assert_eq!(ids[2], alliance3.alliance_id);
 
         Ok(())
     }
@@ -189,9 +189,9 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
+        let ids = result.unwrap();
         // Should return all 10 since that's less than MIN_BATCH_LIMIT (100)
-        assert_eq!(entries.len(), 10);
+        assert_eq!(ids.len(), 10);
 
         Ok(())
     }
@@ -220,9 +220,9 @@ mod find_entries_needing_update {
         let result = tracker.find_entries_needing_update::<AllianceInfo>().await;
 
         assert!(result.is_ok());
-        let entries = result.unwrap();
-        assert_eq!(entries.len(), 1);
-        assert_eq!(entries[0].id, alliance.id);
+        let ids = result.unwrap();
+        assert_eq!(ids.len(), 1);
+        assert_eq!(ids[0], alliance.alliance_id);
 
         Ok(())
     }
