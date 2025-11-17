@@ -1,5 +1,7 @@
 use sea_orm_migration::{prelude::*, schema::*};
 
+static IDX_EVE_FACTION_UPDATED_AT: &str = "idx_eve_faction_updated_at";
+
 #[derive(DeriveMigrationName)]
 pub struct Migration;
 
@@ -28,10 +30,29 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
+        manager
+            .create_index(
+                Index::create()
+                    .name(IDX_EVE_FACTION_UPDATED_AT)
+                    .table(EveFaction::Table)
+                    .col(EveFaction::UpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
         Ok(())
     }
 
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_index(
+                Index::drop()
+                    .name(IDX_EVE_FACTION_UPDATED_AT)
+                    .table(EveFaction::Table)
+                    .to_owned(),
+            )
+            .await?;
+
         manager
             .drop_table(Table::drop().table(EveFaction::Table).to_owned())
             .await?;

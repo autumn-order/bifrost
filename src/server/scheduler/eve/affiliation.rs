@@ -20,7 +20,7 @@ impl SchedulableEntity for CharacterAffiliation {
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_character::Column::Id
+        entity::eve_character::Column::CharacterId
     }
 }
 
@@ -31,20 +31,14 @@ pub async fn schedule_character_affiliation_update(
 ) -> Result<usize, crate::server::error::Error> {
     let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
-    // Find characters that need affiliation updates
-    let characters_needing_update = refresh_tracker
+    // Find characters that need affiliation updates (returns character_ids)
+    let character_ids = refresh_tracker
         .find_entries_needing_update::<CharacterAffiliation>()
         .await?;
 
-    if characters_needing_update.is_empty() {
+    if character_ids.is_empty() {
         return Ok(0);
     }
-
-    // Extract character IDs from the models
-    let character_ids: Vec<i64> = characters_needing_update
-        .into_iter()
-        .map(|character| character.character_id)
-        .collect();
 
     // Divide character IDs into batches that respect ESI affiliation request limit of 1000
     let jobs: Vec<WorkerJob> = character_ids

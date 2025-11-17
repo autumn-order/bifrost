@@ -19,7 +19,7 @@ impl SchedulableEntity for AllianceInfo {
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_alliance::Column::Id
+        entity::eve_alliance::Column::AllianceId
     }
 }
 
@@ -30,24 +30,19 @@ pub async fn schedule_alliance_info_update(
 ) -> Result<usize, crate::server::error::Error> {
     let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
-    // Find alliances that need updating
-    let alliances_needing_update = refresh_tracker
+    // Find alliances that need updating (returns alliance_ids)
+    let alliance_ids = refresh_tracker
         .find_entries_needing_update::<AllianceInfo>()
         .await?;
 
-    if alliances_needing_update.is_empty() {
+    if alliance_ids.is_empty() {
         return Ok(0);
     }
 
     // Create and schedule jobs
-    let jobs: Vec<WorkerJob> = alliances_needing_update
+    let jobs: Vec<WorkerJob> = alliance_ids
         .into_iter()
-        .map(|alliance| {
-            WorkerJob::UpdateAllianceInfo {
-                // Provide EVE alliance ID for ESI request, not the database entry ID
-                alliance_id: alliance.alliance_id,
-            }
-        })
+        .map(|alliance_id| WorkerJob::UpdateAllianceInfo { alliance_id })
         .collect();
 
     let scheduled_job_count = refresh_tracker

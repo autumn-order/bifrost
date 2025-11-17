@@ -19,7 +19,7 @@ impl SchedulableEntity for CharacterInfo {
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_character::Column::Id
+        entity::eve_character::Column::CharacterId
     }
 }
 
@@ -30,24 +30,19 @@ pub async fn schedule_character_info_update(
 ) -> Result<usize, crate::server::error::Error> {
     let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
-    // Find characters that need updating
-    let characters_needing_update = refresh_tracker
+    // Find characters that need updating (returns character_ids)
+    let character_ids = refresh_tracker
         .find_entries_needing_update::<CharacterInfo>()
         .await?;
 
-    if characters_needing_update.is_empty() {
+    if character_ids.is_empty() {
         return Ok(0);
     }
 
     // Create and schedule jobs
-    let jobs: Vec<WorkerJob> = characters_needing_update
+    let jobs: Vec<WorkerJob> = character_ids
         .into_iter()
-        .map(|character| {
-            WorkerJob::UpdateCharacterInfo {
-                // Provide EVE character ID for ESI request
-                character_id: character.character_id,
-            }
-        })
+        .map(|character_id| WorkerJob::UpdateCharacterInfo { character_id })
         .collect();
 
     let scheduled_job_count = refresh_tracker

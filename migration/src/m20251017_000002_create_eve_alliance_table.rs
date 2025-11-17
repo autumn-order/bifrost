@@ -3,6 +3,7 @@ use sea_orm_migration::{prelude::*, schema::*};
 use crate::m20251017_000001_create_eve_faction_table::EveFaction;
 
 static IDX_EVE_ALLIANCE_FACTION_ID: &str = "idx_eve_alliance_faction_id";
+static IDX_EVE_ALLIANCE_UPDATED_AT: &str = "idx_eve_alliance_updated_at";
 static FK_EVE_ALLIANCE_FACTION_ID: &str = "fk_eve_alliance_faction_id";
 
 #[derive(DeriveMigrationName)]
@@ -42,6 +43,16 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
+            .create_index(
+                Index::create()
+                    .name(IDX_EVE_ALLIANCE_UPDATED_AT)
+                    .table(EveAlliance::Table)
+                    .col(EveAlliance::UpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_EVE_ALLIANCE_FACTION_ID)
@@ -61,6 +72,15 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_EVE_ALLIANCE_FACTION_ID)
+                    .table(EveAlliance::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name(IDX_EVE_ALLIANCE_UPDATED_AT)
                     .table(EveAlliance::Table)
                     .to_owned(),
             )

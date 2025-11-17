@@ -19,7 +19,7 @@ impl SchedulableEntity for CorporationInfo {
     }
 
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr {
-        entity::eve_corporation::Column::Id
+        entity::eve_corporation::Column::CorporationId
     }
 }
 
@@ -30,24 +30,19 @@ pub async fn schedule_corporation_info_update(
 ) -> Result<usize, crate::server::error::Error> {
     let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
-    // Find corporations that need updating
-    let corporations_needing_update = refresh_tracker
+    // Find corporations that need updating (returns corporation_ids)
+    let corporation_ids = refresh_tracker
         .find_entries_needing_update::<CorporationInfo>()
         .await?;
 
-    if corporations_needing_update.is_empty() {
+    if corporation_ids.is_empty() {
         return Ok(0);
     }
 
     // Create and schedule jobs
-    let jobs: Vec<WorkerJob> = corporations_needing_update
+    let jobs: Vec<WorkerJob> = corporation_ids
         .into_iter()
-        .map(|corporation| {
-            WorkerJob::UpdateCorporationInfo {
-                // Provide EVE corporation ID for ESI request
-                corporation_id: corporation.corporation_id,
-            }
-        })
+        .map(|corporation_id| WorkerJob::UpdateCorporationInfo { corporation_id })
         .collect();
 
     let scheduled_job_count = refresh_tracker

@@ -7,6 +7,8 @@ use crate::{
 
 static IDX_EVE_CHARACTER_CORPORATION_ID: &str = "idx_eve_character_corporation_id";
 static IDX_EVE_CHARACTER_FACTION_ID: &str = "idx_eve_character_faction_id";
+static IDX_EVE_CHARACTER_INFO_UPDATED_AT: &str = "idx_eve_character_info_updated_at";
+static IDX_EVE_CHARACTER_AFFILIATION_UPDATED_AT: &str = "idx_eve_character_affiliation_updated_at";
 static FK_EVE_CHARACTER_CORPORATION_ID: &str = "fk_eve_character_corporation_id";
 static FK_EVE_CHARACTER_FACTION_ID: &str = "fk_eve_character_faction_id";
 
@@ -61,6 +63,26 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
+            .create_index(
+                Index::create()
+                    .name(IDX_EVE_CHARACTER_INFO_UPDATED_AT)
+                    .table(EveCharacter::Table)
+                    .col(EveCharacter::InfoUpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name(IDX_EVE_CHARACTER_AFFILIATION_UPDATED_AT)
+                    .table(EveCharacter::Table)
+                    .col(EveCharacter::AffiliationUpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
             .create_foreign_key(
                 ForeignKey::create()
                     .name(FK_EVE_CHARACTER_CORPORATION_ID)
@@ -101,6 +123,24 @@ impl MigrationTrait for Migration {
             .drop_foreign_key(
                 ForeignKey::drop()
                     .name(FK_EVE_CHARACTER_CORPORATION_ID)
+                    .table(EveCharacter::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name(IDX_EVE_CHARACTER_AFFILIATION_UPDATED_AT)
+                    .table(EveCharacter::Table)
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .drop_index(
+                Index::drop()
+                    .name(IDX_EVE_CHARACTER_INFO_UPDATED_AT)
                     .table(EveCharacter::Table)
                     .to_owned(),
             )
