@@ -194,17 +194,13 @@ impl WorkerPool {
         match result {
             Ok(Ok(())) => {
                 // Job completed successfully
-                tracing::debug!("Job completed: {:?}", job);
+                tracing::debug!("Job completed: {}", job);
             }
             Ok(Err(e)) => {
-                tracing::error!("Job failed: {:?}, error: {:?}", job, e);
+                tracing::error!("Job failed: {}, error: {:?}", job, e);
             }
             Err(_) => {
-                tracing::error!(
-                    "Job timed out after {} seconds: {:?}",
-                    timeout.as_secs(),
-                    job
-                );
+                tracing::error!("Job timed out after {} seconds: {}", timeout.as_secs(), job);
             }
         }
 
