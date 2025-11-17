@@ -167,7 +167,13 @@ Set the following in `.env`:
 docker compose -f docker-compose.dev.yml up -d
 ```
 
-2. Start the dioxus application
+2. Run tailwindcss
+
+```bash
+bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch
+```
+
+3. Start the dioxus application in a separate terminal
 
 ```bash
 dx serve

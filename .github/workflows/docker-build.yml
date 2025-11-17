@@ -40,8 +40,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-          # Allow pre-release images be to pushed for now
-          # type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
+            type=raw,value=latest,enable=${{ !contains(github.ref, '-') }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -62,3 +61,15 @@ jobs:
 
       - name: Image digest
         run: echo ${{ steps.meta.outputs.digest }}
+
+      - name: Set package visibility to public
+        run: |
+          PACKAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          gh api \
+            --method PATCH \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME##*/}/visibility \
+            -f visibility='public'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
