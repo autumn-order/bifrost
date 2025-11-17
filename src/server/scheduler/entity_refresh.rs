@@ -92,8 +92,10 @@ impl<'a> EntityRefreshTracker<'a> {
             }
 
             match worker_queue.schedule(job, scheduled_at).await {
-                Ok(_) => {
-                    scheduled_count += 1;
+                Ok(was_scheduled) => {
+                    if was_scheduled {
+                        scheduled_count += 1;
+                    }
                 }
                 Err(e) => {
                     return Err(e.into());

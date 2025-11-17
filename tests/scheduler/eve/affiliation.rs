@@ -260,13 +260,12 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
-    // Attempt to schedule again - jobs can be rescheduled with different timestamps
-    // The scheduler creates jobs with staggered execution times, so even the same
-    // entity ID will have a different scheduled time and be accepted
+    // Attempt to schedule again - duplicate jobs are rejected
+    // The duplicate detection is based on job content (serialized JSON), not scheduled time
     let result2 = schedule_character_affiliation_update(&test.state.db, &queue).await;
     assert!(result2.is_ok());
-    // Jobs are staggered by timestamp, so this will schedule again
-    assert_eq!(result2.unwrap(), 1);
+    // Same job already exists in queue, so it won't be scheduled again
+    assert_eq!(result2.unwrap(), 0);
 
     redis.cleanup().await?;
     Ok(())

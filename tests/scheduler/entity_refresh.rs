@@ -353,8 +353,8 @@ mod schedule_jobs {
         let result = tracker.schedule_jobs::<AllianceInfo>(&queue, jobs).await;
 
         assert!(result.is_ok());
-        // Both jobs scheduled with different timestamps (staggered execution)
-        assert_eq!(result.unwrap(), 2);
+        // Only the first job is scheduled, duplicate is not pushed to queue
+        assert_eq!(result.unwrap(), 1);
 
         redis.cleanup().await?;
         Ok(())
