@@ -1,5 +1,3 @@
-use eve_esi::model::oauth2::EveJwtClaims;
-
 use crate::server::{
     data::user::user_character::UserCharacterRepository, error::Error, service::user::UserService,
 };
@@ -16,7 +14,7 @@ async fn finds_existing_user() -> Result<(), TestError> {
         .await?;
 
     // Set character ID in claims to the mock character
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
     claims.owner = user_character_model.owner_hash;
 
@@ -39,7 +37,7 @@ async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = "CHARACTER:EVE:1".to_string();
     claims.owner = "different_owner_hash".to_string();
 
@@ -70,7 +68,7 @@ async fn creates_user_for_existing_character() -> Result<(), TestError> {
     let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
     // Set character ID in claims to the mock character
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
     let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -100,7 +98,7 @@ async fn creates_user_and_character() -> Result<(), TestError> {
         .with_character_endpoint(character_id, mock_character, 1);
 
     // Set character ID in claims to the mock character
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_id);
 
     let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -116,10 +114,10 @@ async fn creates_user_and_character() -> Result<(), TestError> {
 /// Expect Error when the required database tables haven't been created
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let mut test = test_setup_with_tables!()?;
 
     // Set character ID in claims to the mock character
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", 1);
 
     let user_service = UserService::new(&test.state.db, &test.state.esi_client);
@@ -133,10 +131,10 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 /// Expect Error when required ESI endpoints are unavailable
 #[tokio::test]
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let mut test = test_setup_with_user_tables!()?;
 
     // Set character ID in claims to the mock character
-    let mut claims = EveJwtClaims::mock();
+    let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", 1);
 
     let user_service = UserService::new(&test.state.db, &test.state.esi_client);

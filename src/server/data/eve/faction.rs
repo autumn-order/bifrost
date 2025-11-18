@@ -23,7 +23,7 @@ impl<'a> FactionRepository<'a> {
             .into_iter()
             .map(|f| entity::eve_faction::ActiveModel {
                 faction_id: ActiveValue::Set(f.faction_id),
-                corporation_id: ActiveValue::Set(f.corporation_d),
+                corporation_id: ActiveValue::Set(f.corporation_id),
                 militia_corporation_id: ActiveValue::Set(f.militia_corporation_id),
                 description: ActiveValue::Set(f.description),
                 is_unique: ActiveValue::Set(f.is_unique),
