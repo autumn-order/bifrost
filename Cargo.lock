@@ -2202,9 +2202,9 @@ dependencies = [
 
 [[package]]
 name = "eve_esi"
-version = "0.4.8"
+version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab30a93a2c3ebc0f6f3ece1fc1007573915715dc2bb0ad28c1e02ff6086d1826"
+checksum = "9faca6ed50693b92284a63f103425a501d32c2a75454a1e7eb1ce2f8c4b2cc60"
 dependencies = [
  "chrono",
  "jsonwebtoken",

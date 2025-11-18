@@ -21,7 +21,7 @@ impl<'a> EveFixtures<'a> {
         Ok(
             entity::prelude::EveFaction::insert(entity::eve_faction::ActiveModel {
                 faction_id: ActiveValue::Set(faction.faction_id),
-                corporation_id: ActiveValue::Set(faction.corporation_d),
+                corporation_id: ActiveValue::Set(faction.corporation_id),
                 militia_corporation_id: ActiveValue::Set(faction.militia_corporation_id),
                 description: ActiveValue::Set(faction.description.to_string()),
                 is_unique: ActiveValue::Set(faction.is_unique),

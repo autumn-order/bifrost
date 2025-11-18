@@ -11,7 +11,7 @@ use crate::fixtures::eve::EveFixtures;
 impl<'a> EveFixtures<'a> {
     pub fn with_mock_faction(&self, faction_id: i64) -> Faction {
         Faction {
-            corporation_d: Some(0),
+            corporation_id: Some(0),
             description: "string".to_string(),
             faction_id: faction_id,
             is_unique: true,
