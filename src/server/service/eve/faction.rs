@@ -1,9 +1,11 @@
 use chrono::Utc;
+use eve_esi::model::universe::Faction;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
+    service::context::RetryContext,
     util::time::effective_faction_cache_expiry,
 };
 
@@ -22,23 +24,40 @@ impl<'a> FactionService<'a> {
     ///
     /// The NPC faction cache expires at 11:05 UTC (after downtime)
     pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
-        let faction_repo = FactionRepository::new(self.db);
+        let mut ctx: RetryContext<Vec<Faction>> =
+            RetryContext::new(self.db.clone(), self.esi_client.clone());
 
-        let now = Utc::now();
-        let effective_expiry = effective_faction_cache_expiry(now)?;
+        ctx.execute_with_retry("faction update", |db, esi_client, retry_cache| {
+            Box::pin(async move {
+                let faction_repo = FactionRepository::new(db);
 
-        // If the latest faction entry was updated at or after the effective expiry, skip updating.
-        if let Some(faction) = faction_repo.get_latest().await? {
-            if faction.updated_at >= effective_expiry {
-                return Ok(Vec::new());
-            }
-        }
+                let now = Utc::now();
+                let effective_expiry = effective_faction_cache_expiry(now)?;
 
-        let factions = self.esi_client.universe().get_factions().await?;
+                // If the latest faction entry was updated at or after the effective expiry, skip updating.
+                if let Some(faction) = faction_repo.get_latest().await? {
+                    if faction.updated_at >= effective_expiry {
+                        return Ok(Vec::new());
+                    }
+                }
 
-        let factions = faction_repo.upsert_many(factions).await?;
+                // Get factions from cache or fetch from ESI
+                let fetched_factions = if let Some(cached) = retry_cache.as_ref() {
+                    // Use cached factions
+                    cached.clone()
+                } else {
+                    // First attempt: fetch from ESI and cache the result
+                    let factions = esi_client.universe().get_factions().await?;
+                    *retry_cache = Some(factions.clone());
+                    factions
+                };
 
-        Ok(factions)
+                let factions = faction_repo.upsert_many(fetched_factions).await?;
+
+                Ok(factions)
+            })
+        })
+        .await
     }
 
     /// Attempt to get a faction from the database using its EVE Online faction ID, attempt to update factions if faction is not found
