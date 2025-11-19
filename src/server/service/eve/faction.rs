@@ -5,7 +5,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
-    service::context::RetryContext,
+    service::retry::RetryContext,
     util::time::effective_faction_cache_expiry,
 };
 

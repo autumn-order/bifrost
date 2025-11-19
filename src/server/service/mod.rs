@@ -1,4 +1,4 @@
 pub mod auth;
-pub mod context;
 pub mod eve;
+pub mod retry;
 pub mod user;
