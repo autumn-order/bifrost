@@ -68,7 +68,7 @@ where
                 "Processing {} (attempt {}/{})",
                 description,
                 attempt_count + 1,
-                self.max_attempts + 1
+                self.max_attempts
             );
 
             // Execute the operation, passing db, esi_client, and cached data if available
@@ -88,7 +88,7 @@ where
                         }
                         ErrorRetryStrategy::Retry => {
                             attempt_count += 1;
-                            if attempt_count > self.max_attempts {
+                            if attempt_count >= self.max_attempts {
                                 tracing::error!(
                                     "Max attempts ({}) exceeded for {}: {:?}",
                                     self.max_attempts,
