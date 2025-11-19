@@ -31,25 +31,9 @@ impl<'a> FactionService<'a> {
             Box::pin(async move {
                 let faction_repo = FactionRepository::new(db);
 
-                let now = Utc::now();
-                let effective_expiry = effective_faction_cache_expiry(now)?;
-
-                // If the latest faction entry was updated at or after the effective expiry, skip updating.
-                if let Some(faction) = faction_repo.get_latest().await? {
-                    if faction.updated_at >= effective_expiry {
-                        return Ok(Vec::new());
-                    }
-                }
-
-                // Get factions from cache or fetch from ESI
-                let fetched_factions = if let Some(cached) = retry_cache.as_ref() {
-                    // Use cached factions
-                    cached.clone()
-                } else {
-                    // First attempt: fetch from ESI and cache the result
-                    let factions = esi_client.universe().get_factions().await?;
-                    *retry_cache = Some(factions.clone());
-                    factions
+                let Some((fetched_factions, _)) = get_factions(db, esi_client, retry_cache).await?
+                else {
+                    return Ok(Vec::new());
                 };
 
                 let factions = faction_repo.upsert_many(fetched_factions).await?;
@@ -91,6 +75,46 @@ impl<'a> FactionService<'a> {
         }
 
         Err(EveError::FactionNotFound(faction_id).into())
+    }
+}
+
+/// Get faction from cache or ESI if not cached
+///
+/// # Arguments
+/// - `retry_cache`: Optional Vector containing ESI faction models
+///
+/// # Returns
+/// - `Some((Vec<Faction>, bool))`: Factions and a flag indicating whether they came from
+///   the retry cache (`true`) or were freshly fetched from ESI (`false`)
+/// - `None`: Factions not eligible for update due to still being within cache window
+pub(super) async fn get_factions(
+    db: &DatabaseConnection,
+    esi_client: &eve_esi::Client,
+    retry_cache: &mut Option<Vec<Faction>>,
+) -> Result<Option<(Vec<Faction>, bool)>, Error> {
+    let faction_repo = FactionRepository::new(db);
+
+    let now = Utc::now();
+    let effective_expiry = effective_faction_cache_expiry(now)?;
+
+    // If the latest faction entry was updated at or after the effective expiry, skip updating.
+    if let Some(faction) = faction_repo.get_latest().await? {
+        if faction.updated_at >= effective_expiry {
+            return Ok(None);
+        }
+    }
+
+    // Get factions from cache or fetch from ESI
+    if let Some(cached) = retry_cache.as_ref() {
+        // Use cached factions
+        let factions = cached.clone();
+
+        Ok(Some((factions, true)))
+    } else {
+        // First attempt: fetch from ESI and cache the result
+        let factions = esi_client.universe().get_factions().await?;
+        *retry_cache = Some(factions.clone());
+        Ok(Some((factions, false)))
     }
 }
 
