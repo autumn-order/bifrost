@@ -78,7 +78,7 @@ impl AffiliationService {
                 ))
             })
             .collect();
-        CharacterRepository::new(&self.db)
+        CharacterRepository::new(self.db.clone())
             .upsert_many(character_entries)
             .await?;
 

@@ -136,7 +136,7 @@ impl AffiliationService {
                 }
             ).collect();
 
-        CharacterRepository::new(&self.db)
+        CharacterRepository::new(self.db.clone())
             .update_affiliations(character_affiliations)
             .await?;
 

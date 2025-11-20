@@ -6,12 +6,12 @@ use sea_orm::{
     QueryFilter, QuerySelect, TransactionTrait,
 };
 
-pub struct CharacterRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct CharacterRepository {
+    db: DatabaseConnection,
 }
 
-impl<'a> CharacterRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl CharacterRepository {
+    pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -40,7 +40,7 @@ impl<'a> CharacterRepository<'a> {
             ..Default::default()
         };
 
-        character.insert(self.db).await
+        character.insert(&self.db).await
     }
 
     pub async fn upsert(
@@ -85,7 +85,7 @@ impl<'a> CharacterRepository<'a> {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(self.db)
+            .exec_with_returning(&self.db)
             .await?,
         )
     }
@@ -135,7 +135,7 @@ impl<'a> CharacterRepository<'a> {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(self.db)
+            .exec_with_returning(&self.db)
             .await
     }
 
@@ -145,7 +145,7 @@ impl<'a> CharacterRepository<'a> {
     ) -> Result<Option<entity::eve_character::Model>, DbErr> {
         entity::prelude::EveCharacter::find()
             .filter(entity::eve_character::Column::CharacterId.eq(character_id))
-            .one(self.db)
+            .one(&self.db)
             .await
     }
 
@@ -159,7 +159,7 @@ impl<'a> CharacterRepository<'a> {
             .column(entity::eve_character::Column::CharacterId)
             .filter(entity::eve_character::Column::CharacterId.is_in(character_ids.iter().copied()))
             .into_tuple::<(i32, i64)>()
-            .all(self.db)
+            .all(&self.db)
             .await
     }
 
@@ -181,7 +181,7 @@ impl<'a> CharacterRepository<'a> {
             return Ok(());
         }
 
-        let txn = self.db.begin().await?;
+        let txn = (&self.db).begin().await?;
 
         const BATCH_SIZE: usize = 100;
 

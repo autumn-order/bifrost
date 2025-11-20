@@ -138,7 +138,7 @@ impl AffiliationService {
         let corporation_table_ids = CorporationRepository::new(self.db.clone())
             .get_entry_ids_by_corporation_ids(&unique_corporation_ids)
             .await?;
-        let character_table_ids = CharacterRepository::new(&self.db)
+        let character_table_ids = CharacterRepository::new(self.db.clone())
             .get_entry_ids_by_character_ids(&unique_character_ids)
             .await?;
 
