@@ -454,7 +454,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify all entities were created with proper relationships
-    let faction = FactionRepository::new(&test.state.db)
+    let faction = FactionRepository::new(test.state.db.clone())
         .get_by_faction_id(500001)
         .await?;
     assert!(faction.is_some());

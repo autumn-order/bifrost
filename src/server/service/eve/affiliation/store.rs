@@ -27,7 +27,7 @@ impl AffiliationService {
         if !updated_faction_ids.is_empty() {
             let unique_faction_ids: Vec<i64> = unique_ids.faction_ids.iter().copied().collect();
 
-            let faction_table_ids = FactionRepository::new(&self.db)
+            let faction_table_ids = FactionRepository::new(self.db.clone())
                 .get_entry_ids_by_faction_ids(&unique_faction_ids)
                 .await?;
 

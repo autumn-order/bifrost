@@ -32,7 +32,7 @@ impl FactionService {
             let faction_service = faction_service.clone();
 
             Box::pin(async move {
-                let faction_repo = FactionRepository::new(&faction_service.db);
+                let faction_repo = FactionRepository::new(faction_service.db.clone());
 
                 let Some((fetched_factions, _)) =
                     faction_service.fetch_factions(retry_cache).await?
@@ -65,7 +65,7 @@ impl FactionService {
             let faction_service = faction_service.clone();
 
             Box::pin(async move {
-                let faction_repo = FactionRepository::new(&faction_service.db);
+                let faction_repo = FactionRepository::new(faction_service.db.clone());
 
                 let result = faction_repo.get_by_faction_id(faction_id).await?;
 
@@ -119,7 +119,7 @@ impl FactionService {
             return Ok(Some((cached_factions, true)));
         }
 
-        let faction_repo = FactionRepository::new(&self.db);
+        let faction_repo = FactionRepository::new(self.db.clone());
 
         let now = Utc::now();
         let effective_expiry = effective_faction_cache_expiry(now)?;
