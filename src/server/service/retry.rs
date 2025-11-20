@@ -1,34 +1,29 @@
 use std::time::Duration;
 
 use dioxus_logger::tracing;
-use sea_orm::DatabaseConnection;
 
 use crate::server::error::{retry::ErrorRetryStrategy, Error};
 
 /// Context for service methods providing retry & caching logic
-pub struct RetryContext<C> {
-    /// Cache to be used between retries to prevent unnecessary additional fetches
-    retry_cache: Option<C>,
+pub struct RetryContext<T> {
+    /// cache to be used between retries to prevent unnecessary additional fetches
+    cache: T,
     /// Max attempts before failure
     max_attempts: u32,
     /// Initial backoff between attempts
     initial_backoff_secs: u64,
-    db: DatabaseConnection,
-    esi_client: eve_esi::Client,
 }
 
-impl<C> RetryContext<C>
+impl<T> RetryContext<T>
 where
-    C: Clone,
+    T: Clone + Default,
 {
     const DEFAULT_MAX_ATTEMPTS: u32 = 3;
     const DEFAULT_INITIAL_BACKOFF_SECS: u64 = 1;
 
-    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
+    pub fn new() -> Self {
         Self {
-            db,
-            esi_client,
-            retry_cache: None,
+            cache: T::default(),
             max_attempts: Self::DEFAULT_MAX_ATTEMPTS,
             initial_backoff_secs: Self::DEFAULT_INITIAL_BACKOFF_SECS,
         }
@@ -50,13 +45,11 @@ where
     pub async fn execute_with_retry<R, F>(
         &mut self,
         description: &str,
-        mut operation: F,
+        operation: F,
     ) -> Result<R, Error>
     where
-        F: for<'a> FnMut(
-            &'a DatabaseConnection,
-            &'a eve_esi::Client,
-            &'a mut Option<C>,
+        F: for<'a> Fn(
+            &'a mut T,
         ) -> std::pin::Pin<
             Box<dyn std::future::Future<Output = Result<R, Error>> + Send + 'a>,
         >,
@@ -72,7 +65,7 @@ where
             );
 
             // Execute the operation, passing db, esi_client, and cached data if available
-            let result = operation(&self.db, &self.esi_client, &mut self.retry_cache).await;
+            let result = operation(&mut self.cache).await;
 
             match result {
                 // Return result R
@@ -80,51 +73,38 @@ where
                     tracing::debug!("Successfully processed {}", description);
                     return Ok(result);
                 }
-                Err(e) => {
-                    match e.to_retry_strategy() {
-                        ErrorRetryStrategy::Fail => {
-                            tracing::error!("Permanent error for {}: {:?}", description, e);
-                            return Err(e);
-                        }
-                        ErrorRetryStrategy::Retry => {
-                            attempt_count += 1;
-                            if attempt_count >= self.max_attempts {
-                                tracing::error!(
-                                    "Max attempts ({}) exceeded for {}: {:?}",
-                                    self.max_attempts,
-                                    description,
-                                    e
-                                );
-                                return Err(e);
-                            }
-
-                            let backoff_secs =
-                                self.initial_backoff_secs * 2_u64.pow(attempt_count - 1);
-                            let backoff = Duration::from_secs(backoff_secs);
-
-                            // Determine if we'll reuse cached data
-                            let cache_status = match (&e, &self.retry_cache) {
-                                (Error::DbErr(_), Some(_)) => " (will reuse cached data)",
-                                (Error::DbErr(_), None) => " (database error but no cached data)",
-                                (Error::EsiError(_), Some(_)) => " (will reuse cached data)",
-                                (Error::EsiError(_), None) => " (will refetch from ESI)",
-                                (_, _) => "",
-                            };
-
-                            tracing::warn!(
-                                "Retrying {} (attempt {}/{}){} after {:?}: {:?}",
-                                description,
-                                attempt_count,
+                Err(e) => match e.to_retry_strategy() {
+                    ErrorRetryStrategy::Fail => {
+                        tracing::error!("Permanent error for {}: {:?}", description, e);
+                        return Err(e);
+                    }
+                    ErrorRetryStrategy::Retry => {
+                        attempt_count += 1;
+                        if attempt_count >= self.max_attempts {
+                            tracing::error!(
+                                "Max attempts ({}) exceeded for {}: {:?}",
                                 self.max_attempts,
-                                cache_status,
-                                backoff,
+                                description,
                                 e
                             );
-
-                            tokio::time::sleep(backoff).await;
+                            return Err(e);
                         }
+
+                        let backoff_secs = self.initial_backoff_secs * 2_u64.pow(attempt_count - 1);
+                        let backoff = Duration::from_secs(backoff_secs);
+
+                        tracing::warn!(
+                            "Retrying {} (attempt {}/{}) after {:?}: {:?}",
+                            description,
+                            attempt_count,
+                            self.max_attempts,
+                            backoff,
+                            e
+                        );
+
+                        tokio::time::sleep(backoff).await;
                     }
-                }
+                },
             }
         }
     }

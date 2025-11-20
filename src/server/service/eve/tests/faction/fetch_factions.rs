@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ActiveValue, IntoActiveModel};
 
 use crate::server::{
-    error::Error, service::eve::faction::fetch_factions, util::time::effective_faction_cache_expiry,
+    error::Error, service::eve::cache::EsiFactionCache, util::time::effective_faction_cache_expiry,
 };
 
 use super::*;
@@ -16,8 +16,10 @@ async fn fetches_factions_when_table_empty() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -26,7 +28,7 @@ async fn fetches_factions_when_table_empty() -> Result<(), TestError> {
     assert_eq!(factions.len(), 1);
     assert_eq!(factions[0].faction_id, faction_id);
     assert!(!from_cache);
-    assert!(retry_cache.is_some());
+    assert!(cache.0.is_some());
 
     faction_endpoint.assert();
 
@@ -52,8 +54,10 @@ async fn fetches_factions_past_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -61,7 +65,7 @@ async fn fetches_factions_past_cache_expiry() -> Result<(), TestError> {
     let (factions, from_cache) = data.unwrap();
     assert_eq!(factions.len(), 1);
     assert!(!from_cache);
-    assert!(retry_cache.is_some());
+    assert!(cache.0.is_some());
 
     faction_endpoint.assert();
 
@@ -87,13 +91,15 @@ async fn returns_none_within_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
     assert!(data.is_none());
-    assert!(retry_cache.is_none());
+    assert!(cache.0.is_none());
 
     faction_endpoint.assert();
 
@@ -111,10 +117,12 @@ async fn returns_from_retry_cache_when_available() -> Result<(), TestError> {
         .eve()
         .with_faction_endpoint(vec![mock_faction.clone()], 0);
 
-    // Populate retry_cache with factions
-    let mut retry_cache = Some(vec![mock_faction]);
+    // Populate cache with factions
+    let mut cache = EsiFactionCache(Some(vec![mock_faction]));
 
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -139,12 +147,14 @@ async fn populates_retry_cache_on_first_fetch() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
-    assert!(retry_cache.is_some());
-    let cached_factions = retry_cache.unwrap();
+    assert!(cache.0.is_some());
+    let cached_factions = cache.0.unwrap();
     assert_eq!(cached_factions.len(), 1);
     assert_eq!(cached_factions[0].faction_id, faction_id);
 
@@ -159,8 +169,10 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
     // No mock endpoint created - connection will fail
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(matches!(
         result,
@@ -179,8 +191,10 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let _faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));
 
@@ -206,13 +220,15 @@ async fn retry_cache_unchanged_within_cache_expiry() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(1);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
-    // Start with empty retry_cache
-    let mut retry_cache = None;
-    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    // Start with empty cache
+    let mut cache = EsiFactionCache::new();
+    let result = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
-    assert!(retry_cache.is_none()); // Should remain None
+    assert!(cache.0.is_none()); // Should remain None
 
     faction_endpoint.assert();
 
@@ -232,13 +248,15 @@ async fn reuses_retry_cache_on_multiple_calls() -> Result<(), TestError> {
         .eve()
         .with_faction_endpoint(vec![mock_faction_1, mock_faction_2], 0);
 
-    // Pre-populate retry_cache
+    // Pre-populate cache
     let cached_faction_1 = test.eve().with_mock_faction(faction_id_1);
     let cached_faction_2 = test.eve().with_mock_faction(faction_id_2);
-    let mut retry_cache = Some(vec![cached_faction_1, cached_faction_2]);
+    let mut cache = EsiFactionCache(Some(vec![cached_faction_1, cached_faction_2]));
 
-    // First call should use retry_cache
-    let result1 = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    // First call should use cache
+    let result1 = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result1.is_ok());
     let data1 = result1.unwrap();
@@ -247,8 +265,10 @@ async fn reuses_retry_cache_on_multiple_calls() -> Result<(), TestError> {
     assert_eq!(factions1.len(), 2);
     assert!(from_cache1);
 
-    // Second call should also use the same retry_cache
-    let result2 = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
+    // Second call should also use the same cache
+    let result2 = cache
+        .fetch_factions(&test.state.db, &test.state.esi_client)
+        .await;
 
     assert!(result2.is_ok());
     let data2 = result2.unwrap();
