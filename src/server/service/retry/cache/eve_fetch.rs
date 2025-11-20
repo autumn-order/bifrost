@@ -11,6 +11,101 @@ use crate::server::{
     data::eve::faction::FactionRepository, error::Error, util::time::effective_faction_cache_expiry,
 };
 
+/// Generic trait for ESI entity caching
+#[allow(async_fn_in_trait)]
+pub trait EsiEntityCacheable<Entity: Clone> {
+    /// Get the internal cache
+    fn cache(&self) -> &Option<HashMap<i64, Entity>>;
+
+    /// Get mutable access to the internal cache
+    fn cache_mut(&mut self) -> &mut Option<HashMap<i64, Entity>>;
+
+    /// Fetch a single entity from ESI
+    async fn fetch_one(esi_client: &eve_esi::Client, id: i64) -> Result<Entity, Error>;
+
+    /// Get the entity type name for error messages
+    fn entity_name() -> &'static str;
+
+    /// Generic fetch implementation
+    async fn fetch(&mut self, esi_client: &eve_esi::Client, id: i64) -> Result<Entity, Error> {
+        let mut entities = self.fetch_multiple(esi_client, vec![id]).await?;
+
+        entities.pop().ok_or_else(|| {
+            Error::InternalError(format!(
+                "{} {} not found after successful ESI fetch. \
+                 This may indicate an ESI API issue or cache corruption.",
+                Self::entity_name(),
+                id
+            ))
+        })
+    }
+
+    /// Generic fetch_multiple implementation
+    async fn fetch_multiple(
+        &mut self,
+        esi_client: &eve_esi::Client,
+        mut ids: Vec<i64>,
+    ) -> Result<Vec<Entity>, Error> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requested_ids = ids.clone();
+
+        if let Some(ref cached) = self.cache() {
+            // Filter ids to only keep those NOT in the cache
+            ids.retain(|id| !cached.contains_key(id));
+
+            // If no IDs are missing, return all from cache
+            if ids.is_empty() {
+                let result = requested_ids
+                    .iter()
+                    .filter_map(|id| cached.get(id).cloned())
+                    .collect();
+                return Ok(result);
+            }
+        }
+
+        // Fetch missing entities from ESI in chunks of up to 10 concurrent requests
+        use futures::stream::{FuturesUnordered, StreamExt};
+
+        let mut fetched_entities = HashMap::new();
+
+        for chunk in ids.chunks(10) {
+            let mut futures = FuturesUnordered::new();
+
+            for &id in chunk {
+                let future = async move {
+                    let entity = Self::fetch_one(esi_client, id).await?;
+                    Ok::<_, Error>((id, entity))
+                };
+                futures.push(future);
+            }
+
+            while let Some(result) = futures.next().await {
+                let (id, entity) = result?;
+                fetched_entities.insert(id, entity);
+            }
+        }
+
+        // Update cache by merging fetched entities with existing cache
+        if let Some(ref mut cached) = self.cache_mut() {
+            cached.extend(fetched_entities);
+        } else {
+            *self.cache_mut() = Some(fetched_entities);
+        }
+
+        // Return all requested entities (from cache and newly fetched)
+        let cache = self.cache().as_ref().unwrap();
+        let result = requested_ids
+            .iter()
+            .filter_map(|id| cache.get(id).cloned())
+            .collect();
+
+        Ok(result)
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct EsiFactionCache(pub Option<Vec<Faction>>);
 
@@ -65,271 +160,62 @@ impl EsiFactionCache {
     }
 }
 
-impl EsiAllianceCache {
-    pub fn new() -> Self {
-        Self(None)
+impl EsiEntityCacheable<Alliance> for EsiAllianceCache {
+    fn cache(&self) -> &Option<HashMap<i64, Alliance>> {
+        &self.0
     }
 
-    pub async fn fetch(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        alliance_id: i64,
-    ) -> Result<Alliance, Error> {
-        let mut alliances = self.fetch_multiple(esi_client, vec![alliance_id]).await?;
-
-        alliances.pop().ok_or_else(|| {
-            Error::InternalError(format!(
-                "Alliance {} not found after successful ESI fetch. \
-                 This may indicate an ESI API issue or cache corruption.",
-                alliance_id
-            ))
-        })
+    fn cache_mut(&mut self) -> &mut Option<HashMap<i64, Alliance>> {
+        &mut self.0
     }
 
-    pub async fn fetch_multiple(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        mut alliance_ids: Vec<i64>,
-    ) -> Result<Vec<Alliance>, Error> {
-        if alliance_ids.is_empty() {
-            return Ok(Vec::new());
-        }
+    async fn fetch_one(esi_client: &eve_esi::Client, id: i64) -> Result<Alliance, Error> {
+        Ok(esi_client.alliance().get_alliance_information(id).await?)
+    }
 
-        let requested_ids = alliance_ids.clone();
-
-        if let Some(ref cached) = self.0 {
-            // Filter alliance_ids to only keep those NOT in the cache
-            alliance_ids.retain(|id| !cached.contains_key(id));
-
-            // If no IDs are missing, return all from cache
-            if alliance_ids.is_empty() {
-                let result = requested_ids
-                    .iter()
-                    .filter_map(|id| cached.get(id).cloned())
-                    .collect();
-                return Ok(result);
-            }
-        }
-
-        // Fetch missing alliances from ESI in chunks of up to 10 concurrent requests
-        use futures::stream::{FuturesUnordered, StreamExt};
-
-        let mut fetched_alliances = HashMap::new();
-
-        for chunk in alliance_ids.chunks(10) {
-            let mut futures = FuturesUnordered::new();
-
-            for &alliance_id in chunk {
-                let future = async move {
-                    let alliance = esi_client
-                        .alliance()
-                        .get_alliance_information(alliance_id)
-                        .await?;
-                    Ok::<_, Error>((alliance_id, alliance))
-                };
-                futures.push(future);
-            }
-
-            while let Some(result) = futures.next().await {
-                let (alliance_id, alliance) = result?;
-                fetched_alliances.insert(alliance_id, alliance);
-            }
-        }
-
-        // Update cache by merging fetched alliances with existing cache
-        if let Some(ref mut cached) = self.0 {
-            cached.extend(fetched_alliances);
-        } else {
-            self.0 = Some(fetched_alliances);
-        }
-
-        // Return all requested alliances (from cache and newly fetched)
-        let cache = self.0.as_ref().unwrap();
-        let result = requested_ids
-            .iter()
-            .filter_map(|id| cache.get(id).cloned())
-            .collect();
-
-        Ok(result)
+    fn entity_name() -> &'static str {
+        "Alliance"
     }
 }
 
-impl EsiCorporationCache {
-    pub fn new() -> Self {
-        Self(None)
+impl EsiEntityCacheable<Corporation> for EsiCorporationCache {
+    fn cache(&self) -> &Option<HashMap<i64, Corporation>> {
+        &self.0
     }
 
-    pub async fn fetch(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        corporation_id: i64,
-    ) -> Result<Corporation, Error> {
-        let mut corporations = self
-            .fetch_multiple(esi_client, vec![corporation_id])
-            .await?;
-
-        corporations.pop().ok_or_else(|| {
-            Error::InternalError(format!(
-                "Corporation {} not found after successful ESI fetch. \
-                 This may indicate an ESI API issue or cache corruption.",
-                corporation_id
-            ))
-        })
+    fn cache_mut(&mut self) -> &mut Option<HashMap<i64, Corporation>> {
+        &mut self.0
     }
 
-    pub async fn fetch_multiple(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        mut corporation_ids: Vec<i64>,
-    ) -> Result<Vec<Corporation>, Error> {
-        if corporation_ids.is_empty() {
-            return Ok(Vec::new());
-        }
+    async fn fetch_one(esi_client: &eve_esi::Client, id: i64) -> Result<Corporation, Error> {
+        Ok(esi_client
+            .corporation()
+            .get_corporation_information(id)
+            .await?)
+    }
 
-        let requested_ids = corporation_ids.clone();
-
-        if let Some(ref cached) = self.0 {
-            // Filter corporation_ids to only keep those NOT in the cache
-            corporation_ids.retain(|id| !cached.contains_key(id));
-
-            // If no IDs are missing, return all from cache
-            if corporation_ids.is_empty() {
-                let result = requested_ids
-                    .iter()
-                    .filter_map(|id| cached.get(id).cloned())
-                    .collect();
-                return Ok(result);
-            }
-        }
-
-        // Fetch missing corporations from ESI in chunks of up to 10 concurrent requests
-        use futures::stream::{FuturesUnordered, StreamExt};
-
-        let mut fetched_corporations = HashMap::new();
-
-        for chunk in corporation_ids.chunks(10) {
-            let mut futures = FuturesUnordered::new();
-
-            for &corporation_id in chunk {
-                let future = async move {
-                    let corporation = esi_client
-                        .corporation()
-                        .get_corporation_information(corporation_id)
-                        .await?;
-                    Ok::<_, Error>((corporation_id, corporation))
-                };
-                futures.push(future);
-            }
-
-            while let Some(result) = futures.next().await {
-                let (corporation_id, corporation) = result?;
-                fetched_corporations.insert(corporation_id, corporation);
-            }
-        }
-
-        // Update cache by merging fetched corporations with existing cache
-        if let Some(ref mut cached) = self.0 {
-            cached.extend(fetched_corporations);
-        } else {
-            self.0 = Some(fetched_corporations);
-        }
-
-        // Return all requested corporations (from cache and newly fetched)
-        let cache = self.0.as_ref().unwrap();
-        let result = requested_ids
-            .iter()
-            .filter_map(|id| cache.get(id).cloned())
-            .collect();
-
-        Ok(result)
+    fn entity_name() -> &'static str {
+        "Corporation"
     }
 }
 
-impl EsiCharacterCache {
-    pub fn new() -> Self {
-        Self(None)
+impl EsiEntityCacheable<Character> for EsiCharacterCache {
+    fn cache(&self) -> &Option<HashMap<i64, Character>> {
+        &self.0
     }
 
-    pub async fn fetch(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        character_id: i64,
-    ) -> Result<Character, Error> {
-        let mut characters = self.fetch_multiple(esi_client, vec![character_id]).await?;
-
-        characters.pop().ok_or_else(|| {
-            Error::InternalError(format!(
-                "Character {} not found after successful ESI fetch. \
-                 This may indicate an ESI API issue or cache corruption.",
-                character_id
-            ))
-        })
+    fn cache_mut(&mut self) -> &mut Option<HashMap<i64, Character>> {
+        &mut self.0
     }
 
-    pub async fn fetch_multiple(
-        &mut self,
-        esi_client: &eve_esi::Client,
-        mut character_ids: Vec<i64>,
-    ) -> Result<Vec<Character>, Error> {
-        if character_ids.is_empty() {
-            return Ok(Vec::new());
-        }
+    async fn fetch_one(esi_client: &eve_esi::Client, id: i64) -> Result<Character, Error> {
+        Ok(esi_client
+            .character()
+            .get_character_public_information(id)
+            .await?)
+    }
 
-        let requested_ids = character_ids.clone();
-
-        if let Some(ref cached) = self.0 {
-            // Filter character_ids to only keep those NOT in the cache
-            character_ids.retain(|id| !cached.contains_key(id));
-
-            // If no IDs are missing, return all from cache
-            if character_ids.is_empty() {
-                let result = requested_ids
-                    .iter()
-                    .filter_map(|id| cached.get(id).cloned())
-                    .collect();
-                return Ok(result);
-            }
-        }
-
-        // Fetch missing characters from ESI in chunks of up to 10 concurrent requests
-        use futures::stream::{FuturesUnordered, StreamExt};
-
-        let mut fetched_characters = HashMap::new();
-
-        for chunk in character_ids.chunks(10) {
-            let mut futures = FuturesUnordered::new();
-
-            for &character_id in chunk {
-                let future = async move {
-                    let character = esi_client
-                        .character()
-                        .get_character_public_information(character_id)
-                        .await?;
-                    Ok::<_, Error>((character_id, character))
-                };
-                futures.push(future);
-            }
-
-            while let Some(result) = futures.next().await {
-                let (character_id, character) = result?;
-                fetched_characters.insert(character_id, character);
-            }
-        }
-
-        // Update cache by merging fetched characters with existing cache
-        if let Some(ref mut cached) = self.0 {
-            cached.extend(fetched_characters);
-        } else {
-            self.0 = Some(fetched_characters);
-        }
-
-        // Return all requested characters (from cache and newly fetched)
-        let cache = self.0.as_ref().unwrap();
-        let result = requested_ids
-            .iter()
-            .filter_map(|id| cache.get(id).cloned())
-            .collect();
-
-        Ok(result)
+    fn entity_name() -> &'static str {
+        "Character"
     }
 }
