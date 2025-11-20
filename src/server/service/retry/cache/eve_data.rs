@@ -10,7 +10,7 @@ use crate::server::{
     error::Error,
 };
 
-use entity::eve_faction;
+use entity::{eve_alliance, eve_faction};
 
 #[derive(Clone, Debug, Default)]
 pub struct DbFactionEntryIdCache(pub Option<HashMap<i64, i32>>);
@@ -26,6 +26,9 @@ pub struct DbCharacterEntryIdCache(pub Option<HashMap<i64, i32>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct DbFactionModelCache(pub Option<HashMap<i64, eve_faction::Model>>);
+
+#[derive(Clone, Debug, Default)]
+pub struct DbAllianceModelCache(pub Option<HashMap<i64, eve_alliance::Model>>);
 
 impl DbFactionEntryIdCache {
     pub fn new() -> Self {
@@ -377,6 +380,74 @@ impl DbFactionModelCache {
         }
 
         // Return all requested factions (from cache and newly fetched)
+        let cache = self.0.as_ref().unwrap();
+        let result = requested_ids
+            .iter()
+            .filter_map(|id| cache.get(id).cloned())
+            .collect();
+
+        Ok(result)
+    }
+}
+
+impl DbAllianceModelCache {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub async fn get(
+        &mut self,
+        db: &DatabaseConnection,
+        alliance_id: i64,
+    ) -> Result<Option<eve_alliance::Model>, Error> {
+        let mut results = self.get_many(db, vec![alliance_id]).await?;
+
+        Ok(results.pop())
+    }
+
+    pub async fn get_many(
+        &mut self,
+        db: &DatabaseConnection,
+        mut alliance_ids: Vec<i64>,
+    ) -> Result<Vec<eve_alliance::Model>, Error> {
+        if alliance_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requested_ids = alliance_ids.clone();
+
+        if let Some(ref cached) = self.0 {
+            // Filter alliance_ids to only keep those NOT in the cache
+            alliance_ids.retain(|id| !cached.contains_key(id));
+
+            // If no IDs are missing, return all from cache
+            if alliance_ids.is_empty() {
+                let result = requested_ids
+                    .iter()
+                    .filter_map(|id| cached.get(id).cloned())
+                    .collect();
+                return Ok(result);
+            }
+        }
+
+        // Fetch missing alliance models from database
+        let alliance_repo = AllianceRepository::new(db);
+        let fetched_alliances = alliance_repo.get_by_alliance_ids(&alliance_ids).await?;
+
+        // Convert Vec<Model> to HashMap<i64, Model> for cache storage
+        let mut fetched_map = HashMap::new();
+        for alliance in fetched_alliances {
+            fetched_map.insert(alliance.alliance_id, alliance);
+        }
+
+        // Update cache by merging fetched alliances with existing cache
+        if let Some(ref mut cached) = self.0 {
+            cached.extend(fetched_map);
+        } else {
+            self.0 = Some(fetched_map);
+        }
+
+        // Return all requested alliances (from cache and newly fetched)
         let cache = self.0.as_ref().unwrap();
         let result = requested_ids
             .iter()
