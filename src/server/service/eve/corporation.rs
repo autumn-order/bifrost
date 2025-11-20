@@ -24,7 +24,7 @@ impl<'a> CorporationService<'a> {
         &self,
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {
-        let corporation_repo = CorporationRepository::new(&self.db);
+        let corporation_repo = CorporationRepository::new(self.db);
         let alliance_service = AllianceService::new(&self.db, &self.esi_client);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
@@ -92,7 +92,7 @@ impl<'a> CorporationService<'a> {
         &self,
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {
-        let corporation_repo = CorporationRepository::new(&self.db);
+        let corporation_repo = CorporationRepository::new(self.db);
 
         if let Some(corporation) = corporation_repo
             .get_by_corporation_id(corporation_id)
@@ -111,7 +111,7 @@ impl<'a> CorporationService<'a> {
         &self,
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {
-        let corporation_repo = CorporationRepository::new(&self.db);
+        let corporation_repo = CorporationRepository::new(self.db);
         let alliance_service = AllianceService::new(&self.db, &self.esi_client);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 

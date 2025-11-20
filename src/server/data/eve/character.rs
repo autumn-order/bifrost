@@ -2,16 +2,16 @@ use chrono::Utc;
 use eve_esi::model::character::Character;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
-pub struct CharacterRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct CharacterRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> CharacterRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
@@ -173,6 +173,7 @@ impl<'a> CharacterRepository<'a> {
     /// - Corporation IDs must exist in the eve_corporation table due to foreign key constraint
     /// - Faction IDs must exist in the eve_faction table due to foreign key constraint
     /// - Characters that don't exist will be silently skipped
+    /// - If you need transactional behavior, pass a transaction as the connection
     pub async fn update_affiliations(
         &self,
         characters: Vec<(i32, i32, Option<i32>)>, // (character_id, corporation_id, faction_id)
@@ -180,8 +181,6 @@ impl<'a> CharacterRepository<'a> {
         if characters.is_empty() {
             return Ok(());
         }
-
-        let txn = self.db.begin().await?;
 
         const BATCH_SIZE: usize = 100;
 
@@ -216,11 +215,9 @@ impl<'a> CharacterRepository<'a> {
                     Expr::current_timestamp(),
                 )
                 .filter(entity::eve_character::Column::Id.is_in(character_ids))
-                .exec(&txn)
+                .exec(self.db)
                 .await?;
         }
-
-        txn.commit().await?;
 
         Ok(())
     }

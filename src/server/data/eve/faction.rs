@@ -2,16 +2,16 @@ use chrono::Utc;
 use eve_esi::model::universe::Faction;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, Order, QueryFilter,
-    QueryOrder, QuerySelect,
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, Order, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
-pub struct FactionRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct FactionRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> FactionRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
