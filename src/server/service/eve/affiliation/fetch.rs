@@ -2,7 +2,7 @@ use crate::server::service::eve::affiliation::AffiliationService;
 
 use super::*;
 
-impl<'a> AffiliationService<'a> {
+impl AffiliationService {
     pub(super) async fn fetch_missing_characters(
         &self,
         table_ids: &mut TableIds,
@@ -18,7 +18,7 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_characters = CharacterService::new(&self.db, &self.esi_client)
+        let fetched_characters = CharacterService::new(self.db.clone(), self.esi_client.clone())
             .get_many_characters(missing_character_ids)
             .await?;
 
@@ -48,9 +48,10 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_corporations = CorporationService::new(&self.db, &self.esi_client)
-            .get_many_corporations(missing_corporation_ids)
-            .await?;
+        let fetched_corporations =
+            CorporationService::new(self.db.clone(), self.esi_client.clone())
+                .get_many_corporations(missing_corporation_ids)
+                .await?;
 
         for (_, corporation) in &fetched_corporations {
             if let Some(alliance_id) = corporation.alliance_id {
@@ -79,7 +80,7 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_alliances = AllianceService::new(&self.db, &self.esi_client)
+        let fetched_alliances = AllianceService::new(self.db.clone(), self.esi_client.clone())
             .get_many_alliances(missing_alliance_ids)
             .await?;
 

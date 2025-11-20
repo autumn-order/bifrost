@@ -15,7 +15,7 @@ async fn updates_corporation_affiliations_with_alliance() -> Result<(), TestErro
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -63,7 +63,7 @@ async fn updates_corporation_affiliations_without_alliance() -> Result<(), TestE
         .insert_mock_corporation(98000001, Some(99000001), None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -107,7 +107,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
 
     let alliance = test.eve().insert_mock_alliance(99000001, None).await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -154,7 +154,7 @@ async fn skips_affiliations_when_alliance_missing() -> Result<(), TestError> {
 
     let original_alliance_id = corporation.alliance_id;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -206,7 +206,7 @@ async fn updates_multiple_corporation_affiliations() -> Result<(), TestError> {
         .insert_mock_corporation(98000002, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -271,7 +271,7 @@ async fn deduplicates_corporation_affiliations() -> Result<(), TestError> {
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -322,7 +322,7 @@ async fn handles_empty_affiliations_list() -> Result<(), TestError> {
         entity::prelude::EveCorporation,
     )?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -361,7 +361,7 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -435,7 +435,7 @@ async fn updates_corporation_with_mixed_alliance_statuses() -> Result<(), TestEr
         .insert_mock_corporation(98000002, Some(99000001), None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),

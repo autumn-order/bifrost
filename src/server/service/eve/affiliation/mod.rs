@@ -42,14 +42,14 @@ struct UniqueIds {
     character_ids: HashSet<i64>,
 }
 
-pub struct AffiliationService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct AffiliationService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> AffiliationService<'a> {
+impl AffiliationService {
     /// Creates a new instance of [`AffiliationService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 

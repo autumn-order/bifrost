@@ -23,7 +23,7 @@ async fn returns_mappings_for_all_entity_types() -> Result<(), TestError> {
         .await?;
 
     // Create service and input
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![faction.faction_id].into_iter().collect(),
@@ -70,7 +70,7 @@ async fn returns_empty_when_no_entities_exist() -> Result<(), TestError> {
         entity::prelude::EveCharacter,
     )?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![500001, 500002].into_iter().collect(),
@@ -102,7 +102,7 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
         entity::prelude::EveCharacter,
     )?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: HashSet::new(),
@@ -164,7 +164,7 @@ async fn returns_mappings_for_multiple_entities() -> Result<(), TestError> {
         .insert_mock_character(2114794366, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![
@@ -250,7 +250,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![500001, 500002, 500003].into_iter().collect(), // Only 500001 exists
@@ -286,7 +286,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?; // No tables created
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![500001].into_iter().collect(),
@@ -314,7 +314,7 @@ async fn returns_mappings_for_single_entity_type() -> Result<(), TestError> {
 
     let faction = test.eve().insert_mock_faction(500001).await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![faction.faction_id].into_iter().collect(),
@@ -349,7 +349,7 @@ async fn returns_correct_mapping_direction() -> Result<(), TestError> {
 
     let faction = test.eve().insert_mock_faction(500001).await?;
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let unique_ids = UniqueIds {
         faction_ids: vec![faction.faction_id].into_iter().collect(),

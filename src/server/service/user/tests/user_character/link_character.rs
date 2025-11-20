@@ -18,7 +18,8 @@ async fn skips_link_when_already_owned() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
     claims.owner = user_character_model.owner_hash;
 
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(user_model.id, claims)
         .await;
@@ -48,7 +49,8 @@ async fn transfers_character_to_different_user() -> Result<(), TestError> {
     claims.owner = user_character_model.owner_hash;
 
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(new_user_model.id, claims)
         .await;
@@ -86,7 +88,8 @@ async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
     claims.owner = format!("different_{}", user_character_model.owner_hash);
 
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(new_user_model.id, claims)
         .await;
@@ -118,7 +121,8 @@ async fn links_unowned_character() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(user_model.id, claims)
         .await;
@@ -163,7 +167,8 @@ async fn creates_and_links_character() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", second_character_id);
 
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(user_model.id, claims)
         .await;
@@ -188,7 +193,8 @@ async fn fails_for_nonexistent_user() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
     let nonexistent_id = 1;
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .link_character(nonexistent_id, claims)
         .await;
@@ -208,7 +214,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_id);
 
     let user_id = 1;
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service.link_character(user_id, claims).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));

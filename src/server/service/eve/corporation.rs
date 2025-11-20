@@ -8,14 +8,14 @@ use crate::server::{
     service::eve::{alliance::AllianceService, faction::FactionService},
 };
 
-pub struct CorporationService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct CorporationService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> CorporationService<'a> {
+impl CorporationService {
     /// Creates a new instance of [`CorporationService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -25,8 +25,8 @@ impl<'a> CorporationService<'a> {
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
-        let alliance_service = AllianceService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let alliance_service = AllianceService::new(self.db.clone(), self.esi_client.clone());
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         let corporation = self
             .esi_client
@@ -112,8 +112,8 @@ impl<'a> CorporationService<'a> {
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
-        let alliance_service = AllianceService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let alliance_service = AllianceService::new(self.db.clone(), self.esi_client.clone());
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         // Get corporation information from ESI
         let corporation = self

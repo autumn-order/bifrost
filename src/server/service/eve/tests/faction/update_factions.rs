@@ -16,7 +16,7 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let update_result = faction_service.update_factions().await;
 
     assert!(update_result.is_ok());
@@ -48,7 +48,7 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -81,7 +81,7 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -111,7 +111,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
 
     let success_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -139,7 +139,7 @@ async fn reuses_cached_data_on_retry() -> Result<(), TestError> {
     // ESI should only be called once - data is cached for any retries
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -165,7 +165,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .expect(3)
         .create();
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_err());
@@ -182,7 +182,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
     // No mock endpoint is created, so connection will be refused
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let update_result = faction_service.update_factions().await;
 
     assert!(matches!(
@@ -204,7 +204,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     // ESI will be called but database operations will fail
     let _faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let update_result = faction_service.update_factions().await;
 
     assert!(matches!(update_result, Err(Error::DbErr(_))));
@@ -236,7 +236,7 @@ async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestErro
         .expect(0) // Should not be called
         .create();
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());

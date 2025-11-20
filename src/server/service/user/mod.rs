@@ -16,22 +16,23 @@ use crate::{
     },
 };
 
-pub struct UserService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct UserService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> UserService<'a> {
+impl UserService {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
     pub async fn get_or_create_user(&self, claims: EveJwtClaims) -> Result<i32, Error> {
         let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
-        let character_service = CharacterService::new(&self.db, &self.esi_client);
-        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
+        let character_service = CharacterService::new(self.db.clone(), self.esi_client.clone());
+        let user_character_service =
+            UserCharacterService::new(self.db.clone(), self.esi_client.clone());
 
         let character_id = claims.character_id()?;
         let character = match user_character_repo
