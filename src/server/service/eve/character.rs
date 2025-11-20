@@ -26,7 +26,7 @@ impl<'a> CharacterService<'a> {
     ) -> Result<entity::eve_character::Model, Error> {
         let character_repo = CharacterRepository::new(&self.db);
         let corporation_service = CorporationService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         let character = self
             .esi_client
@@ -111,7 +111,7 @@ impl<'a> CharacterService<'a> {
     ) -> Result<entity::eve_character::Model, Error> {
         let character_repo = CharacterRepository::new(&self.db);
         let corporation_service = CorporationService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         // Get character information from ESI
         let character = self

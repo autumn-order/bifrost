@@ -18,7 +18,7 @@ impl<'a> AffiliationService<'a> {
             return Ok(());
         }
 
-        let updated_factions = FactionService::new(&self.db, &self.esi_client)
+        let updated_factions = FactionService::new(self.db.clone(), self.esi_client.clone())
             .update_factions()
             .await?;
 

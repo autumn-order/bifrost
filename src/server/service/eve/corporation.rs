@@ -26,7 +26,7 @@ impl<'a> CorporationService<'a> {
     ) -> Result<entity::eve_corporation::Model, Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_service = AllianceService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         let corporation = self
             .esi_client
@@ -113,7 +113,7 @@ impl<'a> CorporationService<'a> {
     ) -> Result<entity::eve_corporation::Model, Error> {
         let corporation_repo = CorporationRepository::new(&self.db);
         let alliance_service = AllianceService::new(&self.db, &self.esi_client);
-        let faction_service = FactionService::new(&self.db, &self.esi_client);
+        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
 
         // Get corporation information from ESI
         let corporation = self

@@ -9,14 +9,15 @@ use crate::server::{
     util::time::effective_faction_cache_expiry,
 };
 
-pub struct FactionService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+#[derive(Clone)]
+pub struct FactionService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> FactionService<'a> {
+impl FactionService {
     /// Creates a new instance of [`FactionService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -24,15 +25,17 @@ impl<'a> FactionService<'a> {
     ///
     /// The NPC faction cache expires at 11:05 UTC (after downtime)
     pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
-        let mut ctx: RetryContext<Vec<Faction>> =
-            RetryContext::new(self.db.clone(), self.esi_client.clone());
+        let mut ctx: RetryContext<Vec<Faction>> = RetryContext::new();
+        let faction_service = self.clone();
 
-        ctx.execute_with_retry("faction update", |db, esi_client, retry_cache| {
+        ctx.execute_with_retry("faction update", |retry_cache| {
+            let faction_service = faction_service.clone();
+
             Box::pin(async move {
-                let faction_repo = FactionRepository::new(db);
+                let faction_repo = FactionRepository::new(&faction_service.db);
 
                 let Some((fetched_factions, _)) =
-                    fetch_factions(db, esi_client, retry_cache).await?
+                    faction_service.fetch_factions(retry_cache).await?
                 else {
                     return Ok(Vec::new());
                 };
@@ -55,12 +58,14 @@ impl<'a> FactionService<'a> {
         &self,
         faction_id: i64,
     ) -> Result<entity::eve_faction::Model, Error> {
-        let mut ctx: RetryContext<Vec<Faction>> =
-            RetryContext::new(self.db.clone(), self.esi_client.clone());
+        let mut ctx: RetryContext<Vec<Faction>> = RetryContext::new();
+        let faction_service = self.clone();
 
-        ctx.execute_with_retry("get or update factions", |db, esi_client, retry_cache| {
+        ctx.execute_with_retry("get or update factions", |retry_cache| {
+            let faction_service = faction_service.clone();
+
             Box::pin(async move {
-                let faction_repo = FactionRepository::new(db);
+                let faction_repo = FactionRepository::new(&faction_service.db);
 
                 let result = faction_repo.get_by_faction_id(faction_id).await?;
 
@@ -72,7 +77,7 @@ impl<'a> FactionService<'a> {
                 // a new faction. Attempt to update factions if they haven't already been
                 // updated since downtime.
                 let Some((fetched_factions, _)) =
-                    fetch_factions(db, esi_client, retry_cache).await?
+                    faction_service.fetch_factions(retry_cache).await?
                 else {
                     // Factions are already up to date - return error
                     return Err(EveError::FactionNotFound(faction_id).into());
@@ -93,43 +98,42 @@ impl<'a> FactionService<'a> {
         })
         .await
     }
-}
 
-/// Get faction from cache or ESI if not cached
-///
-/// # Arguments
-/// - `retry_cache`: Optional Vector containing ESI faction models
-///
-/// # Returns
-/// - `Some((Vec<Faction>, bool))`: Factions and a flag indicating whether they came from
-///   the retry cache (`true`) or were freshly fetched from ESI (`false`)
-/// - `None`: Factions not eligible for update due to still being within cache window
-pub(super) async fn fetch_factions(
-    db: &DatabaseConnection,
-    esi_client: &eve_esi::Client,
-    retry_cache: &mut Option<Vec<Faction>>,
-) -> Result<Option<(Vec<Faction>, bool)>, Error> {
-    // Try to get factions from cache
-    if let Some(cached) = retry_cache.as_ref() {
-        let cached_factions = cached.clone();
+    /// Get faction from cache or ESI if not cached
+    ///
+    /// # Arguments
+    /// - `retry_cache`: Optional Vector containing ESI faction models
+    ///
+    /// # Returns
+    /// - `Some((Vec<Faction>, bool))`: Factions and a flag indicating whether they came from
+    ///   the retry cache (`true`) or were freshly fetched from ESI (`false`)
+    /// - `None`: Factions not eligible for update due to still being within cache window
+    pub(super) async fn fetch_factions(
+        &self,
+        retry_cache: &mut Option<Vec<Faction>>,
+    ) -> Result<Option<(Vec<Faction>, bool)>, Error> {
+        // Try to get factions from cache
+        if let Some(cached) = retry_cache.as_ref() {
+            let cached_factions = cached.clone();
 
-        return Ok(Some((cached_factions, true)));
-    }
-
-    let faction_repo = FactionRepository::new(db);
-
-    let now = Utc::now();
-    let effective_expiry = effective_faction_cache_expiry(now)?;
-
-    // If the latest faction entry was updated at or after the effective expiry, skip updating.
-    if let Some(latest_faction_model) = faction_repo.get_latest().await? {
-        if latest_faction_model.updated_at >= effective_expiry {
-            return Ok(None);
+            return Ok(Some((cached_factions, true)));
         }
-    }
 
-    // First attempt: fetch from ESI and cache the result
-    let fetched_factions = esi_client.universe().get_factions().await?;
-    *retry_cache = Some(fetched_factions.clone());
-    Ok(Some((fetched_factions, false)))
+        let faction_repo = FactionRepository::new(&self.db);
+
+        let now = Utc::now();
+        let effective_expiry = effective_faction_cache_expiry(now)?;
+
+        // If the latest faction entry was updated at or after the effective expiry, skip updating.
+        if let Some(latest_faction_model) = faction_repo.get_latest().await? {
+            if latest_faction_model.updated_at >= effective_expiry {
+                return Ok(None);
+            }
+        }
+
+        // First attempt: fetch from ESI and cache the result
+        let fetched_factions = self.esi_client.universe().get_factions().await?;
+        *retry_cache = Some(fetched_factions.clone());
+        Ok(Some((fetched_factions, false)))
+    }
 }
