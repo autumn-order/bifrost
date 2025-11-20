@@ -93,7 +93,7 @@ pub async fn start_scheduler(
                 let esi_client = esi_client_clone.clone();
 
                 Box::pin(async move {
-                    let faction_service = FactionService::new(db, esi_client);
+                    let faction_service = FactionService::new(&db, &esi_client);
 
                     match faction_service.update_factions().await {
                         Ok(factions) => tracing::info!(

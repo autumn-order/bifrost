@@ -18,7 +18,7 @@ async fn finds_existing_faction() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_model.faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service
         .get_or_update_factions(faction_model.faction_id)
         .await;
@@ -40,7 +40,7 @@ async fn creates_faction_when_missing() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let update_result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(update_result.is_ok());
@@ -74,7 +74,7 @@ async fn returns_cached_faction_within_expiry() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_model.faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service
         .get_or_update_factions(faction_model.faction_id)
         .await;
@@ -112,7 +112,7 @@ async fn updates_factions_past_cache_expiry_when_not_found() -> Result<(), TestE
         .eve()
         .with_faction_endpoint(vec![mock_faction_1, mock_faction_2], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(result.is_ok());
@@ -141,7 +141,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
 
     let success_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(result.is_ok());
@@ -169,7 +169,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .expect(3)
         .create();
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(result.is_err());
@@ -186,7 +186,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let faction_id = 1;
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));
@@ -200,7 +200,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
     let faction_id = 1;
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(matches!(
@@ -220,7 +220,7 @@ async fn fails_when_faction_not_returned() -> Result<(), TestError> {
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
     let faction_id = 2;
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(matches!(
@@ -253,7 +253,7 @@ async fn fails_when_faction_not_found_within_cache_expiry() -> Result<(), TestEr
 
     // Request a faction that doesn't exist
     let faction_id = 2;
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(matches!(
@@ -292,7 +292,7 @@ async fn retry_logic_respects_cache_expiry_for_existing_faction() -> Result<(), 
         .expect(0) // Should not be called
         .create();
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
     let result = faction_service.get_or_update_factions(faction_id).await;
 
     assert!(result.is_ok());

@@ -18,7 +18,7 @@ async fn finds_existing_user() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
     claims.owner = user_character_model.owner_hash;
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(result.is_ok());
@@ -41,8 +41,8 @@ async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
     claims.sub = "CHARACTER:EVE:1".to_string();
     claims.owner = "different_owner_hash".to_string();
 
-    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(result.is_ok());
@@ -71,7 +71,7 @@ async fn creates_user_for_existing_character() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(result.is_ok());
@@ -101,7 +101,7 @@ async fn creates_user_and_character() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_id);
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(result.is_ok());
@@ -120,7 +120,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", 1);
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));
@@ -137,7 +137,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", 1);
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.get_or_create_user(claims).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));

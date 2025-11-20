@@ -23,8 +23,7 @@ async fn creates_character_without_alliance_or_faction() -> Result<(), TestError
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(result.is_ok());
@@ -64,8 +63,7 @@ async fn creates_character_with_alliance() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(result.is_ok());
@@ -104,8 +102,7 @@ async fn creates_character_with_faction() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(result.is_ok());
@@ -149,8 +146,7 @@ async fn creates_character_with_alliance_and_faction() -> Result<(), TestError> 
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(result.is_ok());
@@ -173,8 +169,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let character_id = 1;
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -206,8 +201,7 @@ async fn fails_for_duplicate_character() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service.create_character(character_id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));

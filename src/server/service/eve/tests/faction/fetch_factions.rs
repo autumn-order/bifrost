@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ActiveValue, IntoActiveModel};
 
 use crate::server::{
-    error::Error, service::eve::faction::FactionService, util::time::effective_faction_cache_expiry,
+    error::Error, service::eve::faction::fetch_factions, util::time::effective_faction_cache_expiry,
 };
 
 use super::*;
@@ -16,9 +16,8 @@ async fn fetches_factions_when_table_empty() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -53,9 +52,8 @@ async fn fetches_factions_past_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -89,9 +87,8 @@ async fn returns_none_within_cache_expiry() -> Result<(), TestError> {
     faction_am.updated_at = ActiveValue::Set(updated_at);
     faction_am.update(&test.state.db).await?;
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -115,10 +112,9 @@ async fn returns_from_retry_cache_when_available() -> Result<(), TestError> {
         .with_faction_endpoint(vec![mock_faction.clone()], 0);
 
     // Populate retry_cache with factions
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = Some(vec![mock_faction]);
 
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     let data = result.unwrap();
@@ -143,9 +139,8 @@ async fn populates_retry_cache_on_first_fetch() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     assert!(retry_cache.is_some());
@@ -164,9 +159,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction)?;
 
     // No mock endpoint created - connection will fail
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(matches!(
         result,
@@ -185,9 +179,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let mock_faction = test.eve().with_mock_faction(faction_id);
     let _faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));
 
@@ -214,9 +207,8 @@ async fn retry_cache_unchanged_within_cache_expiry() -> Result<(), TestError> {
     let faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 0);
 
     // Start with empty retry_cache
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
     let mut retry_cache = None;
-    let result = faction_service.fetch_factions(&mut retry_cache).await;
+    let result = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result.is_ok());
     assert!(result.unwrap().is_none());
@@ -245,10 +237,8 @@ async fn reuses_retry_cache_on_multiple_calls() -> Result<(), TestError> {
     let cached_faction_2 = test.eve().with_mock_faction(faction_id_2);
     let mut retry_cache = Some(vec![cached_faction_1, cached_faction_2]);
 
-    let faction_service = FactionService::new(test.state.db.clone(), test.state.esi_client.clone());
-
     // First call should use retry_cache
-    let result1 = faction_service.fetch_factions(&mut retry_cache).await;
+    let result1 = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result1.is_ok());
     let data1 = result1.unwrap();
@@ -258,7 +248,7 @@ async fn reuses_retry_cache_on_multiple_calls() -> Result<(), TestError> {
     assert!(from_cache1);
 
     // Second call should also use the same retry_cache
-    let result2 = faction_service.fetch_factions(&mut retry_cache).await;
+    let result2 = fetch_factions(&test.state.db, &test.state.esi_client, &mut retry_cache).await;
 
     assert!(result2.is_ok());
     let data2 = result2.unwrap();

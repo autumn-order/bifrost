@@ -10,8 +10,7 @@ async fn finds_existing_corporation() -> Result<(), TestError> {
     )?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .get_or_create_corporation(corporation_model.corporation_id)
         .await;
@@ -36,8 +35,7 @@ async fn creates_corporation_when_missing() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .get_or_create_corporation(corporation_id)
         .await;
@@ -54,8 +52,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let corporation_id = 1;
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .get_or_create_corporation(corporation_id)
         .await;
@@ -75,8 +72,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let corporation_id = 1;
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .get_or_create_corporation(corporation_id)
         .await;

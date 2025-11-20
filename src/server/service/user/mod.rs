@@ -16,23 +16,22 @@ use crate::{
     },
 };
 
-pub struct UserService {
-    db: DatabaseConnection,
-    esi_client: eve_esi::Client,
+pub struct UserService<'a> {
+    db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
-impl UserService {
+impl<'a> UserService<'a> {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
     pub async fn get_or_create_user(&self, claims: EveJwtClaims) -> Result<i32, Error> {
-        let user_repo = UserRepository::new(self.db.clone());
-        let user_character_repo = UserCharacterRepository::new(self.db.clone());
-        let character_service = CharacterService::new(self.db.clone(), self.esi_client.clone());
-        let user_character_service =
-            UserCharacterService::new(self.db.clone(), self.esi_client.clone());
+        let user_repo = UserRepository::new(&self.db);
+        let user_character_repo = UserCharacterRepository::new(&self.db);
+        let character_service = CharacterService::new(&self.db, &self.esi_client);
+        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
 
         let character_id = claims.character_id()?;
         let character = match user_character_repo
@@ -92,7 +91,7 @@ impl UserService {
 
     /// Retrieves main character for provided user ID
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
-        let user_repo = UserRepository::new(self.db.clone());
+        let user_repo = UserRepository::new(&self.db);
 
         match user_repo.get(user_id).await? {
             None => return Ok(None),
@@ -121,7 +120,7 @@ impl UserService {
     /// connected character ownerships, you must [`Self::transfer_character`] first
     /// to another user before deleting a user.
     pub async fn delete_user(&self, user_id: i32) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(self.db.clone());
+        let user_repo = UserRepository::new(&self.db);
 
         let delete_result = user_repo.delete(user_id).await?;
 

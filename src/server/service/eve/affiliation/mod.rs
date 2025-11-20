@@ -42,14 +42,14 @@ struct UniqueIds {
     character_ids: HashSet<i64>,
 }
 
-pub struct AffiliationService {
-    db: DatabaseConnection,
-    esi_client: eve_esi::Client,
+pub struct AffiliationService<'a> {
+    db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
-impl AffiliationService {
+impl<'a> AffiliationService<'a> {
     /// Creates a new instance of [`AffiliationService`]
-    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -129,16 +129,16 @@ impl AffiliationService {
         let unique_corporation_ids: Vec<i64> = unique_ids.corporation_ids.iter().copied().collect();
         let unique_character_ids: Vec<i64> = unique_ids.character_ids.iter().copied().collect();
 
-        let faction_table_ids = FactionRepository::new(self.db.clone())
+        let faction_table_ids = FactionRepository::new(&self.db)
             .get_entry_ids_by_faction_ids(&unique_faction_ids)
             .await?;
-        let alliance_table_ids = AllianceRepository::new(self.db.clone())
+        let alliance_table_ids = AllianceRepository::new(&self.db)
             .get_entry_ids_by_alliance_ids(&unique_alliance_ids)
             .await?;
-        let corporation_table_ids = CorporationRepository::new(self.db.clone())
+        let corporation_table_ids = CorporationRepository::new(&self.db)
             .get_entry_ids_by_corporation_ids(&unique_corporation_ids)
             .await?;
-        let character_table_ids = CharacterRepository::new(self.db.clone())
+        let character_table_ids = CharacterRepository::new(&self.db)
             .get_entry_ids_by_character_ids(&unique_character_ids)
             .await?;
 

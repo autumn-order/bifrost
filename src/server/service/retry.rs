@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use dioxus_logger::tracing;
+use sea_orm::DatabaseConnection;
 
 use crate::server::error::{retry::ErrorRetryStrategy, Error};
 
@@ -12,6 +13,8 @@ pub struct RetryContext<C> {
     max_attempts: u32,
     /// Initial backoff between attempts
     initial_backoff_secs: u64,
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
 impl<C> RetryContext<C>
@@ -21,8 +24,10 @@ where
     const DEFAULT_MAX_ATTEMPTS: u32 = 3;
     const DEFAULT_INITIAL_BACKOFF_SECS: u64 = 1;
 
-    pub fn new() -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self {
+            db,
+            esi_client,
             retry_cache: None,
             max_attempts: Self::DEFAULT_MAX_ATTEMPTS,
             initial_backoff_secs: Self::DEFAULT_INITIAL_BACKOFF_SECS,
@@ -45,13 +50,16 @@ where
     pub async fn execute_with_retry<R, F>(
         &mut self,
         description: &str,
-        operation: F,
+        mut operation: F,
     ) -> Result<R, Error>
     where
-        F: Fn(
-            &mut Option<C>,
-        )
-            -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<R, Error>> + Send + '_>>,
+        F: for<'a> FnMut(
+            &'a DatabaseConnection,
+            &'a eve_esi::Client,
+            &'a mut Option<C>,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = Result<R, Error>> + Send + 'a>,
+        >,
     {
         let mut attempt_count = 0;
 
@@ -64,7 +72,7 @@ where
             );
 
             // Execute the operation, passing db, esi_client, and cached data if available
-            let result = operation(&mut self.retry_cache).await;
+            let result = operation(&self.db, &self.esi_client, &mut self.retry_cache).await;
 
             match result {
                 // Return result R

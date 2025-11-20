@@ -15,7 +15,7 @@ async fn updates_corporation_affiliations_with_alliance() -> Result<(), TestErro
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -38,7 +38,7 @@ async fn updates_corporation_affiliations_with_alliance() -> Result<(), TestErro
     assert!(result.is_ok());
 
     // Verify the database was updated
-    let updated_corporation = CorporationRepository::new(test.state.db.clone())
+    let updated_corporation = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -63,7 +63,7 @@ async fn updates_corporation_affiliations_without_alliance() -> Result<(), TestE
         .insert_mock_corporation(98000001, Some(99000001), None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -86,7 +86,7 @@ async fn updates_corporation_affiliations_without_alliance() -> Result<(), TestE
     assert!(result.is_ok());
 
     // Verify the alliance was removed
-    let updated_corporation = CorporationRepository::new(test.state.db.clone())
+    let updated_corporation = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -107,7 +107,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
 
     let alliance = test.eve().insert_mock_alliance(99000001, None).await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -130,7 +130,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
     assert!(result.is_ok());
 
     // Verify no corporation was created/updated
-    let corporation = CorporationRepository::new(test.state.db.clone())
+    let corporation = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation.is_none());
@@ -154,7 +154,7 @@ async fn skips_affiliations_when_alliance_missing() -> Result<(), TestError> {
 
     let original_alliance_id = corporation.alliance_id;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -177,7 +177,7 @@ async fn skips_affiliations_when_alliance_missing() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify corporation was not updated (alliance_id should remain unchanged)
-    let corporation_after = CorporationRepository::new(test.state.db.clone())
+    let corporation_after = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation_after.is_some());
@@ -206,7 +206,7 @@ async fn updates_multiple_corporation_affiliations() -> Result<(), TestError> {
         .insert_mock_corporation(98000002, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -241,13 +241,13 @@ async fn updates_multiple_corporation_affiliations() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify both corporations were updated
-    let updated_corp1 = CorporationRepository::new(test.state.db.clone())
+    let updated_corp1 = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corp1.is_some());
     assert_eq!(updated_corp1.unwrap().alliance_id, Some(alliance1.id));
 
-    let updated_corp2 = CorporationRepository::new(test.state.db.clone())
+    let updated_corp2 = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000002)
         .await?;
     assert!(updated_corp2.is_some());
@@ -271,7 +271,7 @@ async fn deduplicates_corporation_affiliations() -> Result<(), TestError> {
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -303,7 +303,7 @@ async fn deduplicates_corporation_affiliations() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify corporation was updated (deduplication should handle duplicates)
-    let updated_corporation = CorporationRepository::new(test.state.db.clone())
+    let updated_corporation = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -322,7 +322,7 @@ async fn handles_empty_affiliations_list() -> Result<(), TestError> {
         entity::prelude::EveCorporation,
     )?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -361,7 +361,7 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -401,14 +401,14 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
     assert!(result.is_ok());
 
     // Verify valid affiliation was processed
-    let updated_corp = CorporationRepository::new(test.state.db.clone())
+    let updated_corp = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corp.is_some());
     assert_eq!(updated_corp.unwrap().alliance_id, Some(alliance.id));
 
     // Verify invalid corporation was not created
-    let invalid_corp = CorporationRepository::new(test.state.db.clone())
+    let invalid_corp = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(9999999999)
         .await?;
     assert!(invalid_corp.is_none());
@@ -435,7 +435,7 @@ async fn updates_corporation_with_mixed_alliance_statuses() -> Result<(), TestEr
         .insert_mock_corporation(98000002, Some(99000001), None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -470,14 +470,14 @@ async fn updates_corporation_with_mixed_alliance_statuses() -> Result<(), TestEr
     assert!(result.is_ok());
 
     // Verify corporation1 now has alliance
-    let updated_corp1 = CorporationRepository::new(test.state.db.clone())
+    let updated_corp1 = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corp1.is_some());
     assert_eq!(updated_corp1.unwrap().alliance_id, Some(alliance.id));
 
     // Verify corporation2 no longer has alliance
-    let updated_corp2 = CorporationRepository::new(test.state.db.clone())
+    let updated_corp2 = CorporationRepository::new(&test.state.db)
         .get_by_corporation_id(98000002)
         .await?;
     assert!(updated_corp2.is_some());

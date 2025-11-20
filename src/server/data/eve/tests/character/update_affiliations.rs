@@ -26,7 +26,7 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp1.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let char = character_repo
         .create(character_id, character, corp1.id, Some(faction1.id))
         .await?;
@@ -85,7 +85,7 @@ async fn updates_multiple_characters() -> Result<(), TestError> {
         .await?;
 
     // Update multiple characters
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .update_affiliations(vec![
             (char1.id, corp1.id, Some(faction1.id)),
@@ -138,7 +138,7 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let char = character_repo
         .create(character_id, character, corp.id, Some(faction.id))
         .await?;
@@ -187,7 +187,7 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     }
 
     // Update all characters
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo.update_affiliations(characters).await;
 
     assert!(result.is_ok(), "Error: {:?}", result);
@@ -223,7 +223,7 @@ async fn handles_empty_input() -> Result<(), TestError> {
         entity::prelude::EveCharacter
     )?;
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo.update_affiliations(vec![]).await;
 
     assert!(result.is_ok(), "Should handle empty input gracefully");
@@ -249,7 +249,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let char = character_repo
         .create(character_id, character, corp.id, None)
         .await?;
@@ -309,7 +309,7 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
         .await?;
 
     // Update only char1
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .update_affiliations(vec![(char1.id, corp2.id, Some(faction2.id))])
         .await;
@@ -371,7 +371,7 @@ async fn handles_mixed_faction_assignments() -> Result<(), TestError> {
         .await?;
 
     // Update with mixed faction IDs
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .update_affiliations(vec![
             (char1.id, corp.id, Some(faction.id)),

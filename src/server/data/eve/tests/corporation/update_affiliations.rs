@@ -18,7 +18,7 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
         .await?;
 
     // Update corporation to be affiliated with the second alliance
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, Some(alliance2.id))])
         .await;
@@ -59,7 +59,7 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
     let corp3 = test.eve().insert_mock_corporation(3, None, None).await?;
 
     // Update multiple corporations
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![
             (corp1.id, Some(alliance1.id)),
@@ -108,7 +108,7 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
         .await?;
 
     // Remove alliance affiliation
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, None)])
         .await;
@@ -149,7 +149,7 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     }
 
     // Update all corporations
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo.update_affiliations(corporations).await;
 
     assert!(result.is_ok(), "Error: {:?}", result);
@@ -184,7 +184,7 @@ async fn handles_empty_input() -> Result<(), TestError> {
         entity::prelude::EveCorporation
     )?;
 
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo.update_affiliations(vec![]).await;
 
     assert!(result.is_ok(), "Should handle empty input gracefully");
@@ -211,7 +211,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
     // Update the corporation
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, Some(alliance.id))])
         .await;
@@ -258,7 +258,7 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
         .await?;
 
     // Update only corp1
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp1.id, Some(alliance2.id))])
         .await;
@@ -307,7 +307,7 @@ async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
     let corp3 = test.eve().insert_mock_corporation(300, None, None).await?;
 
     // Update with mixed alliance IDs
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .update_affiliations(vec![
             (corp1.id, Some(alliance.id)),

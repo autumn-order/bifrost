@@ -6,14 +6,14 @@ use crate::server::{
     data::eve::alliance::AllianceRepository, error::Error, service::eve::faction::FactionService,
 };
 
-pub struct AllianceService {
-    db: DatabaseConnection,
-    esi_client: eve_esi::Client,
+pub struct AllianceService<'a> {
+    db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
-impl AllianceService {
+impl<'a> AllianceService<'a> {
     /// Creates a new instance of [`AllianceService`]
-    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -22,8 +22,8 @@ impl AllianceService {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(self.db.clone());
-        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
+        let alliance_repo = AllianceRepository::new(&self.db);
+        let faction_service = FactionService::new(&self.db, &self.esi_client);
 
         let alliance = self
             .esi_client
@@ -80,7 +80,7 @@ impl AllianceService {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(self.db.clone());
+        let alliance_repo = AllianceRepository::new(&self.db);
 
         if let Some(alliance) = alliance_repo.get_by_alliance_id(alliance_id).await? {
             return Ok(alliance);
@@ -96,8 +96,8 @@ impl AllianceService {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(self.db.clone());
-        let faction_service = FactionService::new(self.db.clone(), self.esi_client.clone());
+        let alliance_repo = AllianceRepository::new(&self.db);
+        let faction_service = FactionService::new(&self.db, &self.esi_client);
 
         // Get alliance information from ESI
         let alliance = self

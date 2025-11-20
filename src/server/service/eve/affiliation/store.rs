@@ -2,7 +2,7 @@ use crate::server::service::eve::affiliation::AffiliationService;
 
 use super::*;
 
-impl AffiliationService {
+impl<'a> AffiliationService<'a> {
     pub(super) async fn attempt_update_missing_factions(
         &self,
         table_ids: &mut TableIds,
@@ -18,7 +18,7 @@ impl AffiliationService {
             return Ok(());
         }
 
-        let updated_factions = FactionService::new(self.db.clone(), self.esi_client.clone())
+        let updated_factions = FactionService::new(&self.db, &self.esi_client)
             .update_factions()
             .await?;
 
@@ -27,7 +27,7 @@ impl AffiliationService {
         if !updated_faction_ids.is_empty() {
             let unique_faction_ids: Vec<i64> = unique_ids.faction_ids.iter().copied().collect();
 
-            let faction_table_ids = FactionRepository::new(self.db.clone())
+            let faction_table_ids = FactionRepository::new(&self.db)
                 .get_entry_ids_by_faction_ids(&unique_faction_ids)
                 .await?;
 
@@ -78,7 +78,7 @@ impl AffiliationService {
                 ))
             })
             .collect();
-        CharacterRepository::new(self.db.clone())
+        CharacterRepository::new(&self.db)
             .upsert_many(character_entries)
             .await?;
 
@@ -110,7 +110,7 @@ impl AffiliationService {
                     )
                 })
                 .collect();
-        let created_corporations = CorporationRepository::new(self.db.clone())
+        let created_corporations = CorporationRepository::new(&self.db)
             .upsert_many(corporation_entries)
             .await?;
 
@@ -138,7 +138,7 @@ impl AffiliationService {
                 (alliance_id, alliance, faction_table_id)
             })
             .collect();
-        let created_alliances = AllianceRepository::new(self.db.clone())
+        let created_alliances = AllianceRepository::new(&self.db)
             .upsert_many(alliance_entries)
             .await?;
 

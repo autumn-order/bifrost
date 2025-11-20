@@ -54,7 +54,7 @@ impl WorkerJobHandler {
             alliance_id
         );
 
-        AllianceService::new(self.db.clone(), self.esi_client.clone())
+        AllianceService::new(&self.db, &self.esi_client)
             .upsert_alliance(alliance_id)
             .await
             .map_err(|e| {
@@ -77,7 +77,7 @@ impl WorkerJobHandler {
             corporation_id
         );
 
-        CorporationService::new(self.db.clone(), self.esi_client.clone())
+        CorporationService::new(&self.db, &self.esi_client)
             .upsert_corporation(corporation_id)
             .await
             .map_err(|e| {
@@ -103,7 +103,7 @@ impl WorkerJobHandler {
             character_id
         );
 
-        CharacterService::new(self.db.clone(), self.esi_client.clone())
+        CharacterService::new(&self.db, &self.esi_client)
             .upsert_character(character_id)
             .await
             .map_err(|e| {
@@ -138,7 +138,7 @@ impl WorkerJobHandler {
             );
         }
 
-        AffiliationService::new(self.db.clone(), self.esi_client.clone())
+        AffiliationService::new(&self.db, &self.esi_client)
             .update_affiliations(character_ids)
             .await
             .map_err(|e| {
