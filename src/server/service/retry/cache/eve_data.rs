@@ -4,8 +4,8 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::{
-        alliance::AllianceRepository, corporation::CorporationRepository,
-        faction::FactionRepository,
+        alliance::AllianceRepository, character::CharacterRepository,
+        corporation::CorporationRepository, faction::FactionRepository,
     },
     error::Error,
 };
@@ -18,6 +18,9 @@ pub struct DbAllianceEntryIdCache(pub Option<HashMap<i64, i32>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct DbCorporationEntryIdCache(pub Option<HashMap<i64, i32>>);
+
+#[derive(Clone, Debug, Default)]
+pub struct DbCharacterEntryIdCache(pub Option<HashMap<i64, i32>>);
 
 impl DbFactionEntryIdCache {
     pub fn new() -> Self {
@@ -218,6 +221,79 @@ impl DbCorporationEntryIdCache {
         let mut fetched_map = HashMap::new();
         for (entry_id, corporation_id) in fetched_entries {
             fetched_map.insert(corporation_id, entry_id);
+        }
+
+        // Update cache by merging fetched entries with existing cache
+        if let Some(ref mut cached) = self.0 {
+            cached.extend(fetched_map);
+        } else {
+            self.0 = Some(fetched_map);
+        }
+
+        // Return all requested entries (from cache and newly fetched)
+        let cache = self.0.as_ref().unwrap();
+        let result = requested_ids
+            .iter()
+            .filter_map(|id| cache.get(id).map(|entry_id| (*id, *entry_id)))
+            .collect();
+
+        Ok(result)
+    }
+}
+
+impl DbCharacterEntryIdCache {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub async fn get(
+        &mut self,
+        db: &DatabaseConnection,
+        character_id: i64,
+    ) -> Result<Option<i32>, Error> {
+        let results = self.get_many(db, vec![character_id]).await?;
+
+        Ok(results
+            .into_iter()
+            .find(|(id, _)| *id == character_id)
+            .map(|(_, entry_id)| entry_id))
+    }
+
+    pub async fn get_many(
+        &mut self,
+        db: &DatabaseConnection,
+        mut character_ids: Vec<i64>,
+    ) -> Result<Vec<(i64, i32)>, Error> {
+        if character_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requested_ids = character_ids.clone();
+
+        if let Some(ref cached) = self.0 {
+            // Filter character_ids to only keep those NOT in the cache
+            character_ids.retain(|id| !cached.contains_key(id));
+
+            // If no IDs are missing, return all from cache
+            if character_ids.is_empty() {
+                let result = requested_ids
+                    .iter()
+                    .filter_map(|id| cached.get(id).map(|entry_id| (*id, *entry_id)))
+                    .collect();
+                return Ok(result);
+            }
+        }
+
+        // Fetch missing character entry IDs from database
+        let character_repo = CharacterRepository::new(db);
+        let fetched_entries = character_repo
+            .get_entry_ids_by_character_ids(&character_ids)
+            .await?;
+
+        // Convert Vec<(i32, i64)> to HashMap<i64, i32> for cache storage
+        let mut fetched_map = HashMap::new();
+        for (entry_id, character_id) in fetched_entries {
+            fetched_map.insert(character_id, entry_id);
         }
 
         // Update cache by merging fetched entries with existing cache
