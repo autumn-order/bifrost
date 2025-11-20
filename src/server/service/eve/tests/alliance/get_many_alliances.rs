@@ -17,7 +17,8 @@ async fn fetches_multiple_alliances() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;
@@ -45,7 +46,8 @@ async fn fetches_multiple_alliances() -> Result<(), TestError> {
 async fn returns_empty_for_empty_input() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(vec![]).await;
 
     assert!(result.is_ok());
@@ -67,7 +69,8 @@ async fn fetches_single_alliance() -> Result<(), TestError> {
         .eve()
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(vec![alliance_id]).await;
 
     assert!(result.is_ok());
@@ -102,7 +105,8 @@ async fn fetches_alliances_with_factions() -> Result<(), TestError> {
         .with_alliance_endpoint(alliance_id_2, mock_alliance_2, 1);
 
     let alliance_ids = vec![alliance_id_1, alliance_id_2];
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(alliance_ids).await;
 
     assert!(result.is_ok());
@@ -121,7 +125,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
     let alliance_ids = vec![1, 2, 3];
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(alliance_ids).await;
 
     // Should fail on first unavailable alliance
@@ -144,7 +149,8 @@ async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
     let alliance_ids = vec![1, 2, 3];
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(alliance_ids).await;
 
     // Should succeed on first, fail on second (no mock)
@@ -172,7 +178,8 @@ async fn fetches_many_alliances() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;
@@ -212,7 +219,8 @@ async fn fetches_many_alliances_with_batching() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;
@@ -252,7 +260,8 @@ async fn executes_requests_concurrently() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;
@@ -289,7 +298,8 @@ async fn fails_on_concurrent_batch_error() -> Result<(), TestError> {
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
     let alliance_ids = vec![1, 2, 3, 4, 5];
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service.get_many_alliances(alliance_ids).await;
 
     // Should fail when any request in the batch fails
@@ -317,7 +327,8 @@ async fn handles_exact_batch_size() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;
@@ -357,7 +368,8 @@ async fn handles_batch_size_plus_one() -> Result<(), TestError> {
         );
     }
 
-    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
+    let alliance_service =
+        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = alliance_service
         .get_many_alliances(alliance_ids.clone())
         .await;

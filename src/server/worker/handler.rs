@@ -54,7 +54,7 @@ impl WorkerJobHandler {
             alliance_id
         );
 
-        AllianceService::new(&self.db, &self.esi_client)
+        AllianceService::new(self.db.clone(), self.esi_client.clone())
             .upsert_alliance(alliance_id)
             .await
             .map_err(|e| {

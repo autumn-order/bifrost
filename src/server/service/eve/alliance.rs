@@ -6,14 +6,14 @@ use crate::server::{
     data::eve::alliance::AllianceRepository, error::Error, service::eve::faction::FactionService,
 };
 
-pub struct AllianceService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct AllianceService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> AllianceService<'a> {
+impl AllianceService {
     /// Creates a new instance of [`AllianceService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 

@@ -80,7 +80,7 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_alliances = AllianceService::new(&self.db, &self.esi_client)
+        let fetched_alliances = AllianceService::new(self.db.clone(), self.esi_client.clone())
             .get_many_alliances(missing_alliance_ids)
             .await?;
 
