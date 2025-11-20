@@ -10,7 +10,7 @@ use crate::server::{
     error::Error,
 };
 
-use entity::{eve_alliance, eve_corporation, eve_faction};
+use entity::{eve_alliance, eve_character, eve_corporation, eve_faction};
 
 #[derive(Clone, Debug, Default)]
 pub struct DbFactionEntryIdCache(pub Option<HashMap<i64, i32>>);
@@ -32,6 +32,9 @@ pub struct DbAllianceModelCache(pub Option<HashMap<i64, eve_alliance::Model>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct DbCorporationModelCache(pub Option<HashMap<i64, eve_corporation::Model>>);
+
+#[derive(Clone, Debug, Default)]
+pub struct DbCharacterModelCache(pub Option<HashMap<i64, eve_character::Model>>);
 
 impl DbFactionEntryIdCache {
     pub fn new() -> Self {
@@ -521,6 +524,74 @@ impl DbCorporationModelCache {
         }
 
         // Return all requested corporations (from cache and newly fetched)
+        let cache = self.0.as_ref().unwrap();
+        let result = requested_ids
+            .iter()
+            .filter_map(|id| cache.get(id).cloned())
+            .collect();
+
+        Ok(result)
+    }
+}
+
+impl DbCharacterModelCache {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub async fn get(
+        &mut self,
+        db: &DatabaseConnection,
+        character_id: i64,
+    ) -> Result<Option<eve_character::Model>, Error> {
+        let mut results = self.get_many(db, vec![character_id]).await?;
+
+        Ok(results.pop())
+    }
+
+    pub async fn get_many(
+        &mut self,
+        db: &DatabaseConnection,
+        mut character_ids: Vec<i64>,
+    ) -> Result<Vec<eve_character::Model>, Error> {
+        if character_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requested_ids = character_ids.clone();
+
+        if let Some(ref cached) = self.0 {
+            // Filter character_ids to only keep those NOT in the cache
+            character_ids.retain(|id| !cached.contains_key(id));
+
+            // If no IDs are missing, return all from cache
+            if character_ids.is_empty() {
+                let result = requested_ids
+                    .iter()
+                    .filter_map(|id| cached.get(id).cloned())
+                    .collect();
+                return Ok(result);
+            }
+        }
+
+        // Fetch missing character models from database
+        let character_repo = CharacterRepository::new(db);
+        let fetched_characters = character_repo.get_by_character_ids(&character_ids).await?;
+
+        // Convert Vec<Model> to HashMap<i64, Model> for cache storage
+        let mut fetched_map = HashMap::new();
+        for character in fetched_characters {
+            fetched_map.insert(character.character_id, character);
+        }
+
+        // Update cache by merging fetched characters with existing cache
+        if let Some(ref mut cached) = self.0 {
+            cached.extend(fetched_map);
+        } else {
+            self.0 = Some(fetched_map);
+        }
+
+        // Return all requested characters (from cache and newly fetched)
         let cache = self.0.as_ref().unwrap();
         let result = requested_ids
             .iter()
