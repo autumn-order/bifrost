@@ -11,8 +11,7 @@ async fn finds_existing_character() -> Result<(), TestError> {
     )?;
     let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service
         .get_or_create_character(character_model.character_id)
         .await;
@@ -45,8 +44,7 @@ async fn creates_character_when_missing() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service
         .get_or_create_character(character_id)
         .await;
@@ -64,8 +62,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let character_id = 1;
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service
         .get_or_create_character(character_id)
         .await;
@@ -86,8 +83,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let character_id = 1;
-    let character_service =
-        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
     let result = character_service
         .get_or_create_character(character_id)
         .await;

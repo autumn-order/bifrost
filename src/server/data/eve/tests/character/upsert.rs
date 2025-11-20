@@ -15,7 +15,7 @@ async fn creates_new_character_with_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(
             character_id,
@@ -51,7 +51,7 @@ async fn creates_new_character_without_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(character_id, character, corporation_model.id, None)
         .await;
@@ -83,7 +83,7 @@ async fn updates_existing_character() -> Result<(), TestError> {
     updated_character.description = Some("Updated description".to_string());
     updated_character.security_status = Some(5.0);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(
             character_id,
@@ -130,7 +130,7 @@ async fn updates_character_corporation_relationship() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, corporation_model2.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(character_id, character, corporation_model2.id, None)
         .await;
@@ -166,7 +166,7 @@ async fn updates_character_faction_relationship() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, 1, None, Some(faction_model2.faction_id));
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(
             character_id,
@@ -206,7 +206,7 @@ async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
     // Update character without faction
     let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(
             character_id,
@@ -231,7 +231,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let mut test = test_setup_with_tables!()?;
     let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .upsert(character_id, character, 1, None)
         .await;

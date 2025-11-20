@@ -6,12 +6,12 @@ use sea_orm::{
     QueryFilter, QuerySelect,
 };
 
-pub struct AllianceRepository {
-    db: DatabaseConnection,
+pub struct AllianceRepository<'a> {
+    db: &'a DatabaseConnection,
 }
 
-impl AllianceRepository {
-    pub fn new(db: DatabaseConnection) -> Self {
+impl<'a> AllianceRepository<'a> {
+    pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -36,7 +36,7 @@ impl AllianceRepository {
             ..Default::default()
         };
 
-        alliance.insert(&self.db).await
+        alliance.insert(self.db).await
     }
 
     /// Create or update an alliance entry using its ESI model
@@ -74,7 +74,7 @@ impl AllianceRepository {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(&self.db)
+            .exec_with_returning(self.db)
             .await?,
         )
     }
@@ -117,7 +117,7 @@ impl AllianceRepository {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(&self.db)
+            .exec_with_returning(self.db)
             .await
     }
 
@@ -128,7 +128,7 @@ impl AllianceRepository {
     ) -> Result<Option<entity::eve_alliance::Model>, DbErr> {
         entity::prelude::EveAlliance::find()
             .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
-            .one(&self.db)
+            .one(self.db)
             .await
     }
 
@@ -142,7 +142,7 @@ impl AllianceRepository {
             .column(entity::eve_alliance::Column::AllianceId)
             .filter(entity::eve_alliance::Column::AllianceId.is_in(alliance_ids.iter().copied()))
             .into_tuple::<(i32, i64)>()
-            .all(&self.db)
+            .all(self.db)
             .await
     }
 }
@@ -155,39 +155,49 @@ mod tests {
     mod create {
         use super::*;
 
-        /// Expect Ok when creating an alliance with a faction ID
+        /// Expect Ok when creating alliance entry with a related faction
         #[tokio::test]
         async fn creates_alliance_with_faction_id() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction = test.eve().insert_mock_faction(1).await?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo
-                .create(alliance_id, mock_alliance.clone(), Some(faction.id))
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+
+            let result = alliance_repo
+                .create(alliance_id, alliance, Some(faction_model.id))
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
-            let alliance = result.unwrap();
-            assert_eq!(alliance.alliance_id, alliance_id);
-            assert_eq!(alliance.name, mock_alliance.name);
-            assert_eq!(alliance.faction_id, Some(faction.id));
+            assert!(result.is_ok());
+            let created = result.unwrap();
+
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
+            assert_eq!(created.alliance_id, alliance_id);
+            assert_eq!(created.name, alliance.name);
+            assert_eq!(created.faction_id, Some(faction_model.id));
 
             Ok(())
         }
 
-        /// Expect Ok when creating an alliance without a faction
+        /// Expect Ok when creating alliance entry without faction ID
         #[tokio::test]
         async fn creates_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo.create(alliance_id, mock_alliance, None).await;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+
+            let result = alliance_repo.create(alliance_id, alliance, None).await;
 
             assert!(result.is_ok());
+            let created = result.unwrap();
+            assert_eq!(created.faction_id, None);
 
             Ok(())
         }
@@ -196,121 +206,148 @@ mod tests {
     mod upsert {
         use super::*;
 
-        /// Expect Ok when upserting a new alliance with a faction ID
+        /// Expect Ok when upserting a new alliance entry with a related faction
         #[tokio::test]
         async fn creates_new_alliance_with_faction_id() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction = test.eve().insert_mock_faction(1).await?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo
-                .upsert(alliance_id, mock_alliance.clone(), Some(faction.id))
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+
+            let result = alliance_repo
+                .upsert(alliance_id, alliance, Some(faction_model.id))
                 .await;
 
-            assert!(result.is_ok(), "Error: {:?}", result);
-            let alliance = result.unwrap();
-            assert_eq!(alliance.alliance_id, alliance_id);
-            assert_eq!(alliance.name, mock_alliance.name);
-            assert_eq!(alliance.faction_id, Some(faction.id));
+            assert!(result.is_ok());
+            let created = result.unwrap();
+
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model.faction_id));
+            assert_eq!(created.alliance_id, alliance_id);
+            assert_eq!(created.name, alliance.name);
+            assert_eq!(created.faction_id, Some(faction_model.id));
 
             Ok(())
         }
 
-        /// Expect Ok when upserting a new alliance without a faction
+        /// Expect Ok when upserting a new alliance entry without faction ID
         #[tokio::test]
         async fn creates_new_alliance_without_faction() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo.upsert(alliance_id, mock_alliance, None).await;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+
+            let result = alliance_repo.upsert(alliance_id, alliance, None).await;
 
             assert!(result.is_ok());
+            let created = result.unwrap();
+            assert_eq!(created.faction_id, None);
 
             Ok(())
         }
 
-        /// Expect Ok & update when upserting an existing alliance
+        /// Expect Ok when upserting an existing alliance entry and verify it updates
         #[tokio::test]
         async fn updates_existing_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_update, mock_alliance_update) = test.eve().with_mock_alliance(1, None);
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let initial = repo.upsert(alliance_id, mock_alliance, None).await?;
-            let initial_created_at = initial.created_at;
-            let initial_updated_at = initial.updated_at;
+            // Create updated alliance data with different values
+            let (alliance_id, mut updated_alliance) = test.eve().with_mock_alliance(1, None);
+            updated_alliance.name = "Updated Alliance Name".to_string();
+            updated_alliance.ticker = "NEW".to_string();
 
-            let latest = repo
-                .upsert(alliance_id_update, mock_alliance_update, None)
-                .await?;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let result = alliance_repo
+                .upsert(alliance_id, updated_alliance, None)
+                .await;
 
-            // created_at should not change and updated_at should increase
-            assert_eq!(latest.created_at, initial_created_at);
-            assert!(latest.updated_at > initial_updated_at);
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            // Verify the ID remains the same (it's an update, not a new insert)
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_eq!(upserted.alliance_id, alliance_model.alliance_id);
 
             Ok(())
         }
 
-        /// Expect Ok & update faction ID when upserting an existing alliance with a new faction
+        /// Expect Ok when upserting an existing alliance with a new faction ID
         #[tokio::test]
         async fn updates_alliance_faction_relationship() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction = test.eve().insert_mock_faction(1).await?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_update, mock_alliance_update) = test.eve().with_mock_alliance(1, None);
-
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let initial = repo.upsert(alliance_id, mock_alliance, None).await?;
-            assert!(initial.faction_id.is_none());
-
-            let latest = repo
-                .upsert(alliance_id_update, mock_alliance_update, Some(faction.id))
+            let faction_model1 = test.eve().insert_mock_faction(1).await?;
+            let faction_model2 = test.eve().insert_mock_faction(2).await?;
+            let alliance_model = test
+                .eve()
+                .insert_mock_alliance(1, Some(faction_model1.faction_id))
                 .await?;
 
-            assert_eq!(latest.faction_id, Some(faction.id));
+            // Update alliance with new faction
+            let (alliance_id, alliance) = test
+                .eve()
+                .with_mock_alliance(1, Some(faction_model2.faction_id));
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let result = alliance_repo
+                .upsert(alliance_id, alliance, Some(faction_model2.id))
+                .await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_eq!(upserted.faction_id, Some(faction_model2.id));
+            assert_ne!(upserted.faction_id, Some(faction_model1.id));
 
             Ok(())
         }
 
-        /// Expect Ok & faction ID removed when upserting an existing alliance with None for faction ID
+        /// Expect Ok when upserting removes faction relationship
         #[tokio::test]
         async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let faction = test.eve().insert_mock_faction(1).await?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_update, mock_alliance_update) = test.eve().with_mock_alliance(1, None);
-
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let initial = repo
-                .upsert(alliance_id, mock_alliance, Some(faction.id))
-                .await?;
-            assert_eq!(initial.faction_id, Some(faction.id));
-
-            let latest = repo
-                .upsert(alliance_id_update, mock_alliance_update, None)
+            let faction_model = test.eve().insert_mock_faction(1).await?;
+            let alliance_model = test
+                .eve()
+                .insert_mock_alliance(1, Some(faction_model.faction_id))
                 .await?;
 
-            assert!(latest.faction_id.is_none());
+            assert!(alliance_model.faction_id.is_some());
+
+            // Update alliance without faction
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
+
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let result = alliance_repo.upsert(alliance_id, alliance, None).await;
+
+            assert!(result.is_ok());
+            let upserted = result.unwrap();
+
+            assert_eq!(upserted.id, alliance_model.id);
+            assert_eq!(upserted.faction_id, None);
 
             Ok(())
         }
 
-        /// Expect Error when trying to upsert an alliance when required tables have not been created
+        /// Expect Error when upserting to a table that doesn't exist
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!()?;
-            let (alliance_id, mock_alliance) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id, alliance) = test.eve().with_mock_alliance(1, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo.upsert(alliance_id, mock_alliance, None).await;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let result = alliance_repo.upsert(alliance_id, alliance, None).await;
 
             assert!(result.is_err());
 
@@ -326,14 +363,14 @@ mod tests {
         async fn upserts_new_alliances() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id_1, mock_alliance_1) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2, mock_alliance_2) = test.eve().with_mock_alliance(2, None);
+            let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let result = alliance_repo
                 .upsert_many(vec![
-                    (alliance_id_1, mock_alliance_1, None),
-                    (alliance_id_2, mock_alliance_2, None),
+                    (alliance_id_1, alliance_1, None),
+                    (alliance_id_2, alliance_2, None),
                 ])
                 .await;
 
@@ -344,55 +381,59 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok & update when upserting existing alliances
+        /// Expect Ok & update when trying to upsert existing alliances
         #[tokio::test]
         async fn updates_existing_alliances() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id_1, mock_alliance_1) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2, mock_alliance_2) = test.eve().with_mock_alliance(2, None);
-            let (alliance_id_1_update, mock_alliance_1_update) =
-                test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2_update, mock_alliance_2_update) =
-                test.eve().with_mock_alliance(2, None);
+            let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
+            let (alliance_id_1_update, alliance_1_update) = test.eve().with_mock_alliance(1, None);
+            let (alliance_id_2_update, alliance_2_update) = test.eve().with_mock_alliance(2, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let initial = repo
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let initial = alliance_repo
                 .upsert_many(vec![
-                    (alliance_id_1, mock_alliance_1, None),
-                    (alliance_id_2, mock_alliance_2, None),
+                    (alliance_id_1, alliance_1, None),
+                    (alliance_id_2, alliance_2, None),
                 ])
                 .await?;
 
-            let initial_alliance_1 = initial
+            let initial_entry_1 = initial
+                .iter()
+                .find(|a| a.alliance_id == alliance_id_1)
+                .expect("alliance 1 not found");
+            let initial_entry_2 = initial
+                .iter()
+                .find(|a| a.alliance_id == alliance_id_2)
+                .expect("alliance 2 not found");
+
+            let initial_created_at_1 = initial_entry_1.created_at;
+            let initial_updated_at_1 = initial_entry_1.updated_at;
+            let initial_created_at_2 = initial_entry_2.created_at;
+            let initial_updated_at_2 = initial_entry_2.updated_at;
+
+            let latest = alliance_repo
+                .upsert_many(vec![
+                    (alliance_id_1_update, alliance_1_update, None),
+                    (alliance_id_2_update, alliance_2_update, None),
+                ])
+                .await?;
+
+            let latest_entry_1 = latest
                 .iter()
                 .find(|a| a.alliance_id == alliance_id_1_update)
-                .expect("Alliance 1 not found");
-            let initial_alliance_2 = initial
+                .expect("alliance 1 not found");
+            let latest_entry_2 = latest
                 .iter()
                 .find(|a| a.alliance_id == alliance_id_2_update)
-                .expect("Alliance 2 not found");
+                .expect("alliance 2 not found");
 
-            let initial_1_created_at = initial_alliance_1.created_at;
-            let initial_1_updated_at = initial_alliance_1.updated_at;
-            let initial_2_created_at = initial_alliance_2.created_at;
-            let initial_2_updated_at = initial_alliance_2.updated_at;
-
-            let latest = repo
-                .upsert_many(vec![
-                    (alliance_id_1_update, mock_alliance_1_update, None),
-                    (alliance_id_2_update, mock_alliance_2_update, None),
-                ])
-                .await?;
-
-            let latest_alliance_1 = latest.iter().find(|a| a.alliance_id == 1).unwrap();
-            let latest_alliance_2 = latest.iter().find(|a| a.alliance_id == 2).unwrap();
-
-            // created_at should not change and updated_at should increase for both
-            assert_eq!(latest_alliance_1.created_at, initial_1_created_at);
-            assert!(latest_alliance_1.updated_at > initial_1_updated_at);
-            assert_eq!(latest_alliance_2.created_at, initial_2_created_at);
-            assert!(latest_alliance_2.updated_at > initial_2_updated_at);
+            // created_at should not change and updated_at should increase for both alliances
+            assert_eq!(latest_entry_1.created_at, initial_created_at_1);
+            assert!(latest_entry_1.updated_at > initial_updated_at_1);
+            assert_eq!(latest_entry_2.created_at, initial_created_at_2);
+            assert!(latest_entry_2.updated_at > initial_updated_at_2);
 
             Ok(())
         }
@@ -401,51 +442,56 @@ mod tests {
     mod get_by_alliance_id {
         use super::*;
 
-        /// Expect Some when alliance is present in the table
+        /// Expect Some when getting existing alliance from table
         #[tokio::test]
         async fn finds_existing_alliance() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let alliance_id = 1;
-            let (mock_alliance_id, mock_alliance) =
-                test.eve().with_mock_alliance(alliance_id, None);
+            let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let initial = repo.upsert(mock_alliance_id, mock_alliance, None).await?;
-            let result = repo.get_by_alliance_id(alliance_id).await?;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
-            assert!(result.is_some());
-            let alliance = result.unwrap();
+            let result = alliance_repo
+                .get_by_alliance_id(alliance_model.alliance_id)
+                .await;
 
-            assert_eq!(initial.id, alliance.id);
-            assert_eq!(initial.alliance_id, alliance.alliance_id);
+            assert!(result.is_ok());
+            let alliance_option = result.unwrap();
+            assert!(alliance_option.is_some());
+            let alliance = alliance_option.unwrap();
+            assert_eq!(alliance.alliance_id, alliance_model.alliance_id);
+            assert_eq!(alliance.id, alliance_model.id);
 
             Ok(())
         }
 
-        /// Expect None when alliance is not present in the table
+        /// Expect None when getting alliance from table that does not exist
         #[tokio::test]
         async fn returns_none_for_nonexistent_alliance() -> Result<(), TestError> {
-            let mut test =
+            let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
-            let (alliance_id, _mock_alliance) = test.eve().with_mock_alliance(1, None);
 
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo.get_by_alliance_id(alliance_id).await?;
+            let alliance_repo = AllianceRepository::new(&test.state.db);
 
-            assert!(result.is_none());
+            let alliance_id = 1;
+            let result = alliance_repo.get_by_alliance_id(alliance_id).await;
+
+            assert!(result.is_ok());
+            let alliance_option = result.unwrap();
+            assert!(alliance_option.is_none());
 
             Ok(())
         }
 
-        /// Expect Error when trying to get alliance when required tables have not been created
+        /// Expect Error when getting alliance from table that has not been created
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
+            let alliance_repo = AllianceRepository::new(&test.state.db);
+
             let alliance_id = 1;
-            let repo = AllianceRepository::new(test.state.db.clone());
-            let result = repo.get_by_alliance_id(alliance_id).await;
+            let result = alliance_repo.get_by_alliance_id(alliance_id).await;
 
             assert!(result.is_err());
 
@@ -465,13 +511,15 @@ mod tests {
             let alliance_2 = test.eve().insert_mock_alliance(2, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
+            let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![
                 alliance_1.alliance_id,
                 alliance_2.alliance_id,
                 alliance_3.alliance_id,
             ];
-            let result = repo.get_entry_ids_by_alliance_ids(&alliance_ids).await;
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
 
             assert!(result.is_ok());
             let entry_ids = result.unwrap();
@@ -505,9 +553,11 @@ mod tests {
             let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
+            let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];
-            let result = repo.get_entry_ids_by_alliance_ids(&alliance_ids).await;
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
 
             assert!(result.is_ok());
             let entry_ids = result.unwrap();
@@ -522,9 +572,11 @@ mod tests {
             let test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
+            let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids: Vec<i64> = vec![];
-            let result = repo.get_entry_ids_by_alliance_ids(&alliance_ids).await;
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
 
             assert!(result.is_ok());
             let entry_ids = result.unwrap();
@@ -541,14 +593,16 @@ mod tests {
             let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
+            let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![
                 alliance_1.alliance_id,
                 999, // Non-existent
                 alliance_3.alliance_id,
                 888, // Non-existent
             ];
-            let result = repo.get_entry_ids_by_alliance_ids(&alliance_ids).await;
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
 
             assert!(result.is_ok());
             let entry_ids = result.unwrap();
@@ -574,9 +628,11 @@ mod tests {
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
 
-            let repo = AllianceRepository::new(test.state.db.clone());
+            let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];
-            let result = repo.get_entry_ids_by_alliance_ids(&alliance_ids).await;
+            let result = alliance_repo
+                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .await;
 
             assert!(result.is_err());
 

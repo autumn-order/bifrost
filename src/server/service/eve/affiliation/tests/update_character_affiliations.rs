@@ -19,7 +19,7 @@ async fn updates_character_affiliations_successfully() -> Result<(), TestError> 
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -42,7 +42,7 @@ async fn updates_character_affiliations_successfully() -> Result<(), TestError> 
     assert!(result.is_ok());
 
     // Verify the database was updated
-    let updated_character = CharacterRepository::new(test.state.db.clone())
+    let updated_character = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -73,7 +73,7 @@ async fn updates_character_affiliations_with_faction() -> Result<(), TestError> 
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: vec![(500001, faction.id)].into_iter().collect(),
@@ -96,7 +96,7 @@ async fn updates_character_affiliations_with_faction() -> Result<(), TestError> 
     assert!(result.is_ok());
 
     // Verify the database was updated with faction
-    let updated_character = CharacterRepository::new(test.state.db.clone())
+    let updated_character = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -122,7 +122,7 @@ async fn skips_affiliations_when_character_missing() -> Result<(), TestError> {
         .insert_mock_corporation(98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -145,7 +145,7 @@ async fn skips_affiliations_when_character_missing() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify no character was created/updated
-    let character = CharacterRepository::new(test.state.db.clone())
+    let character = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(character.is_none());
@@ -170,7 +170,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
 
     let original_corporation_id = character.corporation_id;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -193,7 +193,7 @@ async fn skips_affiliations_when_corporation_missing() -> Result<(), TestError> 
     assert!(result.is_ok());
 
     // Verify character was not updated (corporation_id should remain unchanged)
-    let character_after = CharacterRepository::new(test.state.db.clone())
+    let character_after = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(character_after.is_some());
@@ -224,7 +224,7 @@ async fn sets_faction_to_none_when_faction_missing() -> Result<(), TestError> {
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(), // Faction not in table_ids
@@ -247,7 +247,7 @@ async fn sets_faction_to_none_when_faction_missing() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify faction was set to None
-    let updated_character = CharacterRepository::new(test.state.db.clone())
+    let updated_character = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -284,7 +284,7 @@ async fn updates_multiple_character_affiliations() -> Result<(), TestError> {
         .insert_mock_character(2114794366, 98000002, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -319,13 +319,13 @@ async fn updates_multiple_character_affiliations() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify both characters were updated
-    let updated_char1 = CharacterRepository::new(test.state.db.clone())
+    let updated_char1 = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_char1.is_some());
     assert_eq!(updated_char1.unwrap().corporation_id, corporation1.id);
 
-    let updated_char2 = CharacterRepository::new(test.state.db.clone())
+    let updated_char2 = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794366)
         .await?;
     assert!(updated_char2.is_some());
@@ -353,7 +353,7 @@ async fn deduplicates_character_affiliations() -> Result<(), TestError> {
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -385,7 +385,7 @@ async fn deduplicates_character_affiliations() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify character was updated (deduplication should handle duplicates)
-    let updated_character = CharacterRepository::new(test.state.db.clone())
+    let updated_character = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -405,7 +405,7 @@ async fn handles_empty_affiliations_list() -> Result<(), TestError> {
         entity::prelude::EveCharacter,
     )?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -448,7 +448,7 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
         .insert_mock_character(2114794365, 98000001, None, None)
         .await?;
 
-    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
 
     let table_ids = TableIds {
         faction_ids: HashMap::new(),
@@ -488,14 +488,14 @@ async fn processes_mixed_valid_and_invalid_affiliations() -> Result<(), TestErro
     assert!(result.is_ok());
 
     // Verify valid affiliation was processed
-    let updated_char = CharacterRepository::new(test.state.db.clone())
+    let updated_char = CharacterRepository::new(&test.state.db)
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_char.is_some());
     assert_eq!(updated_char.unwrap().corporation_id, corporation.id);
 
     // Verify invalid character was not created
-    let invalid_char = CharacterRepository::new(test.state.db.clone())
+    let invalid_char = CharacterRepository::new(&test.state.db)
         .get_by_character_id(9999999999)
         .await?;
     assert!(invalid_char.is_none());

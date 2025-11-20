@@ -18,8 +18,7 @@ async fn creates_new_alliance_with_faction() -> Result<(), TestError> {
         .eve()
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service.upsert_alliance(alliance_id).await;
 
     assert!(result.is_ok());
@@ -45,8 +44,7 @@ async fn creates_new_alliance_without_faction() -> Result<(), TestError> {
         .eve()
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service.upsert_alliance(alliance_id).await;
 
     assert!(result.is_ok());
@@ -74,8 +72,7 @@ async fn updates_existing_alliance() -> Result<(), TestError> {
         test.eve()
             .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service
         .upsert_alliance(alliance_model.alliance_id)
         .await;
@@ -130,8 +127,7 @@ async fn updates_alliance_faction_relationship() -> Result<(), TestError> {
         test.eve()
             .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service
         .upsert_alliance(alliance_model.alliance_id)
         .await;
@@ -170,8 +166,7 @@ async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service
         .upsert_alliance(alliance_model.alliance_id)
         .await;
@@ -208,8 +203,7 @@ async fn adds_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_alliance_endpoint(alliance_model.alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service
         .upsert_alliance(alliance_model.alliance_id)
         .await;
@@ -232,8 +226,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
 
     let alliance_id = 1;
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service.upsert_alliance(alliance_id).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -252,8 +245,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .eve()
         .with_alliance_endpoint(alliance_id, mock_alliance, 1);
 
-    let alliance_service =
-        AllianceService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.state.db, &test.state.esi_client);
     let result = alliance_service.upsert_alliance(alliance_id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));

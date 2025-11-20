@@ -10,7 +10,7 @@ async fn finds_existing_corporation() -> Result<(), TestError> {
     )?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
 
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo
         .get_by_corporation_id(corporation_model.corporation_id)
         .await;
@@ -31,7 +31,7 @@ async fn returns_none_for_nonexistent_corporation() -> Result<(), TestError> {
         entity::prelude::EveCorporation
     )?;
 
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let corporation_id = 1;
     let result = corporation_repo.get_by_corporation_id(corporation_id).await;
 
@@ -47,7 +47,7 @@ async fn returns_none_for_nonexistent_corporation() -> Result<(), TestError> {
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
-    let corporation_repo = CorporationRepository::new(test.state.db.clone());
+    let corporation_repo = CorporationRepository::new(&test.state.db);
     let corporation_id = 1;
     let result = corporation_repo.get_by_corporation_id(corporation_id).await;
 

@@ -2,13 +2,13 @@ use eve_esi::model::oauth2::AuthenticationData;
 
 use crate::server::error::Error;
 
-pub struct LoginService {
-    esi_client: eve_esi::Client,
+pub struct LoginService<'a> {
+    esi_client: &'a eve_esi::Client,
 }
 
-impl LoginService {
+impl<'a> LoginService<'a> {
     /// Creates a new instance of [`LoginService`]
-    pub fn new(esi_client: eve_esi::Client) -> Self {
+    pub fn new(esi_client: &'a eve_esi::Client) -> Self {
         Self { esi_client }
     }
 
@@ -43,7 +43,7 @@ pub mod tests {
     async fn generates_login_url() -> Result<(), TestError> {
         let test = test_setup_with_tables!()?;
 
-        let login_service = LoginService::new(test.state.esi_client.clone());
+        let login_service = LoginService::new(&test.state.esi_client);
         let scopes = vec![];
         let result = login_service.generate_login_url(scopes);
 
@@ -57,7 +57,7 @@ pub mod tests {
     fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
         let esi_client = eve_esi::Client::new(TEST_USER_AGENT).expect("Failed to build ESI client");
 
-        let login_service = LoginService::new(esi_client);
+        let login_service = LoginService::new(&esi_client);
         let scopes = vec![];
         let result = login_service.generate_login_url(scopes);
 

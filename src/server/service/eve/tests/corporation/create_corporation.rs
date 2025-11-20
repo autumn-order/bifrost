@@ -15,8 +15,7 @@ async fn creates_corporation_without_alliance_or_faction() -> Result<(), TestErr
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.create_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -46,8 +45,7 @@ async fn creates_corporation_with_alliance() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.create_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -76,8 +74,7 @@ async fn creates_corporation_with_faction() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.create_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -112,8 +109,7 @@ async fn creates_corporation_with_alliance_and_faction() -> Result<(), TestError
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.create_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -134,8 +130,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let corporation_id = 1;
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.create_corporation(corporation_id).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -161,8 +156,7 @@ async fn fails_for_duplicate_corporation() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .create_corporation(corporation_model.corporation_id)
         .await;

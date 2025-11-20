@@ -2,7 +2,7 @@ use crate::server::service::eve::affiliation::AffiliationService;
 
 use super::*;
 
-impl AffiliationService {
+impl<'a> AffiliationService<'a> {
     // Updates a corporation's affiliated alliance
     pub(super) async fn update_corporation_affiliations(
         &self,
@@ -56,7 +56,7 @@ impl AffiliationService {
             })
             .collect();
 
-        CorporationRepository::new(self.db.clone())
+        CorporationRepository::new(&self.db)
             .update_affiliations(corporation_affiliations)
             .await?;
 
@@ -136,7 +136,7 @@ impl AffiliationService {
                 }
             ).collect();
 
-        CharacterRepository::new(self.db.clone())
+        CharacterRepository::new(&self.db)
             .update_affiliations(character_affiliations)
             .await?;
 

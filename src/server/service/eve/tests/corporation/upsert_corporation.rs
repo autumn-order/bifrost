@@ -28,8 +28,7 @@ async fn creates_new_corporation_with_alliance_and_faction() -> Result<(), TestE
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.upsert_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -60,8 +59,7 @@ async fn creates_new_corporation_without_alliance_or_faction() -> Result<(), Tes
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.upsert_corporation(corporation_id).await;
 
     assert!(result.is_ok());
@@ -93,8 +91,7 @@ async fn updates_existing_corporation() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -141,8 +138,7 @@ async fn updates_corporation_alliance_relationship() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -202,8 +198,7 @@ async fn updates_corporation_faction_relationship() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -245,8 +240,7 @@ async fn removes_alliance_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -287,8 +281,7 @@ async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -330,8 +323,7 @@ async fn adds_alliance_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -372,8 +364,7 @@ async fn adds_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_model.corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service
         .upsert_corporation(corporation_model.corporation_id)
         .await;
@@ -400,8 +391,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let corporation_id = 1;
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.upsert_corporation(corporation_id).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -420,8 +410,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service =
-        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
     let result = corporation_service.upsert_corporation(corporation_id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));

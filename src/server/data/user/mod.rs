@@ -6,13 +6,13 @@ use sea_orm::{
     IntoActiveModel,
 };
 
-pub struct UserRepository {
-    db: DatabaseConnection,
+pub struct UserRepository<'a> {
+    db: &'a DatabaseConnection,
 }
 
-impl UserRepository {
+impl<'a> UserRepository<'a> {
     /// Creates a new instance of [`UserRepository`]
-    pub fn new(db: DatabaseConnection) -> Self {
+    pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -27,7 +27,7 @@ impl UserRepository {
             ..Default::default()
         };
 
-        user.insert(&self.db).await
+        user.insert(self.db).await
     }
 
     pub async fn get(
@@ -42,7 +42,7 @@ impl UserRepository {
     > {
         entity::prelude::BifrostUser::find_by_id(user_id)
             .find_also_related(entity::eve_character::Entity)
-            .one(&self.db)
+            .one(self.db)
             .await
     }
 
@@ -52,7 +52,7 @@ impl UserRepository {
         new_main_character_id: i32,
     ) -> Result<Option<entity::bifrost_user::Model>, DbErr> {
         let user = match entity::prelude::BifrostUser::find_by_id(user_id)
-            .one(&self.db)
+            .one(self.db)
             .await?
         {
             Some(user) => user,
@@ -62,7 +62,7 @@ impl UserRepository {
         let mut user_am = user.into_active_model();
         user_am.main_character_id = ActiveValue::Set(new_main_character_id);
 
-        let user = user_am.update(&self.db).await?;
+        let user = user_am.update(self.db).await?;
 
         Ok(Some(user))
     }
@@ -73,7 +73,7 @@ impl UserRepository {
     /// check the [`DeleteResult::rows_affected`] field.
     pub async fn delete(&self, user_id: i32) -> Result<DeleteResult, DbErr> {
         entity::prelude::BifrostUser::delete_by_id(user_id)
-            .exec(&self.db)
+            .exec(self.db)
             .await
     }
 }
@@ -92,7 +92,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_repository = UserRepository::new(test.state.db.clone());
+            let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.create(character_model.id).await;
 
             assert!(result.is_ok());
@@ -106,7 +106,7 @@ mod tests {
             let test = test_setup_with_user_tables!()?;
 
             let nonexistent_main_character_id = 2;
-            let user_repository = UserRepository::new(test.state.db.clone());
+            let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.create(nonexistent_main_character_id).await;
 
             assert!(result.is_err());
@@ -129,7 +129,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
             let result = user_repo.get(user_model.id).await;
 
             assert!(matches!(result, Ok(Some(_))));
@@ -143,7 +143,7 @@ mod tests {
             let test = test_setup_with_user_tables!()?;
 
             let nonexistent_user_id = 1;
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
             let result = user_repo.get(nonexistent_user_id).await;
 
             assert!(matches!(result, Ok(None)));
@@ -155,7 +155,7 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = test_setup_with_tables!()?;
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
 
             let user_id = 1;
             let result = user_repo.get(user_id).await;
@@ -180,7 +180,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
             let result = user_repo
                 .update(user_model.id, character_model_two.id)
                 .await;
@@ -198,7 +198,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
             let nonexistent_user_id = 1;
             let result = user_repo
                 .update(nonexistent_user_id, character_model.id)
@@ -218,7 +218,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(test.state.db.clone());
+            let user_repo = UserRepository::new(&test.state.db);
             let result = user_repo
                 .update(user_model.id, character_model.id + 1)
                 .await;
@@ -242,7 +242,7 @@ mod tests {
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
-            let user_repository = UserRepository::new(test.state.db.clone());
+            let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.delete(user_model.id).await;
 
             assert!(result.is_ok());
@@ -266,7 +266,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repository = UserRepository::new(test.state.db.clone());
+            let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.delete(user_model.id + 1).await;
 
             assert!(result.is_ok());
@@ -283,7 +283,7 @@ mod tests {
             let test = test_setup_with_tables!()?;
 
             let user_id = 1;
-            let user_repository = UserRepository::new(test.state.db.clone());
+            let user_repository = UserRepository::new(&test.state.db);
             let result = user_repository.delete(user_id).await;
 
             assert!(result.is_err());

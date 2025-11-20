@@ -11,7 +11,7 @@ async fn deletes_user_successfully() -> Result<(), TestError> {
     // they don't actually need to own the character so no ownership record is set.
     let user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.delete_user(user_model.id).await;
 
     assert!(result.is_ok());
@@ -28,7 +28,7 @@ async fn deletes_user_successfully() -> Result<(), TestError> {
 async fn returns_false_for_nonexistent_user() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
     let nonexistent_user_id = 1;
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.delete_user(nonexistent_user_id).await;
 
     assert!(result.is_ok());
@@ -49,7 +49,7 @@ async fn fails_when_user_has_owned_characters() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_service = UserService::new(&test.state.db, &test.state.esi_client);
     let result = user_service.delete_user(user_model.id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));

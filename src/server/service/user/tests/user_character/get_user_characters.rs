@@ -11,8 +11,7 @@ async fn returns_character_without_alliance() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -47,8 +46,7 @@ async fn returns_character_with_alliance() -> Result<(), TestError> {
         )
         .await?;
 
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -82,8 +80,7 @@ async fn returns_multiple_characters() -> Result<(), TestError> {
         .insert_mock_character_for_user(user_model.id, 2, 2, Some(1), None)
         .await?;
 
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -113,8 +110,7 @@ async fn returns_empty_for_user_without_characters() -> Result<(), TestError> {
     let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
     let user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -132,8 +128,7 @@ async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
     let test = test_setup_with_user_tables!()?;
 
     let nonexistent_user_id = 1;
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(nonexistent_user_id)
         .await;
@@ -154,8 +149,7 @@ async fn returns_characters_with_timestamps() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -200,8 +194,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let nonexistent_user_id = 1;
-    let user_character_service =
-        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
+    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
     let result = user_character_service
         .get_user_characters(nonexistent_user_id)
         .await;

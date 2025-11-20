@@ -7,14 +7,14 @@ use crate::server::{
     service::user::{user_character::UserCharacterService, UserService},
 };
 
-pub struct CallbackService {
-    db: DatabaseConnection,
-    esi_client: eve_esi::Client,
+pub struct CallbackService<'a> {
+    db: &'a DatabaseConnection,
+    esi_client: &'a eve_esi::Client,
 }
 
-impl CallbackService {
+impl<'a> CallbackService<'a> {
     /// Creates a new instance of [`CallbackService`]
-    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
+    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -43,9 +43,8 @@ impl CallbackService {
         user_id: Option<i32>,
         change_main: Option<bool>,
     ) -> Result<i32, Error> {
-        let user_service = UserService::new(self.db.clone(), self.esi_client.clone());
-        let user_character_service =
-            UserCharacterService::new(self.db.clone(), self.esi_client.clone());
+        let user_service = UserService::new(&self.db, &self.esi_client);
+        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
 
         let token = self
             .esi_client
@@ -116,8 +115,7 @@ mod tests {
 
         let jwt_endpoints = test.auth().with_jwt_endpoints(character_id, "owner_hash");
 
-        let callback_service =
-            CallbackService::new(test.state.db.clone(), test.state.esi_client.clone());
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
         let authorization_code = "test_code";
         let session_user_id = None;
         let result = callback_service
@@ -151,8 +149,7 @@ mod tests {
             &user_character_model.owner_hash,
         );
 
-        let callback_service =
-            CallbackService::new(test.state.db.clone(), test.state.esi_client.clone());
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
 
         let authorization_code = "test_code";
         let result = callback_service
@@ -174,8 +171,7 @@ mod tests {
     async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         let test = test_setup_with_user_tables!()?;
 
-        let callback_service =
-            CallbackService::new(test.state.db.clone(), test.state.esi_client.clone());
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
         let authorization_code = "string";
         let result = callback_service
             .handle_callback(authorization_code, None, None)
@@ -192,8 +188,7 @@ mod tests {
         let mut test = test_setup_with_tables!()?;
         let jwt_endpoints = test.auth().with_jwt_endpoints(1, "owner_hash");
 
-        let callback_service =
-            CallbackService::new(test.state.db.clone(), test.state.esi_client.clone());
+        let callback_service = CallbackService::new(&test.state.db, &test.state.esi_client);
         let authorization_code = "string";
         let result = callback_service
             .handle_callback(authorization_code, None, None)

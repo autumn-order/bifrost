@@ -11,7 +11,7 @@ async fn finds_existing_character() -> Result<(), TestError> {
     )?;
     let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo
         .get_by_character_id(character_model.character_id)
         .await;
@@ -34,7 +34,7 @@ async fn returns_none_for_nonexistent_character() -> Result<(), TestError> {
     )?;
 
     let character_id = 1;
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo.get_by_character_id(character_id).await;
 
     assert!(result.is_ok());
@@ -51,7 +51,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = test_setup_with_tables!()?;
 
     let character_id = 1;
-    let character_repo = CharacterRepository::new(test.state.db.clone());
+    let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo.get_by_character_id(character_id).await;
 
     assert!(result.is_err());
