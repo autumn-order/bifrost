@@ -56,7 +56,7 @@ impl AffiliationService {
             })
             .collect();
 
-        CorporationRepository::new(&self.db)
+        CorporationRepository::new(self.db.clone())
             .update_affiliations(corporation_affiliations)
             .await?;
 

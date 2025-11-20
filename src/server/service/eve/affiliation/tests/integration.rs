@@ -92,7 +92,7 @@ async fn updates_affiliations_with_alliance_and_faction() -> Result<(), TestErro
     assert_eq!(updated_character.faction_id, Some(faction.id));
 
     // Verify corporation affiliation was updated with alliance
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -138,7 +138,7 @@ async fn fetches_and_stores_missing_entities() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify corporation was created
-    let corporation = CorporationRepository::new(&test.state.db)
+    let corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation.is_some());
@@ -326,7 +326,7 @@ async fn updates_both_corporation_and_character_affiliations() -> Result<(), Tes
     assert_eq!(updated_character.unwrap().corporation_id, corporation.id);
 
     // Verify corporation affiliation was updated with alliance
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -392,7 +392,7 @@ async fn deduplicates_corporation_updates() -> Result<(), TestError> {
     assert_eq!(updated_char2.unwrap().corporation_id, corporation.id);
 
     // Verify corporation was updated with alliance (should only happen once despite two characters)
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -468,7 +468,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
         Some(faction.unwrap().id)
     );
 
-    let corporation = CorporationRepository::new(&test.state.db)
+    let corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation.is_some());

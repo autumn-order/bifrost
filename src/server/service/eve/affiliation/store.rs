@@ -110,7 +110,7 @@ impl AffiliationService {
                     )
                 })
                 .collect();
-        let created_corporations = CorporationRepository::new(&self.db)
+        let created_corporations = CorporationRepository::new(self.db.clone())
             .upsert_many(corporation_entries)
             .await?;
 

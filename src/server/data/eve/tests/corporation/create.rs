@@ -16,7 +16,7 @@ async fn creates_corporation_with_alliance_and_faction() -> Result<(), TestError
         Some(faction_model.faction_id),
     );
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .create(
             corporation_id,
@@ -54,7 +54,7 @@ async fn creates_corporation_with_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_corporation(1, None, Some(faction_model.faction_id));
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .create(corporation_id, corporation, None, Some(faction_model.id))
         .await;
@@ -77,7 +77,7 @@ async fn creates_corporation_without_alliance_or_faction() -> Result<(), TestErr
     )?;
     let (corporation_id, corporation) = test.eve().with_mock_corporation(1, None, None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .create(corporation_id, corporation, None, None)
         .await;

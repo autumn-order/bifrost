@@ -6,12 +6,12 @@ use sea_orm::{
     QueryFilter, QuerySelect, TransactionTrait,
 };
 
-pub struct CorporationRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct CorporationRepository {
+    db: DatabaseConnection,
 }
 
-impl<'a> CorporationRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl CorporationRepository {
+    pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -49,7 +49,7 @@ impl<'a> CorporationRepository<'a> {
             ..Default::default()
         };
 
-        corporation.insert(self.db).await
+        corporation.insert(&self.db).await
     }
 
     /// Create or update a corporation entry using its ESI model
@@ -108,7 +108,7 @@ impl<'a> CorporationRepository<'a> {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(self.db)
+            .exec_with_returning(&self.db)
             .await?,
         )
     }
@@ -170,7 +170,7 @@ impl<'a> CorporationRepository<'a> {
                     ])
                     .to_owned(),
             )
-            .exec_with_returning(self.db)
+            .exec_with_returning(&self.db)
             .await
     }
 
@@ -181,7 +181,7 @@ impl<'a> CorporationRepository<'a> {
     ) -> Result<Option<entity::eve_corporation::Model>, DbErr> {
         entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
-            .one(self.db)
+            .one(&self.db)
             .await
     }
 
@@ -198,7 +198,7 @@ impl<'a> CorporationRepository<'a> {
                     .is_in(corporation_ids.iter().copied()),
             )
             .into_tuple::<(i32, i64)>()
-            .all(self.db)
+            .all(&self.db)
             .await
     }
 
@@ -218,7 +218,7 @@ impl<'a> CorporationRepository<'a> {
             return Ok(());
         }
 
-        let txn = self.db.begin().await?;
+        let txn = (&self.db).begin().await?;
 
         const BATCH_SIZE: usize = 100;
 
