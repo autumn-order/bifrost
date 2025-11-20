@@ -18,7 +18,7 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_characters = CharacterService::new(&self.db, &self.esi_client)
+        let fetched_characters = CharacterService::new(self.db.clone(), self.esi_client.clone())
             .get_many_characters(missing_character_ids)
             .await?;
 

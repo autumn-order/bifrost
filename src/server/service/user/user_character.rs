@@ -90,7 +90,7 @@ impl<'a> UserCharacterService<'a> {
     ///   character ID from claims (e.g. `claims.character_id()`)
     pub async fn link_character(&self, user_id: i32, claims: EveJwtClaims) -> Result<bool, Error> {
         let user_character_repo = UserCharacterRepository::new(&self.db);
-        let character_service = CharacterService::new(&self.db, &self.esi_client);
+        let character_service = CharacterService::new(self.db.clone(), self.esi_client.clone());
 
         let character_id = claims.character_id()?;
 

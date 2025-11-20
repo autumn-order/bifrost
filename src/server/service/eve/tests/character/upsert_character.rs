@@ -31,7 +31,8 @@ async fn creates_new_character_with_faction() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.upsert_character(character_id).await;
 
     assert!(result.is_ok());
@@ -69,7 +70,8 @@ async fn creates_new_character_without_faction() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.upsert_character(character_id).await;
 
     assert!(result.is_ok());
@@ -114,7 +116,8 @@ async fn updates_character_corporation_relationship() -> Result<(), TestError> {
         test.eve()
             .with_character_endpoint(character_model.character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .upsert_character(character_model.character_id)
         .await;
@@ -182,7 +185,8 @@ async fn updates_character_faction_relationship() -> Result<(), TestError> {
         test.eve()
             .with_character_endpoint(character_model.character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .upsert_character(character_model.character_id)
         .await;
@@ -233,7 +237,8 @@ async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_character_endpoint(character_model.character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .upsert_character(character_model.character_id)
         .await;
@@ -285,7 +290,8 @@ async fn adds_faction_relationship_on_upsert() -> Result<(), TestError> {
         test.eve()
             .with_character_endpoint(character_model.character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .upsert_character(character_model.character_id)
         .await;
@@ -314,7 +320,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let character_id = 1;
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.upsert_character(character_id).await;
 
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -336,7 +343,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.upsert_character(character_id).await;
 
     assert!(matches!(result, Err(Error::DbErr(_))));

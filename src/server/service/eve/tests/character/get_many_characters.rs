@@ -30,7 +30,8 @@ async fn fetches_multiple_characters() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;
@@ -62,7 +63,8 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
         entity::prelude::EveCharacter
     )?;
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.get_many_characters(vec![]).await;
 
     assert!(result.is_ok());
@@ -97,7 +99,8 @@ async fn fetches_single_character() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(vec![character_id])
         .await;
@@ -145,7 +148,8 @@ async fn fetches_characters_with_relationships() -> Result<(), TestError> {
         .eve()
         .with_character_endpoint(character_id, mock_character, 1);
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(vec![character_id])
         .await;
@@ -172,7 +176,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let character_ids = vec![1, 2, 3];
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.get_many_characters(character_ids).await;
 
     // Should fail on first unavailable character
@@ -208,7 +213,8 @@ async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
         .with_character_endpoint(character_id, mock_character, 1);
 
     let character_ids = vec![1, 2, 3];
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.get_many_characters(character_ids).await;
 
     // Should succeed on first, fail on second (no mock)
@@ -249,7 +255,8 @@ async fn fetches_many_characters() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;
@@ -301,7 +308,8 @@ async fn fetches_many_characters_with_batching() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;
@@ -353,7 +361,8 @@ async fn executes_requests_concurrently() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;
@@ -401,7 +410,8 @@ async fn fails_on_concurrent_batch_error() -> Result<(), TestError> {
         .with_character_endpoint(character_id, mock_character, 1);
 
     let character_ids = vec![1, 2, 3, 4, 5];
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service.get_many_characters(character_ids).await;
 
     // Should fail when any request in the batch fails
@@ -442,7 +452,8 @@ async fn handles_exact_batch_size() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;
@@ -494,7 +505,8 @@ async fn handles_batch_size_plus_one() -> Result<(), TestError> {
         );
     }
 
-    let character_service = CharacterService::new(&test.state.db, &test.state.esi_client);
+    let character_service =
+        CharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = character_service
         .get_many_characters(character_ids.clone())
         .await;

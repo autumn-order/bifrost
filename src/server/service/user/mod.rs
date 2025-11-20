@@ -30,7 +30,7 @@ impl<'a> UserService<'a> {
     pub async fn get_or_create_user(&self, claims: EveJwtClaims) -> Result<i32, Error> {
         let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
-        let character_service = CharacterService::new(&self.db, &self.esi_client);
+        let character_service = CharacterService::new(self.db.clone(), self.esi_client.clone());
         let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
 
         let character_id = claims.character_id()?;

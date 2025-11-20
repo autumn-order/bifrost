@@ -103,7 +103,7 @@ impl WorkerJobHandler {
             character_id
         );
 
-        CharacterService::new(&self.db, &self.esi_client)
+        CharacterService::new(self.db.clone(), self.esi_client.clone())
             .upsert_character(character_id)
             .await
             .map_err(|e| {
