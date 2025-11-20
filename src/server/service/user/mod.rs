@@ -28,10 +28,10 @@ impl<'a> UserService<'a> {
     }
 
     pub async fn get_or_create_user(&self, claims: EveJwtClaims) -> Result<i32, Error> {
-        let user_repo = UserRepository::new(&self.db);
-        let user_character_repo = UserCharacterRepository::new(&self.db);
-        let character_service = CharacterService::new(&self.db, &self.esi_client);
-        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
+        let user_repo = UserRepository::new(self.db);
+        let user_character_repo = UserCharacterRepository::new(self.db);
+        let character_service = CharacterService::new(self.db, self.esi_client);
+        let user_character_service = UserCharacterService::new(self.db, self.esi_client);
 
         let character_id = claims.character_id()?;
         let character = match user_character_repo
@@ -91,7 +91,7 @@ impl<'a> UserService<'a> {
 
     /// Retrieves main character for provided user ID
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
-        let user_repo = UserRepository::new(&self.db);
+        let user_repo = UserRepository::new(self.db);
 
         match user_repo.get(user_id).await? {
             None => return Ok(None),
@@ -120,7 +120,7 @@ impl<'a> UserService<'a> {
     /// connected character ownerships, you must [`Self::transfer_character`] first
     /// to another user before deleting a user.
     pub async fn delete_user(&self, user_id: i32) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(&self.db);
+        let user_repo = UserRepository::new(self.db);
 
         let delete_result = user_repo.delete(user_id).await?;
 

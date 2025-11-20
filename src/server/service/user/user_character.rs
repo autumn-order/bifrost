@@ -28,7 +28,7 @@ impl<'a> UserCharacterService<'a> {
     /// Characters without a corporation (which violates foreign key constraint)
     /// will be logged as warnings and skipped from the results.
     pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, Error> {
-        let user_characters = UserCharacterRepository::new(&self.db)
+        let user_characters = UserCharacterRepository::new(self.db)
             .get_owned_characters_by_user_id(user_id)
             .await?;
 
@@ -89,8 +89,8 @@ impl<'a> UserCharacterService<'a> {
     /// - `Err(Error::EsiError(_))`: Error when making an ESI request for character information or parsing
     ///   character ID from claims (e.g. `claims.character_id()`)
     pub async fn link_character(&self, user_id: i32, claims: EveJwtClaims) -> Result<bool, Error> {
-        let user_character_repo = UserCharacterRepository::new(&self.db);
-        let character_service = CharacterService::new(&self.db, &self.esi_client);
+        let user_character_repo = UserCharacterRepository::new(self.db);
+        let character_service = CharacterService::new(self.db, self.esi_client);
 
         let character_id = claims.character_id()?;
 
@@ -138,9 +138,9 @@ impl<'a> UserCharacterService<'a> {
         ownership_entry: entity::bifrost_user_character::Model,
         new_user_id: i32,
     ) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(&self.db);
-        let user_character_repo = UserCharacterRepository::new(&self.db);
-        let user_service = UserService::new(&self.db, &self.esi_client);
+        let user_repo = UserRepository::new(self.db);
+        let user_character_repo = UserCharacterRepository::new(self.db);
+        let user_service = UserService::new(self.db, self.esi_client);
 
         let (old_user, _) = match user_repo.get(ownership_entry.user_id).await? {
             Some(user) => user,
@@ -199,7 +199,7 @@ impl<'a> UserCharacterService<'a> {
 
     pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
         let user_repo = UserRepository::new(self.db);
-        let user_character_repo = UserCharacterRepository::new(&self.db);
+        let user_character_repo = UserCharacterRepository::new(self.db);
 
         let character = user_character_repo
             .get_by_character_id(character_id)
