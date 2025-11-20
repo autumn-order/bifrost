@@ -16,14 +16,14 @@ use crate::{
     },
 };
 
-pub struct UserService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct UserService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> UserService<'a> {
+impl UserService {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 

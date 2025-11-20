@@ -140,7 +140,7 @@ impl<'a> UserCharacterService<'a> {
     ) -> Result<bool, Error> {
         let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
-        let user_service = UserService::new(&self.db, &self.esi_client);
+        let user_service = UserService::new(self.db.clone(), self.esi_client.clone());
 
         let (old_user, _) = match user_repo.get(ownership_entry.user_id).await? {
             Some(user) => user,
