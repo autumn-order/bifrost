@@ -10,7 +10,7 @@ use crate::server::{
     error::Error,
 };
 
-use entity::{eve_alliance, eve_faction};
+use entity::{eve_alliance, eve_corporation, eve_faction};
 
 #[derive(Clone, Debug, Default)]
 pub struct DbFactionEntryIdCache(pub Option<HashMap<i64, i32>>);
@@ -29,6 +29,9 @@ pub struct DbFactionModelCache(pub Option<HashMap<i64, eve_faction::Model>>);
 
 #[derive(Clone, Debug, Default)]
 pub struct DbAllianceModelCache(pub Option<HashMap<i64, eve_alliance::Model>>);
+
+#[derive(Clone, Debug, Default)]
+pub struct DbCorporationModelCache(pub Option<HashMap<i64, eve_corporation::Model>>);
 
 impl DbFactionEntryIdCache {
     pub fn new() -> Self {
@@ -448,6 +451,76 @@ impl DbAllianceModelCache {
         }
 
         // Return all requested alliances (from cache and newly fetched)
+        let cache = self.0.as_ref().unwrap();
+        let result = requested_ids
+            .iter()
+            .filter_map(|id| cache.get(id).cloned())
+            .collect();
+
+        Ok(result)
+    }
+}
+
+impl DbCorporationModelCache {
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    pub async fn get(
+        &mut self,
+        db: &DatabaseConnection,
+        corporation_id: i64,
+    ) -> Result<Option<eve_corporation::Model>, Error> {
+        let mut results = self.get_many(db, vec![corporation_id]).await?;
+
+        Ok(results.pop())
+    }
+
+    pub async fn get_many(
+        &mut self,
+        db: &DatabaseConnection,
+        mut corporation_ids: Vec<i64>,
+    ) -> Result<Vec<eve_corporation::Model>, Error> {
+        if corporation_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requested_ids = corporation_ids.clone();
+
+        if let Some(ref cached) = self.0 {
+            // Filter corporation_ids to only keep those NOT in the cache
+            corporation_ids.retain(|id| !cached.contains_key(id));
+
+            // If no IDs are missing, return all from cache
+            if corporation_ids.is_empty() {
+                let result = requested_ids
+                    .iter()
+                    .filter_map(|id| cached.get(id).cloned())
+                    .collect();
+                return Ok(result);
+            }
+        }
+
+        // Fetch missing corporation models from database
+        let corporation_repo = CorporationRepository::new(db);
+        let fetched_corporations = corporation_repo
+            .get_by_corporation_ids(&corporation_ids)
+            .await?;
+
+        // Convert Vec<Model> to HashMap<i64, Model> for cache storage
+        let mut fetched_map = HashMap::new();
+        for corporation in fetched_corporations {
+            fetched_map.insert(corporation.corporation_id, corporation);
+        }
+
+        // Update cache by merging fetched corporations with existing cache
+        if let Some(ref mut cached) = self.0 {
+            cached.extend(fetched_map);
+        } else {
+            self.0 = Some(fetched_map);
+        }
+
+        // Return all requested corporations (from cache and newly fetched)
         let cache = self.0.as_ref().unwrap();
         let result = requested_ids
             .iter()
