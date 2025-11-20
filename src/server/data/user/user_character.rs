@@ -5,13 +5,13 @@ use sea_orm::{
     IntoActiveModel, QueryFilter,
 };
 
-pub struct UserCharacterRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct UserCharacterRepository {
+    db: DatabaseConnection,
 }
 
-impl<'a> UserCharacterRepository<'a> {
+impl UserCharacterRepository {
     /// Creates a new instance of [`UserCharacterRepository`]
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+    pub fn new(db: DatabaseConnection) -> Self {
         Self { db }
     }
 
@@ -36,7 +36,7 @@ impl<'a> UserCharacterRepository<'a> {
             ..Default::default()
         };
 
-        user_character.insert(self.db).await
+        user_character.insert(&self.db).await
     }
 
     /// Get a user character entry using their EVE Online character ID
@@ -53,7 +53,7 @@ impl<'a> UserCharacterRepository<'a> {
         entity::prelude::EveCharacter::find()
             .filter(entity::eve_character::Column::CharacterId.eq(character_id))
             .find_also_related(entity::bifrost_user_character::Entity)
-            .one(self.db)
+            .one(&self.db)
             .await
     }
 
@@ -64,7 +64,7 @@ impl<'a> UserCharacterRepository<'a> {
     ) -> Result<Vec<entity::bifrost_user_character::Model>, DbErr> {
         entity::prelude::BifrostUserCharacter::find()
             .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
-            .all(self.db)
+            .all(&self.db)
             .await
     }
 
@@ -90,7 +90,7 @@ impl<'a> UserCharacterRepository<'a> {
         )> = entity::prelude::BifrostUserCharacter::find()
             .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
             .find_also_related(entity::prelude::EveCharacter)
-            .all(self.db)
+            .all(&self.db)
             .await?;
 
         if user_characters.is_empty() {
@@ -111,7 +111,7 @@ impl<'a> UserCharacterRepository<'a> {
         > = entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))
             .find_also_related(entity::prelude::EveAlliance)
-            .all(self.db)
+            .all(&self.db)
             .await?
             .into_iter()
             .map(|(corp, alliance)| (corp.id, (corp, alliance)))
@@ -165,7 +165,7 @@ impl<'a> UserCharacterRepository<'a> {
     ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
         let user_character =
             match entity::prelude::BifrostUserCharacter::find_by_id(user_character_entry_id)
-                .one(self.db)
+                .one(&self.db)
                 .await?
             {
                 Some(user_character) => user_character,
@@ -176,7 +176,7 @@ impl<'a> UserCharacterRepository<'a> {
         user_character_am.user_id = ActiveValue::Set(new_user_id);
         user_character_am.updated_at = ActiveValue::Set(Utc::now().naive_utc());
 
-        let user_character = user_character_am.update(self.db).await?;
+        let user_character = user_character_am.update(&self.db).await?;
 
         Ok(Some(user_character))
     }
@@ -198,7 +198,7 @@ mod tests {
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .create(user_model.id, character_model.id, "owner_hash".to_string())
                 .await;
@@ -216,7 +216,7 @@ mod tests {
 
             // Don't create a user first, this will cause a foreign key error
             let user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .create(user_id, character_model.id, "owner_hash".to_string())
                 .await;
@@ -241,7 +241,7 @@ mod tests {
             let user_model = test.user().insert_user(character_model.id).await?;
 
             // Increment character ID to one that does not exist, causing a foreign key error
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .create(
                     user_model.id,
@@ -277,7 +277,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .get_by_character_id(character_model.character_id)
                 .await;
@@ -297,7 +297,7 @@ mod tests {
             let mut test = test_setup_with_user_tables!()?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .get_by_character_id(character_model.character_id)
                 .await;
@@ -317,7 +317,7 @@ mod tests {
             let test = test_setup_with_user_tables!()?;
 
             let nonexistent_character_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .get_by_character_id(nonexistent_character_id)
                 .await;
@@ -336,7 +336,7 @@ mod tests {
             let test = test_setup_with_tables!()?;
 
             let character_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .get_by_character_id(character_id)
                 .await;
@@ -365,7 +365,7 @@ mod tests {
                 .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
@@ -384,7 +384,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
@@ -402,7 +402,7 @@ mod tests {
             // Character is set as main but it is not actually owned due to no ownership entry
             let user_model = test.user().insert_user(character_model.id).await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo.get_many_by_user_id(user_model.id).await;
 
             assert!(result.is_ok());
@@ -419,7 +419,7 @@ mod tests {
             let test = test_setup_with_tables!()?;
 
             let user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository.get_many_by_user_id(user_id).await;
 
             assert!(result.is_err());
@@ -443,7 +443,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -488,7 +488,7 @@ mod tests {
                 .insert_user_character_ownership(user_model.id, character_model.id)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -520,7 +520,7 @@ mod tests {
                 .insert_mock_character_for_user(user_model.id, 2, 2, Some(1), None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -544,7 +544,7 @@ mod tests {
             let test = test_setup_with_user_tables!()?;
 
             let nonexistent_user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .get_owned_characters_by_user_id(nonexistent_user_id)
                 .await;
@@ -563,7 +563,7 @@ mod tests {
             let test = test_setup_with_tables!()?;
 
             let nonexistent_user_id = 1;
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .get_owned_characters_by_user_id(nonexistent_user_id)
                 .await;
@@ -593,7 +593,7 @@ mod tests {
                 .insert_user_with_mock_character(2, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .update(user_one_character_model.id, user_two_model.id)
                 .await;
@@ -614,7 +614,7 @@ mod tests {
             let user_model = test.user().insert_user(character_model.id).await?;
 
             let nonexistent_id = 1;
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repo
                 .update(nonexistent_id, user_model.id)
                 .await;
@@ -636,7 +636,7 @@ mod tests {
                 .await?;
 
             // Try to update entry to new_user_id that doesn't exist
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(test.state.db.clone());
             let result = user_character_repository
                 .update(user_character_model.id, user_model.id + 1)
                 .await;

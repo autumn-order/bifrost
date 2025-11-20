@@ -48,7 +48,7 @@ async fn transfers_character_to_different_user() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
     claims.owner = user_character_model.owner_hash;
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -87,7 +87,7 @@ async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
     claims.owner = format!("different_{}", user_character_model.owner_hash);
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -120,7 +120,7 @@ async fn links_unowned_character() -> Result<(), TestError> {
     let mut claims = test.auth().with_mock_jwt_claims();
     claims.sub = format!("CHARACTER:EVE:{}", character_model.character_id);
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
