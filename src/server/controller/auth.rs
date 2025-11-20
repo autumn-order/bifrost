@@ -18,7 +18,7 @@ use crate::{
                 auth::SessionAuthCsrf, change_main::SessionUserChangeMain, user::SessionUserId,
             },
         },
-        service::auth::{callback::CallbackService, login::login_service},
+        service::auth::{callback::CallbackService, login::LoginService},
     },
 };
 
@@ -55,13 +55,14 @@ pub async fn login(
     session: Session,
     params: Query<LoginParams>,
 ) -> Result<impl IntoResponse, Error> {
+    let login_service = LoginService::new(&state.esi_client);
     let scopes = eve_esi::ScopeBuilder::new().build();
 
     if let Some(true) = params.0.change_main {
         SessionUserChangeMain::insert(&session, true).await?;
     }
 
-    let login = login_service(&state.esi_client, scopes)?;
+    let login = login_service.generate_login_url(scopes)?;
 
     SessionAuthCsrf::insert(&session, &login.state).await?;
 
