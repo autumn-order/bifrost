@@ -91,7 +91,7 @@ pub async fn callback(
     session: Session,
     params: Query<CallbackParams>,
 ) -> Result<impl IntoResponse, Error> {
-    let callback_service = CallbackService::new(&state.db, &state.esi_client);
+    let callback_service = CallbackService::new(state.db.clone(), state.esi_client.clone());
 
     validate_csrf(&session, &params.0.state).await?;
 
