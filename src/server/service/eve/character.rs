@@ -24,7 +24,7 @@ impl<'a> CharacterService<'a> {
         &self,
         character_id: i64,
     ) -> Result<entity::eve_character::Model, Error> {
-        let character_repo = CharacterRepository::new(&self.db);
+        let character_repo = CharacterRepository::new(self.db);
         let corporation_service = CorporationService::new(&self.db, &self.esi_client);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
@@ -56,7 +56,7 @@ impl<'a> CharacterService<'a> {
         &self,
         character_id: i64,
     ) -> Result<entity::eve_character::Model, Error> {
-        let character_repo = CharacterRepository::new(&self.db);
+        let character_repo = CharacterRepository::new(self.db);
 
         if let Some(character) = character_repo.get_by_character_id(character_id).await? {
             return Ok(character);
@@ -109,7 +109,7 @@ impl<'a> CharacterService<'a> {
         &self,
         character_id: i64,
     ) -> Result<entity::eve_character::Model, Error> {
-        let character_repo = CharacterRepository::new(&self.db);
+        let character_repo = CharacterRepository::new(self.db);
         let corporation_service = CorporationService::new(&self.db, &self.esi_client);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 

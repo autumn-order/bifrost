@@ -56,7 +56,7 @@ impl<'a> AffiliationService<'a> {
             })
             .collect();
 
-        CorporationRepository::new(&self.db)
+        CorporationRepository::new(self.db)
             .update_affiliations(corporation_affiliations)
             .await?;
 
@@ -136,7 +136,7 @@ impl<'a> AffiliationService<'a> {
                 }
             ).collect();
 
-        CharacterRepository::new(&self.db)
+        CharacterRepository::new(self.db)
             .update_affiliations(character_affiliations)
             .await?;
 

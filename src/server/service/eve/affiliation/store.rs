@@ -27,7 +27,7 @@ impl<'a> AffiliationService<'a> {
         if !updated_faction_ids.is_empty() {
             let unique_faction_ids: Vec<i64> = unique_ids.faction_ids.iter().copied().collect();
 
-            let faction_table_ids = FactionRepository::new(&self.db)
+            let faction_table_ids = FactionRepository::new(self.db)
                 .get_entry_ids_by_faction_ids(&unique_faction_ids)
                 .await?;
 
@@ -78,7 +78,7 @@ impl<'a> AffiliationService<'a> {
                 ))
             })
             .collect();
-        CharacterRepository::new(&self.db)
+        CharacterRepository::new(self.db)
             .upsert_many(character_entries)
             .await?;
 
@@ -110,7 +110,7 @@ impl<'a> AffiliationService<'a> {
                     )
                 })
                 .collect();
-        let created_corporations = CorporationRepository::new(&self.db)
+        let created_corporations = CorporationRepository::new(self.db)
             .upsert_many(corporation_entries)
             .await?;
 
@@ -138,7 +138,7 @@ impl<'a> AffiliationService<'a> {
                 (alliance_id, alliance, faction_table_id)
             })
             .collect();
-        let created_alliances = AllianceRepository::new(&self.db)
+        let created_alliances = AllianceRepository::new(self.db)
             .upsert_many(alliance_entries)
             .await?;
 

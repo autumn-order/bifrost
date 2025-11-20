@@ -1,17 +1,17 @@
 use chrono::Utc;
 use dioxus_logger::tracing;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait,
     IntoActiveModel, QueryFilter,
 };
 
-pub struct UserCharacterRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct UserCharacterRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> UserCharacterRepository<'a> {
+impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     /// Creates a new instance of [`UserCharacterRepository`]
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 

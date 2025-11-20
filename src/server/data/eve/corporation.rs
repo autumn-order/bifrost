@@ -2,16 +2,16 @@ use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QuerySelect, TransactionTrait,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
-pub struct CorporationRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct CorporationRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> CorporationRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
@@ -210,6 +210,7 @@ impl<'a> CorporationRepository<'a> {
     /// # Notes
     /// - Alliance IDs must exist in the eve_alliance table due to foreign key constraint
     /// - Corporations that don't exist will be silently skipped
+    /// - If you need transactional behavior, pass a transaction as the connection
     pub async fn update_affiliations(
         &self,
         corporations: Vec<(i32, Option<i32>)>, // (corporation_id, alliance_id)
@@ -217,8 +218,6 @@ impl<'a> CorporationRepository<'a> {
         if corporations.is_empty() {
             return Ok(());
         }
-
-        let txn = self.db.begin().await?;
 
         const BATCH_SIZE: usize = 100;
 
@@ -243,11 +242,9 @@ impl<'a> CorporationRepository<'a> {
                     Expr::current_timestamp(),
                 )
                 .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))
-                .exec(&txn)
+                .exec(self.db)
                 .await?;
         }
-
-        txn.commit().await?;
 
         Ok(())
     }

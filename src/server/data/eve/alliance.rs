@@ -2,16 +2,16 @@ use chrono::Utc;
 use eve_esi::model::alliance::Alliance;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QuerySelect,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
-pub struct AllianceRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct AllianceRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> AllianceRepository<'a> {
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 

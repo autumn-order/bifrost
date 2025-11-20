@@ -2,17 +2,17 @@ pub mod user_character;
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, DatabaseConnection, DbErr, DeleteResult, EntityTrait,
+    ActiveModelTrait, ActiveValue, ConnectionTrait, DbErr, DeleteResult, EntityTrait,
     IntoActiveModel,
 };
 
-pub struct UserRepository<'a> {
-    db: &'a DatabaseConnection,
+pub struct UserRepository<'a, C: ConnectionTrait> {
+    db: &'a C,
 }
 
-impl<'a> UserRepository<'a> {
+impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
     /// Creates a new instance of [`UserRepository`]
-    pub fn new(db: &'a DatabaseConnection) -> Self {
+    pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 

@@ -22,7 +22,7 @@ impl<'a> AllianceService<'a> {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(&self.db);
+        let alliance_repo = AllianceRepository::new(self.db);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
         let alliance = self
@@ -80,7 +80,7 @@ impl<'a> AllianceService<'a> {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(&self.db);
+        let alliance_repo = AllianceRepository::new(self.db);
 
         if let Some(alliance) = alliance_repo.get_by_alliance_id(alliance_id).await? {
             return Ok(alliance);
@@ -96,7 +96,7 @@ impl<'a> AllianceService<'a> {
         &self,
         alliance_id: i64,
     ) -> Result<entity::eve_alliance::Model, Error> {
-        let alliance_repo = AllianceRepository::new(&self.db);
+        let alliance_repo = AllianceRepository::new(self.db);
         let faction_service = FactionService::new(&self.db, &self.esi_client);
 
         // Get alliance information from ESI
