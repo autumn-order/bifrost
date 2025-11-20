@@ -138,7 +138,7 @@ impl AffiliationService {
                 (alliance_id, alliance, faction_table_id)
             })
             .collect();
-        let created_alliances = AllianceRepository::new(&self.db)
+        let created_alliances = AllianceRepository::new(self.db.clone())
             .upsert_many(alliance_entries)
             .await?;
 

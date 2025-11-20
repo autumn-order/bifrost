@@ -132,7 +132,7 @@ impl AffiliationService {
         let faction_table_ids = FactionRepository::new(self.db.clone())
             .get_entry_ids_by_faction_ids(&unique_faction_ids)
             .await?;
-        let alliance_table_ids = AllianceRepository::new(&self.db)
+        let alliance_table_ids = AllianceRepository::new(self.db.clone())
             .get_entry_ids_by_alliance_ids(&unique_alliance_ids)
             .await?;
         let corporation_table_ids = CorporationRepository::new(&self.db)

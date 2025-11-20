@@ -459,7 +459,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
         .await?;
     assert!(faction.is_some());
 
-    let alliance = AllianceRepository::new(&test.state.db)
+    let alliance = AllianceRepository::new(test.state.db.clone())
         .get_by_alliance_id(99000001)
         .await?;
     assert!(alliance.is_some());
