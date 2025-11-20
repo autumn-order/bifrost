@@ -69,6 +69,17 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
+    /// Get multiple factions using their EVE Online faction IDs
+    pub async fn get_by_faction_ids(
+        &self,
+        faction_ids: &[i64],
+    ) -> Result<Vec<entity::eve_faction::Model>, DbErr> {
+        entity::prelude::EveFaction::find()
+            .filter(entity::eve_faction::Column::FactionId.is_in(faction_ids.iter().copied()))
+            .all(self.db)
+            .await
+    }
+
     pub async fn get_entry_ids_by_faction_ids(
         &self,
         faction_ids: &[i64],
