@@ -3,7 +3,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
-    service::{eve::cache::EsiFactionCache, retry::RetryContext},
+    service::{retry::cache::eve::EsiFactionCache, retry::RetryContext},
 };
 
 pub struct FactionService<'a> {
