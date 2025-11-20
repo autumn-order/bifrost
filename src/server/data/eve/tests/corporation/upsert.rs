@@ -16,7 +16,7 @@ async fn creates_new_corporation_with_alliance_and_faction() -> Result<(), TestE
         Some(faction_model.faction_id),
     );
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(
             corporation_id,
@@ -54,7 +54,7 @@ async fn creates_new_corporation_with_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_corporation(1, None, Some(faction_model.faction_id));
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, Some(faction_model.id))
         .await;
@@ -77,7 +77,7 @@ async fn creates_new_corporation_without_alliance_or_faction() -> Result<(), Tes
     )?;
     let (corporation_id, corporation) = test.eve().with_mock_corporation(1, None, None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, None)
         .await;
@@ -106,7 +106,7 @@ async fn updates_existing_corporation() -> Result<(), TestError> {
     updated_corporation.ticker = "NEW".to_string();
     updated_corporation.member_count = 9999;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, updated_corporation, None, None)
         .await;
@@ -144,7 +144,7 @@ async fn updates_corporation_alliance_relationship() -> Result<(), TestError> {
         test.eve()
             .with_mock_corporation(1, Some(alliance_model2.alliance_id), None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, Some(alliance_model2.id), None)
         .await;
@@ -179,7 +179,7 @@ async fn updates_corporation_faction_relationship() -> Result<(), TestError> {
         test.eve()
             .with_mock_corporation(1, None, Some(faction_model2.faction_id));
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, Some(faction_model2.id))
         .await;
@@ -213,7 +213,7 @@ async fn removes_alliance_relationship_on_upsert() -> Result<(), TestError> {
     // Update corporation without alliance
     let (corporation_id, corporation) = test.eve().with_mock_corporation(1, None, None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, None)
         .await;
@@ -246,7 +246,7 @@ async fn removes_faction_relationship_on_upsert() -> Result<(), TestError> {
     // Update corporation without faction
     let (corporation_id, corporation) = test.eve().with_mock_corporation(1, None, None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, None)
         .await;
@@ -266,7 +266,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let mut test = test_setup_with_tables!()?;
     let (corporation_id, corporation) = test.eve().with_mock_corporation(1, None, None);
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(test.state.db.clone());
     let result = corporation_repo
         .upsert(corporation_id, corporation, None, None)
         .await;

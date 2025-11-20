@@ -16,7 +16,7 @@ async fn deletes_user_when_last_character_transferred() -> Result<(), TestError>
     // Character is set as main but there isn't actually an ownership record set so it will transfer
     let new_user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -54,8 +54,8 @@ async fn transfers_character_without_deleting_user() -> Result<(), TestError> {
     // Character is set as main but there isn't actually an ownership record set so it will transfer
     let new_user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -100,8 +100,8 @@ async fn changes_main_character_after_transfer() -> Result<(), TestError> {
     // Character is set as main but there isn't actually an ownership record set so it will transfer
     let new_user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -139,7 +139,7 @@ async fn fails_for_nonexistent_target_user() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service

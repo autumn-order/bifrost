@@ -33,7 +33,7 @@ async fn updates_affiliations_for_single_character() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify character affiliation was updated
-    let updated_character = CharacterRepository::new(&test.state.db)
+    let updated_character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -83,7 +83,7 @@ async fn updates_affiliations_with_alliance_and_faction() -> Result<(), TestErro
     assert!(result.is_ok());
 
     // Verify character affiliation was updated with faction
-    let updated_character = CharacterRepository::new(&test.state.db)
+    let updated_character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -92,7 +92,7 @@ async fn updates_affiliations_with_alliance_and_faction() -> Result<(), TestErro
     assert_eq!(updated_character.faction_id, Some(faction.id));
 
     // Verify corporation affiliation was updated with alliance
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -138,13 +138,13 @@ async fn fetches_and_stores_missing_entities() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify corporation was created
-    let corporation = CorporationRepository::new(&test.state.db)
+    let corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation.is_some());
 
     // Verify character was created
-    let character = CharacterRepository::new(&test.state.db)
+    let character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(character.is_some());
@@ -198,13 +198,13 @@ async fn updates_affiliations_for_multiple_characters() -> Result<(), TestError>
     assert!(result.is_ok());
 
     // Verify both characters were updated
-    let updated_char1 = CharacterRepository::new(&test.state.db)
+    let updated_char1 = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_char1.is_some());
     assert_eq!(updated_char1.unwrap().corporation_id, corporation1.id);
 
-    let updated_char2 = CharacterRepository::new(&test.state.db)
+    let updated_char2 = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794366)
         .await?;
     assert!(updated_char2.is_some());
@@ -275,7 +275,7 @@ async fn filters_invalid_character_ids() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify valid character was updated
-    let updated_character = CharacterRepository::new(&test.state.db)
+    let updated_character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
@@ -319,14 +319,14 @@ async fn updates_both_corporation_and_character_affiliations() -> Result<(), Tes
     assert!(result.is_ok());
 
     // Verify character affiliation was updated
-    let updated_character = CharacterRepository::new(&test.state.db)
+    let updated_character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_character.is_some());
     assert_eq!(updated_character.unwrap().corporation_id, corporation.id);
 
     // Verify corporation affiliation was updated with alliance
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -379,20 +379,20 @@ async fn deduplicates_corporation_updates() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify both characters were updated
-    let updated_char1 = CharacterRepository::new(&test.state.db)
+    let updated_char1 = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(updated_char1.is_some());
     assert_eq!(updated_char1.unwrap().corporation_id, corporation.id);
 
-    let updated_char2 = CharacterRepository::new(&test.state.db)
+    let updated_char2 = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794366)
         .await?;
     assert!(updated_char2.is_some());
     assert_eq!(updated_char2.unwrap().corporation_id, corporation.id);
 
     // Verify corporation was updated with alliance (should only happen once despite two characters)
-    let updated_corporation = CorporationRepository::new(&test.state.db)
+    let updated_corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(updated_corporation.is_some());
@@ -454,12 +454,12 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
     assert!(result.is_ok());
 
     // Verify all entities were created with proper relationships
-    let faction = FactionRepository::new(&test.state.db)
+    let faction = FactionRepository::new(test.state.db.clone())
         .get_by_faction_id(500001)
         .await?;
     assert!(faction.is_some());
 
-    let alliance = AllianceRepository::new(&test.state.db)
+    let alliance = AllianceRepository::new(test.state.db.clone())
         .get_by_alliance_id(99000001)
         .await?;
     assert!(alliance.is_some());
@@ -468,7 +468,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
         Some(faction.unwrap().id)
     );
 
-    let corporation = CorporationRepository::new(&test.state.db)
+    let corporation = CorporationRepository::new(test.state.db.clone())
         .get_by_corporation_id(98000001)
         .await?;
     assert!(corporation.is_some());
@@ -477,7 +477,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
         Some(alliance.unwrap().id)
     );
 
-    let character = CharacterRepository::new(&test.state.db)
+    let character = CharacterRepository::new(test.state.db.clone())
         .get_by_character_id(2114794365)
         .await?;
     assert!(character.is_some());

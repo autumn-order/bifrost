@@ -41,7 +41,7 @@ async fn transfers_character_on_owner_hash_change() -> Result<(), TestError> {
     claims.sub = "CHARACTER:EVE:1".to_string();
     claims.owner = "different_owner_hash".to_string();
 
-    let user_character_repo = UserCharacterRepository::new(&test.state.db);
+    let user_character_repo = UserCharacterRepository::new(test.state.db.clone());
     let user_service = UserService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_service.get_or_create_user(claims).await;
 

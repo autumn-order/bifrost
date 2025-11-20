@@ -17,7 +17,7 @@ async fn creates_character_with_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(test.state.db.clone());
     let result = character_repo
         .create(
             character_id,
@@ -50,7 +50,7 @@ async fn creates_character_without_faction() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(1, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(test.state.db.clone());
     let result = character_repo
         .create(character_id, character, corporation_model.id, None)
         .await;
@@ -75,7 +75,7 @@ async fn fails_for_invalid_corporation_id() -> Result<(), TestError> {
     let (character_id, character) = test.eve().with_mock_character(1, 1, None, None);
 
     let corporation_id = 1;
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(test.state.db.clone());
     let result = character_repo
         .create(character_id, character, corporation_id, None)
         .await;

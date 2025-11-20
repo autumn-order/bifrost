@@ -129,16 +129,16 @@ impl AffiliationService {
         let unique_corporation_ids: Vec<i64> = unique_ids.corporation_ids.iter().copied().collect();
         let unique_character_ids: Vec<i64> = unique_ids.character_ids.iter().copied().collect();
 
-        let faction_table_ids = FactionRepository::new(&self.db)
+        let faction_table_ids = FactionRepository::new(self.db.clone())
             .get_entry_ids_by_faction_ids(&unique_faction_ids)
             .await?;
-        let alliance_table_ids = AllianceRepository::new(&self.db)
+        let alliance_table_ids = AllianceRepository::new(self.db.clone())
             .get_entry_ids_by_alliance_ids(&unique_alliance_ids)
             .await?;
-        let corporation_table_ids = CorporationRepository::new(&self.db)
+        let corporation_table_ids = CorporationRepository::new(self.db.clone())
             .get_entry_ids_by_corporation_ids(&unique_corporation_ids)
             .await?;
-        let character_table_ids = CharacterRepository::new(&self.db)
+        let character_table_ids = CharacterRepository::new(self.db.clone())
             .get_entry_ids_by_character_ids(&unique_character_ids)
             .await?;
 
