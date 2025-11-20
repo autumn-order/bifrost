@@ -34,7 +34,7 @@ impl EsiFactionCache {
     /// - `Some((Vec<Faction>, bool))`: Factions and a flag indicating whether they came from
     ///   the retry cache (`true`) or were freshly fetched from ESI (`false`)
     /// - `None`: Factions not eligible for update due to still being within cache window
-    pub async fn fetch_factions(
+    pub async fn fetch(
         &mut self,
         db: &DatabaseConnection,
         esi_client: &eve_esi::Client,
@@ -70,14 +70,12 @@ impl EsiAllianceCache {
         Self(None)
     }
 
-    pub async fn fetch_alliance(
+    pub async fn fetch(
         &mut self,
         esi_client: &eve_esi::Client,
         alliance_id: i64,
     ) -> Result<Alliance, Error> {
-        let mut alliances = self
-            .fetch_multiple_alliances(esi_client, vec![alliance_id])
-            .await?;
+        let mut alliances = self.fetch_multiple(esi_client, vec![alliance_id]).await?;
 
         alliances.pop().ok_or_else(|| {
             Error::InternalError(format!(
@@ -88,7 +86,7 @@ impl EsiAllianceCache {
         })
     }
 
-    pub async fn fetch_multiple_alliances(
+    pub async fn fetch_multiple(
         &mut self,
         esi_client: &eve_esi::Client,
         mut alliance_ids: Vec<i64>,
@@ -161,13 +159,13 @@ impl EsiCorporationCache {
         Self(None)
     }
 
-    pub async fn fetch_corporation(
+    pub async fn fetch(
         &mut self,
         esi_client: &eve_esi::Client,
         corporation_id: i64,
     ) -> Result<Corporation, Error> {
         let mut corporations = self
-            .fetch_multiple_corporations(esi_client, vec![corporation_id])
+            .fetch_multiple(esi_client, vec![corporation_id])
             .await?;
 
         corporations.pop().ok_or_else(|| {
@@ -179,7 +177,7 @@ impl EsiCorporationCache {
         })
     }
 
-    pub async fn fetch_multiple_corporations(
+    pub async fn fetch_multiple(
         &mut self,
         esi_client: &eve_esi::Client,
         mut corporation_ids: Vec<i64>,
@@ -252,14 +250,12 @@ impl EsiCharacterCache {
         Self(None)
     }
 
-    pub async fn fetch_character(
+    pub async fn fetch(
         &mut self,
         esi_client: &eve_esi::Client,
         character_id: i64,
     ) -> Result<Character, Error> {
-        let mut characters = self
-            .fetch_multiple_characters(esi_client, vec![character_id])
-            .await?;
+        let mut characters = self.fetch_multiple(esi_client, vec![character_id]).await?;
 
         characters.pop().ok_or_else(|| {
             Error::InternalError(format!(
@@ -270,7 +266,7 @@ impl EsiCharacterCache {
         })
     }
 
-    pub async fn fetch_multiple_characters(
+    pub async fn fetch_multiple(
         &mut self,
         esi_client: &eve_esi::Client,
         mut character_ids: Vec<i64>,
