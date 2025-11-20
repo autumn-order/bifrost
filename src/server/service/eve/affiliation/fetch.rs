@@ -48,9 +48,10 @@ impl<'a> AffiliationService<'a> {
             return Ok(Vec::new());
         }
 
-        let fetched_corporations = CorporationService::new(&self.db, &self.esi_client)
-            .get_many_corporations(missing_corporation_ids)
-            .await?;
+        let fetched_corporations =
+            CorporationService::new(self.db.clone(), self.esi_client.clone())
+                .get_many_corporations(missing_corporation_ids)
+                .await?;
 
         for (_, corporation) in &fetched_corporations {
             if let Some(alliance_id) = corporation.alliance_id {

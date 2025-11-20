@@ -20,7 +20,8 @@ async fn fetches_multiple_corporations() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;
@@ -51,7 +52,8 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
         entity::prelude::EveCorporation
     )?;
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service.get_many_corporations(vec![]).await;
 
     assert!(result.is_ok());
@@ -76,7 +78,8 @@ async fn fetches_single_corporation() -> Result<(), TestError> {
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(vec![corporation_id])
         .await;
@@ -121,7 +124,8 @@ async fn fetches_corporations_with_alliances() -> Result<(), TestError> {
             .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
 
     let corporation_ids = vec![corporation_id_1, corporation_id_2];
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids)
         .await;
@@ -166,7 +170,8 @@ async fn fetches_corporations_with_factions() -> Result<(), TestError> {
             .with_corporation_endpoint(corporation_id_2, mock_corporation_2, 1);
 
     let corporation_ids = vec![corporation_id_1, corporation_id_2];
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids)
         .await;
@@ -207,7 +212,8 @@ async fn fetches_corporations_with_alliance_and_faction() -> Result<(), TestErro
         test.eve()
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(vec![corporation_id])
         .await;
@@ -233,7 +239,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     )?;
 
     let corporation_ids = vec![1, 2, 3];
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids)
         .await;
@@ -261,7 +268,8 @@ async fn fails_on_partial_esi_failure() -> Result<(), TestError> {
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
     let corporation_ids = vec![1, 2, 3];
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids)
         .await;
@@ -294,7 +302,8 @@ async fn fetches_many_corporations() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;
@@ -336,7 +345,8 @@ async fn fetches_many_corporations_with_batching() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;
@@ -379,7 +389,8 @@ async fn executes_requests_concurrently() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;
@@ -419,7 +430,8 @@ async fn fails_on_concurrent_batch_error() -> Result<(), TestError> {
             .with_corporation_endpoint(corporation_id, mock_corporation, 1);
 
     let corporation_ids = vec![1, 2, 3, 4, 5];
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids)
         .await;
@@ -452,7 +464,8 @@ async fn handles_exact_batch_size() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;
@@ -495,7 +508,8 @@ async fn handles_batch_size_plus_one() -> Result<(), TestError> {
         );
     }
 
-    let corporation_service = CorporationService::new(&test.state.db, &test.state.esi_client);
+    let corporation_service =
+        CorporationService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = corporation_service
         .get_many_corporations(corporation_ids.clone())
         .await;

@@ -8,14 +8,14 @@ use crate::server::{
     service::eve::{alliance::AllianceService, faction::FactionService},
 };
 
-pub struct CorporationService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct CorporationService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> CorporationService<'a> {
+impl CorporationService {
     /// Creates a new instance of [`CorporationService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 

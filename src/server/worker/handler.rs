@@ -77,7 +77,7 @@ impl WorkerJobHandler {
             corporation_id
         );
 
-        CorporationService::new(&self.db, &self.esi_client)
+        CorporationService::new(self.db.clone(), self.esi_client.clone())
             .upsert_corporation(corporation_id)
             .await
             .map_err(|e| {
