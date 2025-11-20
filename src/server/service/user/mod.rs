@@ -31,7 +31,8 @@ impl UserService {
         let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
         let character_service = CharacterService::new(self.db.clone(), self.esi_client.clone());
-        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
+        let user_character_service =
+            UserCharacterService::new(self.db.clone(), self.esi_client.clone());
 
         let character_id = claims.character_id()?;
         let character = match user_character_repo

@@ -11,14 +11,14 @@ use crate::{
     },
 };
 
-pub struct UserCharacterService<'a> {
-    db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+pub struct UserCharacterService {
+    db: DatabaseConnection,
+    esi_client: eve_esi::Client,
 }
 
-impl<'a> UserCharacterService<'a> {
+impl UserCharacterService {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(db: DatabaseConnection, esi_client: eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
@@ -198,7 +198,7 @@ impl<'a> UserCharacterService<'a> {
     }
 
     pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
-        let user_repo = UserRepository::new(self.db);
+        let user_repo = UserRepository::new(&self.db);
         let user_character_repo = UserCharacterRepository::new(&self.db);
 
         let character = user_character_repo

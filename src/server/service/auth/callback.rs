@@ -44,7 +44,8 @@ impl<'a> CallbackService<'a> {
         change_main: Option<bool>,
     ) -> Result<i32, Error> {
         let user_service = UserService::new(self.db.clone(), self.esi_client.clone());
-        let user_character_service = UserCharacterService::new(&self.db, &self.esi_client);
+        let user_character_service =
+            UserCharacterService::new(self.db.clone(), self.esi_client.clone());
 
         let token = self
             .esi_client

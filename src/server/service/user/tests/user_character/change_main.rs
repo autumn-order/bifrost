@@ -20,7 +20,8 @@ async fn changes_main_to_owned_character() -> Result<(), TestError> {
         .await?;
 
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .change_main(user_model.id, second_character_model.character_id)
         .await;
@@ -51,7 +52,8 @@ async fn handles_changing_to_current_main() -> Result<(), TestError> {
         .await?;
 
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .change_main(user_model.id, character_model.character_id)
         .await;
@@ -87,7 +89,8 @@ async fn unowned_character_err() -> Result<(), TestError> {
     let unowned_character = test.eve().insert_mock_character(2, 1, None, None).await?;
 
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .change_main(user_model.id, unowned_character.character_id)
         .await;
@@ -126,7 +129,8 @@ async fn non_existant_character_err() -> Result<(), TestError> {
 
     let nonexistent_character_id = 999;
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .change_main(user_model.id, nonexistent_character_id)
         .await;
@@ -172,7 +176,8 @@ async fn prevents_changing_to_character_owned_by_different_user() -> Result<(), 
         .await?;
 
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .change_main(user_model.id, other_user_character.character_id)
         .await;
@@ -211,7 +216,8 @@ async fn changes_main_among_multiple_owned_characters() -> Result<(), TestError>
         .await?;
 
     let user_repo = UserRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     // Change to second character
     let result = user_character_service

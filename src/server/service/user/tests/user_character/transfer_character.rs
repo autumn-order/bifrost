@@ -17,7 +17,8 @@ async fn deletes_user_when_last_character_transferred() -> Result<(), TestError>
     let new_user_model = test.user().insert_user(character_model.id).await?;
 
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .transfer_character(user_character_model, new_user_model.id)
         .await;
@@ -55,7 +56,8 @@ async fn transfers_character_without_deleting_user() -> Result<(), TestError> {
 
     let user_repo = UserRepository::new(&test.state.db);
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .transfer_character(second_user_character_model, new_user_model.id)
         .await;
@@ -100,7 +102,8 @@ async fn changes_main_character_after_transfer() -> Result<(), TestError> {
 
     let user_repo = UserRepository::new(&test.state.db);
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .transfer_character(main_user_character_model, new_user_model.id)
         .await;
@@ -137,7 +140,8 @@ async fn fails_for_nonexistent_target_user() -> Result<(), TestError> {
         .await?;
 
     let user_character_repo = UserCharacterRepository::new(&test.state.db);
-    let user_character_service = UserCharacterService::new(&test.state.db, &test.state.esi_client);
+    let user_character_service =
+        UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
         .transfer_character(user_character_model.clone(), user_model.id + 1)
         .await;
