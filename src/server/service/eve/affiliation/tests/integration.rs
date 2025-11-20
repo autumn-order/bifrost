@@ -26,7 +26,7 @@ async fn updates_affiliations_for_single_character() -> Result<(), TestError> {
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![2114794365]).await;
 
@@ -76,7 +76,7 @@ async fn updates_affiliations_with_alliance_and_faction() -> Result<(), TestErro
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![2114794365]).await;
 
@@ -131,7 +131,7 @@ async fn fetches_and_stores_missing_entities() -> Result<(), TestError> {
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![2114794365]).await;
 
@@ -189,7 +189,7 @@ async fn updates_affiliations_for_multiple_characters() -> Result<(), TestError>
         .eve()
         .with_character_affiliation_endpoint(mock_affiliations, 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service
         .update_affiliations(vec![2114794365, 2114794366])
@@ -225,7 +225,7 @@ async fn handles_empty_character_list() -> Result<(), TestError> {
 
     let _affiliation_endpoint = test.eve().with_character_affiliation_endpoint(vec![], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![]).await;
 
@@ -261,7 +261,7 @@ async fn filters_invalid_character_ids() -> Result<(), TestError> {
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     // Mix valid and invalid character IDs
     let result = service
@@ -312,7 +312,7 @@ async fn updates_both_corporation_and_character_affiliations() -> Result<(), Tes
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![2114794365]).await;
 
@@ -370,7 +370,7 @@ async fn deduplicates_corporation_updates() -> Result<(), TestError> {
         .eve()
         .with_character_affiliation_endpoint(mock_affiliations, 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service
         .update_affiliations(vec![2114794365, 2114794366])
@@ -447,7 +447,7 @@ async fn handles_complex_entity_relationships() -> Result<(), TestError> {
         .eve()
         .with_character_affiliation_endpoint(vec![mock_affiliation], 1);
 
-    let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+    let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
     let result = service.update_affiliations(vec![2114794365]).await;
 

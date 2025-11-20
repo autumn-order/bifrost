@@ -138,7 +138,7 @@ impl WorkerJobHandler {
             );
         }
 
-        AffiliationService::new(&self.db, &self.esi_client)
+        AffiliationService::new(self.db.clone(), self.esi_client.clone())
             .update_affiliations(character_ids)
             .await
             .map_err(|e| {

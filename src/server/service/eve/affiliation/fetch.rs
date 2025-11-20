@@ -2,7 +2,7 @@ use crate::server::service::eve::affiliation::AffiliationService;
 
 use super::*;
 
-impl<'a> AffiliationService<'a> {
+impl AffiliationService {
     pub(super) async fn fetch_missing_characters(
         &self,
         table_ids: &mut TableIds,

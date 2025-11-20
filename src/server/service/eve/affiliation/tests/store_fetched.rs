@@ -15,7 +15,7 @@ mod attempt_update_missing_factions {
 
         let faction = test.eve().insert_mock_faction(500001).await?;
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: vec![(faction.faction_id, faction.id)].into_iter().collect(),
@@ -50,7 +50,7 @@ mod attempt_update_missing_factions {
             entity::prelude::EveCharacter,
         )?;
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -88,7 +88,7 @@ mod attempt_update_missing_factions {
         let mock_faction = test.eve().with_mock_faction(500001);
         let _faction_endpoint = test.eve().with_faction_endpoint(vec![mock_faction], 1);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -138,7 +138,7 @@ mod store_fetched_characters {
             .eve()
             .with_mock_character(2114794365, 98000001, None, None);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -172,7 +172,7 @@ mod store_fetched_characters {
             .eve()
             .with_mock_character(2114794365, 98000001, None, None);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -212,7 +212,7 @@ mod store_fetched_characters {
             test.eve()
                 .with_mock_character(2114794365, 98000001, None, Some(500001));
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let table_ids = TableIds {
             faction_ids: vec![(500001, faction.id)].into_iter().collect(),
@@ -248,7 +248,7 @@ mod store_fetched_corporations {
 
         let (corporation_id, corporation) = test.eve().with_mock_corporation(98000001, None, None);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -286,7 +286,7 @@ mod store_fetched_corporations {
             test.eve()
                 .with_mock_corporation(98000001, Some(99000001), None);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -323,7 +323,7 @@ mod store_fetched_corporations {
             test.eve()
                 .with_mock_corporation(98000001, None, Some(500001));
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: vec![(500001, faction.id)].into_iter().collect(),
@@ -360,7 +360,7 @@ mod store_fetched_alliances {
 
         let (alliance_id, alliance) = test.eve().with_mock_alliance(99000001, None);
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: HashMap::new(),
@@ -396,7 +396,7 @@ mod store_fetched_alliances {
 
         let (alliance_id, alliance) = test.eve().with_mock_alliance(99000001, Some(500001));
 
-        let service = AffiliationService::new(&test.state.db, &test.state.esi_client);
+        let service = AffiliationService::new(test.state.db.clone(), test.state.esi_client.clone());
 
         let mut table_ids = TableIds {
             faction_ids: vec![(500001, faction.id)].into_iter().collect(),

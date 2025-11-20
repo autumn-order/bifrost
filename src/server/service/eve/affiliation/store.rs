@@ -2,7 +2,7 @@ use crate::server::service::eve::affiliation::AffiliationService;
 
 use super::*;
 
-impl<'a> AffiliationService<'a> {
+impl AffiliationService {
     pub(super) async fn attempt_update_missing_factions(
         &self,
         table_ids: &mut TableIds,
