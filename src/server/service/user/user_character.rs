@@ -138,7 +138,7 @@ impl UserCharacterService {
         ownership_entry: entity::bifrost_user_character::Model,
         new_user_id: i32,
     ) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(&self.db);
+        let user_repo = UserRepository::new(self.db.clone());
         let user_character_repo = UserCharacterRepository::new(&self.db);
         let user_service = UserService::new(self.db.clone(), self.esi_client.clone());
 
@@ -198,7 +198,7 @@ impl UserCharacterService {
     }
 
     pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
-        let user_repo = UserRepository::new(&self.db);
+        let user_repo = UserRepository::new(self.db.clone());
         let user_character_repo = UserCharacterRepository::new(&self.db);
 
         let character = user_character_repo

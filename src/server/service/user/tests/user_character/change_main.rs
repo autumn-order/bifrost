@@ -19,7 +19,7 @@ async fn changes_main_to_owned_character() -> Result<(), TestError> {
         .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
         .await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -51,7 +51,7 @@ async fn handles_changing_to_current_main() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -88,7 +88,7 @@ async fn unowned_character_err() -> Result<(), TestError> {
     // Create a character that exists but is not owned by this user
     let unowned_character = test.eve().insert_mock_character(2, 1, None, None).await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -128,7 +128,7 @@ async fn non_existant_character_err() -> Result<(), TestError> {
         .await?;
 
     let nonexistent_character_id = 999;
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -175,7 +175,7 @@ async fn prevents_changing_to_character_owned_by_different_user() -> Result<(), 
         .insert_user_with_mock_character(2, 1, None, None)
         .await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
     let result = user_character_service
@@ -215,7 +215,7 @@ async fn changes_main_among_multiple_owned_characters() -> Result<(), TestError>
         .insert_mock_character_for_user(user_model.id, 3, 1, None, None)
         .await?;
 
-    let user_repo = UserRepository::new(&test.state.db);
+    let user_repo = UserRepository::new(test.state.db.clone());
     let user_character_service =
         UserCharacterService::new(test.state.db.clone(), test.state.esi_client.clone());
 
