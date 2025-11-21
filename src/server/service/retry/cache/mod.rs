@@ -1,7 +1,6 @@
 pub mod eve_data_entry;
 pub mod eve_data_model;
 pub mod eve_fetch;
-pub mod kv_example;
 
 use std::collections::HashMap;
 use std::hash::Hash;
