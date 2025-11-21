@@ -132,6 +132,17 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
             .await
     }
 
+    /// Get multiple alliances using their EVE Online alliance IDs
+    pub async fn get_by_alliance_ids(
+        &self,
+        alliance_ids: &[i64],
+    ) -> Result<Vec<entity::eve_alliance::Model>, DbErr> {
+        entity::prelude::EveAlliance::find()
+            .filter(entity::eve_alliance::Column::AllianceId.is_in(alliance_ids.iter().copied()))
+            .all(self.db)
+            .await
+    }
+
     pub async fn get_entry_ids_by_alliance_ids(
         &self,
         alliance_ids: &[i64],

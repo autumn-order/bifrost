@@ -149,6 +149,17 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
             .await
     }
 
+    /// Get multiple characters using their EVE Online character IDs
+    pub async fn get_by_character_ids(
+        &self,
+        character_ids: &[i64],
+    ) -> Result<Vec<entity::eve_character::Model>, DbErr> {
+        entity::prelude::EveCharacter::find()
+            .filter(entity::eve_character::Column::CharacterId.is_in(character_ids.iter().copied()))
+            .all(self.db)
+            .await
+    }
+
     pub async fn get_entry_ids_by_character_ids(
         &self,
         character_ids: &[i64],

@@ -29,6 +29,9 @@ pub enum Error {
     WorkerError(#[from] WorkerError),
     #[error("Failed to parse value: {0:?}")]
     ParseError(String),
+    /// General not found error for edge cases within Bifrost's code
+    #[error("Internal error with Bifrost's code, please open a GitHub issue as this indicates a bug: {0:?}")]
+    InternalError(String),
     #[error(transparent)]
     EsiError(#[from] eve_esi::Error),
     #[error(transparent)]
