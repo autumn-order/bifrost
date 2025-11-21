@@ -3,10 +3,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
-    service::retry::{
-        cache::eve_fetch::{EsiFactionCache, FactionContext},
-        RetryContext,
-    },
+    service::retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
 };
 
 pub struct FactionService<'a> {
@@ -36,12 +33,7 @@ impl<'a> FactionService<'a> {
             Box::pin(async move {
                 let faction_repo = FactionRepository::new(&db);
 
-                let faction_ctx = FactionContext {
-                    client: &esi_client,
-                    db: &db,
-                };
-
-                let Some(fetched_factions) = cache.get_all(&faction_ctx).await? else {
+                let Some(fetched_factions) = cache.get_all(&db, &esi_client).await? else {
                     return Ok(Vec::new());
                 };
 
@@ -84,12 +76,7 @@ impl<'a> FactionService<'a> {
                 // If the faction is not found, then a new patch may have come out adding
                 // a new faction. Attempt to update factions if they haven't already been
                 // updated since downtime.
-                let faction_ctx = FactionContext {
-                    client: &esi_client,
-                    db: &db,
-                };
-
-                let Some(fetched_factions) = cache.get_all(&faction_ctx).await? else {
+                let Some(fetched_factions) = cache.get_all(&db, &esi_client).await? else {
                     // Factions are already up to date - return error
                     return Err(EveError::FactionNotFound(faction_id).into());
                 };

@@ -16,29 +16,12 @@ use crate::server::{
 
 use super::{CacheFetch, KvCache};
 
-/// Context for ESI entity fetches (just the ESI client)
-pub struct EsiContext<'a> {
-    pub client: &'a eve_esi::Client,
-}
-
-/// Context for faction fetches (ESI client + database for cache expiry check)
-pub struct FactionContext<'a> {
-    pub client: &'a eve_esi::Client,
-    pub db: &'a DatabaseConnection,
-}
-
 /// Faction cache using ESI with database-based cache expiry check
 ///
 /// Unlike other ESI caches, factions are fetched as a complete list rather than
 /// by individual IDs, and include a cache expiry check against the database.
-#[derive(Clone, Debug)]
-pub struct EsiFactionCache(KvCache<i64, Faction>);
-
-impl Default for EsiFactionCache {
-    fn default() -> Self {
-        Self(KvCache::new())
-    }
-}
+#[derive(Clone, Debug, Default)]
+pub struct EsiFactionCache(Option<Vec<Faction>>);
 
 impl EsiFactionCache {
     /// Internal helper to fetch factions from ESI with cache expiry check
@@ -46,10 +29,11 @@ impl EsiFactionCache {
     /// Returns `None` if the cache is still valid and doesn't need updating.
     /// Returns `Some(factions)` if factions should be fetched.
     async fn fetch_factions_if_needed(
-        ctx: &FactionContext<'_>,
+        db: &DatabaseConnection,
+        esi_client: &eve_esi::Client,
     ) -> Result<Option<Vec<Faction>>, Error> {
         // Check cache expiry against database
-        let faction_repo = FactionRepository::new(ctx.db);
+        let faction_repo = FactionRepository::new(db);
 
         let now = Utc::now();
         let effective_expiry = effective_faction_cache_expiry(now)?;
@@ -63,7 +47,7 @@ impl EsiFactionCache {
         }
 
         // Fetch all factions from ESI
-        let fetched_factions = ctx.client.universe().get_factions().await?;
+        let fetched_factions = esi_client.universe().get_factions().await?;
 
         Ok(Some(fetched_factions))
     }
@@ -72,54 +56,23 @@ impl EsiFactionCache {
     ///
     /// Returns `None` if the cache is still valid and doesn't need updating.
     /// Returns `Some(factions)` if factions were fetched and cache was updated.
-    ///
-    /// This is a convenience wrapper that uses the same logic as `fetch_missing`.
     pub async fn get_all(
         &mut self,
-        ctx: &FactionContext<'_>,
+        db: &DatabaseConnection,
+        esi_client: &eve_esi::Client,
     ) -> Result<Option<Vec<Faction>>, Error> {
+        if let Some(factions) = self.0.as_ref() {
+            return Ok(Some(factions.clone()));
+        }
+
         // Use the core fetching logic (same as fetch_missing)
-        let Some(fetched_factions) = Self::fetch_factions_if_needed(ctx).await? else {
+        let Some(fetched_factions) = Self::fetch_factions_if_needed(db, esi_client).await? else {
             return Ok(None);
         };
 
-        // Update cache with fetched values
-        for faction in &fetched_factions {
-            self.0
-                .inner_mut()
-                .insert(faction.faction_id, faction.clone());
-        }
+        self.0 = Some(fetched_factions.clone());
 
         Ok(Some(fetched_factions))
-    }
-}
-
-impl CacheFetch<i64, Faction> for EsiFactionCache {
-    type Context = FactionContext<'static>;
-
-    async fn fetch_missing(
-        &self,
-        ctx: &Self::Context,
-        _ids: Vec<i64>,
-    ) -> Result<Vec<(i64, Faction)>, Error> {
-        let Some(fetched_factions) = Self::fetch_factions_if_needed(ctx).await? else {
-            // Cache is still valid, return empty vec
-            return Ok(Vec::new());
-        };
-
-        // Convert to (id, faction) pairs
-        Ok(fetched_factions
-            .into_iter()
-            .map(|faction| (faction.faction_id, faction))
-            .collect())
-    }
-
-    fn kv_cache(&self) -> &KvCache<i64, Faction> {
-        &self.0
-    }
-
-    fn kv_cache_mut(&mut self) -> &mut KvCache<i64, Faction> {
-        &mut self.0
     }
 }
 
@@ -134,7 +87,7 @@ impl Default for EsiAllianceCache {
 }
 
 impl CacheFetch<i64, Alliance> for EsiAllianceCache {
-    type Context = EsiContext<'static>;
+    type Context = eve_esi::Client;
 
     async fn fetch_missing(
         &self,
@@ -149,7 +102,7 @@ impl CacheFetch<i64, Alliance> for EsiAllianceCache {
 
             for &id in chunk {
                 let future = async move {
-                    let alliance = ctx.client.alliance().get_alliance_information(id).await?;
+                    let alliance = ctx.alliance().get_alliance_information(id).await?;
                     Ok::<_, Error>((id, alliance))
                 };
                 futures.push(future);
@@ -183,7 +136,7 @@ impl Default for EsiCorporationCache {
 }
 
 impl CacheFetch<i64, Corporation> for EsiCorporationCache {
-    type Context = EsiContext<'static>;
+    type Context = eve_esi::Client;
 
     async fn fetch_missing(
         &self,
@@ -198,11 +151,7 @@ impl CacheFetch<i64, Corporation> for EsiCorporationCache {
 
             for &id in chunk {
                 let future = async move {
-                    let corporation = ctx
-                        .client
-                        .corporation()
-                        .get_corporation_information(id)
-                        .await?;
+                    let corporation = ctx.corporation().get_corporation_information(id).await?;
                     Ok::<_, Error>((id, corporation))
                 };
                 futures.push(future);
@@ -236,7 +185,7 @@ impl Default for EsiCharacterCache {
 }
 
 impl CacheFetch<i64, Character> for EsiCharacterCache {
-    type Context = EsiContext<'static>;
+    type Context = eve_esi::Client;
 
     async fn fetch_missing(
         &self,
@@ -251,11 +200,7 @@ impl CacheFetch<i64, Character> for EsiCharacterCache {
 
             for &id in chunk {
                 let future = async move {
-                    let character = ctx
-                        .client
-                        .character()
-                        .get_character_public_information(id)
-                        .await?;
+                    let character = ctx.character().get_character_public_information(id).await?;
                     Ok::<_, Error>((id, character))
                 };
                 futures.push(future);
