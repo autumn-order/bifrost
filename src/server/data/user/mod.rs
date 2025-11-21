@@ -2,8 +2,8 @@ pub mod user_character;
 
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ConnectionTrait, DbErr, DeleteResult, EntityTrait,
-    IntoActiveModel,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, DeleteResult, EntityTrait,
+    IntoActiveModel, QueryFilter,
 };
 
 pub struct UserRepository<'a, C: ConnectionTrait> {
@@ -44,6 +44,35 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
             .find_also_related(entity::eve_character::Entity)
             .one(self.db)
             .await
+    }
+
+    /// Gets multiple users by their IDs (batch version of get)
+    ///
+    /// Returns a Vec of tuples where each tuple contains:
+    /// - user_id: The user ID
+    /// - bifrost_user::Model: The user model
+    /// - Option<eve_character::Model>: The main character model if it exists
+    pub async fn get_many(
+        &self,
+        user_ids: &[i32],
+    ) -> Result<
+        Vec<(
+            i32,
+            entity::bifrost_user::Model,
+            Option<entity::eve_character::Model>,
+        )>,
+        DbErr,
+    > {
+        let results = entity::prelude::BifrostUser::find()
+            .filter(entity::bifrost_user::Column::Id.is_in(user_ids.iter().copied()))
+            .find_also_related(entity::eve_character::Entity)
+            .all(self.db)
+            .await?;
+
+        Ok(results
+            .into_iter()
+            .map(|(user, character)| (user.id, user, character))
+            .collect())
     }
 
     pub async fn update(

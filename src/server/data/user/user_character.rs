@@ -68,6 +68,62 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
             .await
     }
 
+    /// Gets character entries by multiple character IDs (batch version of get_by_character_id)
+    ///
+    /// Returns a Vec of tuples where each tuple contains:
+    /// - character_id: The EVE character ID
+    /// - eve_character::Model: The character model
+    /// - Option<bifrost_user_character::Model>: The ownership model if it exists
+    pub async fn get_many_by_character_ids(
+        &self,
+        character_ids: &[i64],
+    ) -> Result<
+        Vec<(
+            i64,
+            entity::eve_character::Model,
+            Option<entity::bifrost_user_character::Model>,
+        )>,
+        DbErr,
+    > {
+        let results = entity::prelude::EveCharacter::find()
+            .filter(entity::eve_character::Column::CharacterId.is_in(character_ids.iter().copied()))
+            .find_also_related(entity::bifrost_user_character::Entity)
+            .all(self.db)
+            .await?;
+
+        Ok(results
+            .into_iter()
+            .map(|(character, user_character)| (character.character_id, character, user_character))
+            .collect())
+    }
+
+    /// Gets character ownership entries for multiple user IDs (batch version of get_many_by_user_id)
+    ///
+    /// Returns a Vec of tuples where each tuple contains:
+    /// - user_id: The user ID
+    /// - Vec<bifrost_user_character::Model>: All character ownership entries for that user
+    pub async fn get_many_by_user_ids(
+        &self,
+        user_ids: &[i32],
+    ) -> Result<Vec<(i32, Vec<entity::bifrost_user_character::Model>)>, DbErr> {
+        let results = entity::prelude::BifrostUserCharacter::find()
+            .filter(entity::bifrost_user_character::Column::UserId.is_in(user_ids.iter().copied()))
+            .all(self.db)
+            .await?;
+
+        // Group by user_id
+        let mut grouped: std::collections::HashMap<
+            i32,
+            Vec<entity::bifrost_user_character::Model>,
+        > = std::collections::HashMap::new();
+
+        for model in results {
+            grouped.entry(model.user_id).or_default().push(model);
+        }
+
+        Ok(grouped.into_iter().collect())
+    }
+
     /// Gets character information for all characters owned by the user,
     /// including their corporation and alliance details.
     ///
