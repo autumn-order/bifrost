@@ -1,9 +1,12 @@
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
-    service::retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
+    service::{
+        orchestrator::eve::{FactionOrchestrationCache, FactionOrchestrator},
+        retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
+    },
 };
 
 pub struct FactionService<'a> {
@@ -21,7 +24,7 @@ impl<'a> FactionService<'a> {
     ///
     /// The NPC faction cache expires at 11:05 UTC (after downtime)
     pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
-        let mut ctx: RetryContext<EsiFactionCache> = RetryContext::new();
+        let mut ctx: RetryContext<FactionOrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();
         let esi_client = self.esi_client.clone();
@@ -31,15 +34,21 @@ impl<'a> FactionService<'a> {
             let esi_client = esi_client.clone();
 
             Box::pin(async move {
-                let faction_repo = FactionRepository::new(&db);
+                let faction_orch = FactionOrchestrator::new(&db, &esi_client);
 
-                let Some(fetched_factions) = cache.get_all(&db, &esi_client).await? else {
+                let Some(fetched_factions) = faction_orch.fetch_factions(cache).await? else {
                     return Ok(Vec::new());
                 };
 
-                let factions = faction_repo.upsert_many(fetched_factions).await?;
+                let txn = db.begin().await?;
 
-                Ok(factions)
+                let faction_models = faction_orch
+                    .persist_factions(&txn, fetched_factions, cache)
+                    .await?;
+
+                txn.commit().await?;
+
+                Ok(faction_models)
             })
         })
         .await
