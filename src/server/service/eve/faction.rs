@@ -4,7 +4,7 @@ use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
     service::{
-        orchestrator::eve::{FactionOrchestrationCache, FactionOrchestrator},
+        orchestrator::faction::{FactionOrchestrationCache, FactionOrchestrator},
         retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
     },
 };
