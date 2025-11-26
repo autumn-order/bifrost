@@ -84,6 +84,11 @@ where
         Ok(result)
     }
 
+    /// Get all values stored in cache as a Vec
+    pub fn get_all(&self) -> Vec<V> {
+        self.cache.values().cloned().collect()
+    }
+
     /// Get the internal cache reference
     pub fn inner(&self) -> &HashMap<K, V> {
         &self.cache
