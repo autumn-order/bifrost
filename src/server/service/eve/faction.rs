@@ -5,7 +5,7 @@ use crate::server::{
     error::{eve::EveError, Error},
     service::{
         orchestrator::{faction::FactionOrchestrator, OrchestrationCache},
-        retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
+        retry::RetryContext,
     },
 };
 
@@ -67,7 +67,7 @@ impl<'a> FactionService<'a> {
         &self,
         faction_id: i64,
     ) -> Result<entity::eve_faction::Model, Error> {
-        let mut ctx: RetryContext<EsiFactionCache> = RetryContext::new();
+        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();
         let esi_client = self.esi_client.clone();
@@ -78,6 +78,7 @@ impl<'a> FactionService<'a> {
 
             Box::pin(async move {
                 let faction_repo = FactionRepository::new(&db);
+                let faction_orch = FactionOrchestrator::new(&db, &esi_client);
 
                 let result = faction_repo.get_by_faction_id(faction_id).await?;
 
@@ -88,12 +89,18 @@ impl<'a> FactionService<'a> {
                 // If the faction is not found, then a new patch may have come out adding
                 // a new faction. Attempt to update factions if they haven't already been
                 // updated since downtime.
-                let Some(fetched_factions) = cache.get_all(&db, &esi_client).await? else {
+                let Some(fetched_factions) = faction_orch.fetch_factions(cache).await? else {
                     // Factions are already up to date - return error
                     return Err(EveError::FactionNotFound(faction_id).into());
                 };
 
-                let updated_factions = faction_repo.upsert_many(fetched_factions).await?;
+                let txn = db.begin().await?;
+
+                let updated_factions = faction_orch
+                    .persist_factions(&txn, fetched_factions, cache)
+                    .await?;
+
+                txn.commit().await?;
 
                 if let Some(faction) = updated_factions
                     .into_iter()
