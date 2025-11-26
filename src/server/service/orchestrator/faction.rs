@@ -1,28 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::server::{
-    data::eve::faction::FactionRepository, error::Error, util::time::effective_faction_cache_expiry,
+    data::eve::faction::FactionRepository, error::Error,
+    service::orchestrator::cache::faction::FactionOrchestrationCache,
+    util::time::effective_faction_cache_expiry,
 };
 
-/// Cache for faction orchestration
-/// Contains caches for faction data
-#[derive(Clone, Default, Debug)]
-pub struct FactionOrchestrationCache {
-    pub faction_esi: HashMap<i64, Faction>,
-    pub faction_model: HashMap<i64, entity::eve_faction::Model>,
-    pub faction_db_id: HashMap<i64, i32>,
-    // Faction orchestrator is often utilized in multiple places due to it being
-    // depended upon by alliances, corporations, and characters. This prevents
-    // redundantly attempting to persist factions multiple times after a successful
-    // fetch.
-    already_persisted: bool,
-}
-
-/// Orchestrator to handle the fetching & persisting of factions from EVE Online's ESI
+/// Orchestrator for fetching and persisting EVE factions
 pub struct FactionOrchestrator<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
@@ -93,6 +81,11 @@ impl<'a> FactionOrchestrator<'a> {
 
     /// Retrieve NPC faction information from ESI
     ///
+    /// ESI only supports the fetching of all factions at once, additionally, ESI caches alliance
+    /// information for 24 hours which resets at 11:05 UTC. This method will check existing
+    /// factions in database first, no fetch attempt will be made if the factions we have stored
+    /// are already up to date.
+    ///
     /// # Arguments
     /// - `cache`: Cache for the Faction orchestrator that prevents duplicate fetching of factions
     ///   during retry attempts.
@@ -104,10 +97,6 @@ impl<'a> FactionOrchestrator<'a> {
         &self,
         cache: &mut FactionOrchestrationCache,
     ) -> Result<Option<Vec<Faction>>, Error> {
-        // Reset to false as calling this method again indicates a retry, in which case
-        // the persistence would've been rolled back to the transaction not completing
-        cache.already_persisted = false;
-
         if !cache.faction_esi.is_empty() {
             return Ok(Some(cache.faction_esi.values().cloned().collect()));
         }
