@@ -70,60 +70,54 @@ impl OrchestrationCache {
         self.corporations_persisted = false;
         self.characters_persisted = false;
     }
+}
 
-    /// Extract list of dependent faction IDs for list of alliances
-    pub fn get_alliance_faction_dependency_ids(&self, alliances: &[&Alliance]) -> Vec<i64> {
-        alliances
-            .iter()
-            .filter_map(|a| a.faction_id)
-            .collect::<HashSet<i64>>()
-            .into_iter()
-            .collect::<Vec<i64>>()
-    }
+/// Extract list of dependent faction IDs for list of alliances
+pub fn get_alliance_faction_dependency_ids(alliances: &[&Alliance]) -> Vec<i64> {
+    alliances
+        .iter()
+        .filter_map(|a| a.faction_id)
+        .collect::<HashSet<i64>>()
+        .into_iter()
+        .collect::<Vec<i64>>()
+}
 
-    /// Extract list of dependent faction IDs for list of corporations
-    pub fn get_corporation_faction_dependency_ids(
-        &self,
-        corporations: &[&Corporation],
-    ) -> Vec<i64> {
-        corporations
-            .iter()
-            .filter_map(|c| c.faction_id)
-            .collect::<HashSet<i64>>()
-            .into_iter()
-            .collect::<Vec<i64>>()
-    }
+/// Extract list of dependent faction IDs for list of corporations
+pub fn get_corporation_faction_dependency_ids(corporations: &[&Corporation]) -> Vec<i64> {
+    corporations
+        .iter()
+        .filter_map(|c| c.faction_id)
+        .collect::<HashSet<i64>>()
+        .into_iter()
+        .collect::<Vec<i64>>()
+}
 
-    /// Extract list of dependent alliance IDs for list of corporations
-    pub fn get_corporation_alliance_dependency_ids(
-        &self,
-        corporations: &[&Corporation],
-    ) -> Vec<i64> {
-        corporations
-            .iter()
-            .filter_map(|c| c.alliance_id)
-            .collect::<HashSet<i64>>()
-            .into_iter()
-            .collect::<Vec<i64>>()
-    }
+/// Extract list of dependent alliance IDs for list of corporations
+pub fn get_corporation_alliance_dependency_ids(corporations: &[&Corporation]) -> Vec<i64> {
+    corporations
+        .iter()
+        .filter_map(|c| c.alliance_id)
+        .collect::<HashSet<i64>>()
+        .into_iter()
+        .collect::<Vec<i64>>()
+}
 
-    /// Extract list of dependent faction IDs for list of characters
-    pub fn get_character_faction_dependency_ids(&self, characters: &[&Character]) -> Vec<i64> {
-        characters
-            .iter()
-            .filter_map(|c| c.faction_id)
-            .collect::<HashSet<i64>>()
-            .into_iter()
-            .collect::<Vec<i64>>()
-    }
+/// Extract list of dependent faction IDs for list of characters
+pub fn get_character_faction_dependency_ids(characters: &[&Character]) -> Vec<i64> {
+    characters
+        .iter()
+        .filter_map(|c| c.faction_id)
+        .collect::<HashSet<i64>>()
+        .into_iter()
+        .collect::<Vec<i64>>()
+}
 
-    /// Extract list of dependent corporation IDs for list of characters
-    pub fn get_character_corporation_dependency_ids(&self, characters: &[&Character]) -> Vec<i64> {
-        characters
-            .iter()
-            .map(|c| c.corporation_id)
-            .collect::<HashSet<i64>>()
-            .into_iter()
-            .collect::<Vec<i64>>()
-    }
+/// Extract list of dependent corporation IDs for list of characters
+pub fn get_character_corporation_dependency_ids(characters: &[&Character]) -> Vec<i64> {
+    characters
+        .iter()
+        .map(|c| c.corporation_id)
+        .collect::<HashSet<i64>>()
+        .into_iter()
+        .collect::<Vec<i64>>()
 }

@@ -8,7 +8,10 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::{eve::EveError, Error},
-    service::orchestrator::{faction::FactionOrchestrator, OrchestrationCache},
+    service::orchestrator::{
+        cache::get_alliance_faction_dependency_ids, faction::FactionOrchestrator,
+        OrchestrationCache,
+    },
 };
 
 const MAX_CONCURRENT_ALLIANCE_FETCHES: usize = 10;
@@ -184,7 +187,7 @@ impl<'a> AllianceOrchestrator<'a> {
             .map(|(_, alliance)| alliance)
             .collect();
 
-        let faction_ids = cache.get_alliance_faction_dependency_ids(&alliances_ref);
+        let faction_ids = get_alliance_faction_dependency_ids(&alliances_ref);
 
         if faction_ids.is_empty() {
             return Ok(requested_alliances);
@@ -223,7 +226,7 @@ impl<'a> AllianceOrchestrator<'a> {
         let alliances_ref: Vec<&Alliance> =
             alliances.iter().map(|(_, alliance)| alliance).collect();
 
-        let faction_ids = cache.get_alliance_faction_dependency_ids(&alliances_ref);
+        let faction_ids = get_alliance_faction_dependency_ids(&alliances_ref);
 
         let faction_db_ids = faction_orch
             .get_many_faction_entry_ids(faction_ids, cache)
@@ -256,6 +259,7 @@ impl<'a> AllianceOrchestrator<'a> {
             cache
                 .alliance_model
                 .insert(model.alliance_id, model.clone());
+            cache.alliance_db_id.insert(model.alliance_id, model.id);
         }
 
         cache.alliances_persisted = true;

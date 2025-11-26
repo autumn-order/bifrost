@@ -149,6 +149,7 @@ impl<'a> FactionOrchestrator<'a> {
 
         for model in &persisted_models {
             cache.faction_model.insert(model.faction_id, model.clone());
+            cache.faction_db_id.insert(model.faction_id, model.id);
         }
 
         cache.factions_persisted = true;

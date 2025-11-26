@@ -9,7 +9,10 @@ use crate::server::{
     data::eve::corporation::CorporationRepository,
     error::Error,
     service::orchestrator::{
-        alliance::AllianceOrchestrator, faction::FactionOrchestrator, OrchestrationCache,
+        alliance::AllianceOrchestrator,
+        cache::{get_corporation_alliance_dependency_ids, get_corporation_faction_dependency_ids},
+        faction::FactionOrchestrator,
+        OrchestrationCache,
     },
 };
 
@@ -194,8 +197,8 @@ impl<'a> CorporationOrchestrator<'a> {
             .map(|(_, corporation)| corporation)
             .collect();
 
-        let faction_ids = cache.get_corporation_faction_dependency_ids(&corporations_ref);
-        let alliance_ids = cache.get_corporation_alliance_dependency_ids(&corporations_ref);
+        let faction_ids = get_corporation_faction_dependency_ids(&corporations_ref);
+        let alliance_ids = get_corporation_alliance_dependency_ids(&corporations_ref);
 
         if !faction_ids.is_empty() {
             let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
@@ -241,8 +244,8 @@ impl<'a> CorporationOrchestrator<'a> {
             .map(|(_, corporation)| corporation)
             .collect();
 
-        let faction_ids = cache.get_corporation_faction_dependency_ids(&corporations_ref);
-        let alliance_ids = cache.get_corporation_alliance_dependency_ids(&corporations_ref);
+        let faction_ids = get_corporation_faction_dependency_ids(&corporations_ref);
+        let alliance_ids = get_corporation_alliance_dependency_ids(&corporations_ref);
 
         let faction_db_ids = faction_orch
             .get_many_faction_entry_ids(faction_ids, cache)
@@ -301,6 +304,9 @@ impl<'a> CorporationOrchestrator<'a> {
             cache
                 .corporation_model
                 .insert(model.corporation_id, model.clone());
+            cache
+                .corporation_db_id
+                .insert(model.corporation_id, model.id);
         }
 
         cache.corporations_persisted = true;

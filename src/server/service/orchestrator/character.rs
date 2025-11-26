@@ -7,7 +7,10 @@ use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
     service::orchestrator::{
-        corporation::CorporationOrchestrator, faction::FactionOrchestrator, OrchestrationCache,
+        cache::{get_character_corporation_dependency_ids, get_character_faction_dependency_ids},
+        corporation::CorporationOrchestrator,
+        faction::FactionOrchestrator,
+        OrchestrationCache,
     },
 };
 
@@ -190,8 +193,8 @@ impl<'a> CharacterOrchestrator<'a> {
             .map(|(_, character)| character)
             .collect();
 
-        let faction_ids = cache.get_character_faction_dependency_ids(&characters_ref);
-        let corporation_ids = cache.get_character_corporation_dependency_ids(&characters_ref);
+        let faction_ids = get_character_faction_dependency_ids(&characters_ref);
+        let corporation_ids = get_character_corporation_dependency_ids(&characters_ref);
 
         if !faction_ids.is_empty() {
             let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
@@ -237,8 +240,8 @@ impl<'a> CharacterOrchestrator<'a> {
         let characters_ref: Vec<&Character> =
             characters.iter().map(|(_, character)| character).collect();
 
-        let faction_ids = cache.get_character_faction_dependency_ids(&characters_ref);
-        let corporation_ids = cache.get_character_corporation_dependency_ids(&characters_ref);
+        let faction_ids = get_character_faction_dependency_ids(&characters_ref);
+        let corporation_ids = get_character_corporation_dependency_ids(&characters_ref);
 
         let faction_db_ids = faction_orch
             .get_many_faction_entry_ids(faction_ids, cache)
@@ -299,6 +302,7 @@ impl<'a> CharacterOrchestrator<'a> {
             cache
                 .character_model
                 .insert(model.character_id, model.clone());
+            cache.character_db_id.insert(model.character_id, model.id);
         }
 
         cache.characters_persisted = true;
