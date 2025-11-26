@@ -52,6 +52,9 @@ impl Error {
             // Parse errors - permanent failures (bad data format)
             Self::ParseError(_) => ErrorRetryStrategy::Fail,
 
+            // InternalError - permanent failures (internal error within Bifrost's code)
+            Self::InternalError(_) => ErrorRetryStrategy::Fail,
+
             // Worker errors - permanent failures (validation errors)
             Self::WorkerError(_) => ErrorRetryStrategy::Fail,
 

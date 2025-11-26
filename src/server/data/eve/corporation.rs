@@ -185,6 +185,20 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
             .await
     }
 
+    /// Get multiple corporations using their EVE Online corporation IDs
+    pub async fn get_by_corporation_ids(
+        &self,
+        corporation_ids: &[i64],
+    ) -> Result<Vec<entity::eve_corporation::Model>, DbErr> {
+        entity::prelude::EveCorporation::find()
+            .filter(
+                entity::eve_corporation::Column::CorporationId
+                    .is_in(corporation_ids.iter().copied()),
+            )
+            .all(self.db)
+            .await
+    }
+
     pub async fn get_entry_ids_by_corporation_ids(
         &self,
         corporation_ids: &[i64],
