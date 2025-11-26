@@ -33,14 +33,14 @@ impl<'a> AllianceOrchestrator<'a> {
         cache: &mut AllianceOrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
-            .get_alliance_entry_ids(vec![alliance_id], cache)
+            .get_many_alliance_entry_ids(vec![alliance_id], cache)
             .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
     /// Retrieve pairs of EVE alliance IDs & DB alliance IDs from a list of alliance IDs
-    pub async fn get_alliance_entry_ids(
+    pub async fn get_many_alliance_entry_ids(
         &self,
         alliance_ids: Vec<i64>,
         cache: &mut AllianceOrchestrationCache,
@@ -203,33 +203,6 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(requested_alliances)
     }
 
-    /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
-    pub async fn ensure_alliances_exist(
-        &self,
-        alliance_ids: Vec<i64>,
-        cache: &mut AllianceOrchestrationCache,
-    ) -> Result<(), Error> {
-        let existing_ids = self
-            .get_alliance_entry_ids(alliance_ids.clone(), cache)
-            .await?;
-
-        let existing_alliance_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();
-
-        let missing_ids: Vec<i64> = alliance_ids
-            .into_iter()
-            .filter(|id| !existing_alliance_ids.contains(id))
-            .collect();
-
-        if missing_ids.is_empty() {
-            return Ok(());
-        }
-
-        // Fetch the factions if any IDs are missing
-        self.fetch_many_alliances(missing_ids, cache).await?;
-
-        Ok(())
-    }
-
     pub async fn persist_alliances(
         &self,
         txn: &DatabaseTransaction,
@@ -257,7 +230,7 @@ impl<'a> AllianceOrchestrator<'a> {
         let faction_ids = cache.get_faction_dependency_ids(&alliances_ref);
 
         let faction_db_ids = faction_orch
-            .get_faction_entry_ids(faction_ids, &mut cache.faction)
+            .get_many_faction_entry_ids(faction_ids, &mut cache.faction)
             .await?;
 
         // Create a map of faction_id -> db_id for easy lookup
@@ -293,8 +266,35 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(persisted_alliances)
     }
 
+    /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
+    pub(super) async fn ensure_alliances_exist(
+        &self,
+        alliance_ids: Vec<i64>,
+        cache: &mut AllianceOrchestrationCache,
+    ) -> Result<(), Error> {
+        let existing_ids = self
+            .get_many_alliance_entry_ids(alliance_ids.clone(), cache)
+            .await?;
+
+        let existing_alliance_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();
+
+        let missing_ids: Vec<i64> = alliance_ids
+            .into_iter()
+            .filter(|id| !existing_alliance_ids.contains(id))
+            .collect();
+
+        if missing_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Fetch the factions if any IDs are missing
+        self.fetch_many_alliances(missing_ids, cache).await?;
+
+        Ok(())
+    }
+
     /// Persist any alliances currently in the ESI cache
-    pub async fn persist_cached_alliances(
+    pub(super) async fn persist_cached_alliances(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut AllianceOrchestrationCache,

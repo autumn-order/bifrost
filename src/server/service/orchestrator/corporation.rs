@@ -124,7 +124,7 @@ impl<'a> CorporationOrchestrator<'a> {
                 .await?;
         }
 
-        todo!()
+        Ok(fetched_corporation)
     }
 
     pub async fn fetch_many_corporations(
@@ -250,11 +250,11 @@ impl<'a> CorporationOrchestrator<'a> {
         let alliance_ids = cache.get_alliance_dependency_ids(&corporations_ref);
 
         let faction_db_ids = faction_orch
-            .get_faction_entry_ids(faction_ids, &mut cache.faction)
+            .get_many_faction_entry_ids(faction_ids, &mut cache.faction)
             .await?;
 
         let alliance_db_ids = alliance_orch
-            .get_alliance_entry_ids(alliance_ids, &mut cache.alliance)
+            .get_many_alliance_entry_ids(alliance_ids, &mut cache.alliance)
             .await?;
 
         // Create a map of faction/alliance id -> db_id for easy lookup
@@ -309,5 +309,47 @@ impl<'a> CorporationOrchestrator<'a> {
         cache.already_persisted = true;
 
         Ok(persisted_corporations)
+    }
+
+    /// Check database for provided corporation ids, fetch corporations from ESI if any are missing
+    pub(super) async fn ensure_corporations_exist(
+        &self,
+        corporation_ids: Vec<i64>,
+        cache: &mut CorporationOrchestrationCache,
+    ) -> Result<(), Error> {
+        let existing_ids = self
+            .get_many_corporation_entry_ids(corporation_ids.clone(), cache)
+            .await?;
+
+        let existing_corporation_ids: std::collections::HashSet<i64> =
+            existing_ids.iter().map(|(id, _)| *id).collect();
+
+        let missing_ids: Vec<i64> = corporation_ids
+            .into_iter()
+            .filter(|id| !existing_corporation_ids.contains(id))
+            .collect();
+
+        if missing_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Fetch the corporations if any IDs are missing
+        self.fetch_many_corporations(missing_ids, cache).await?;
+
+        Ok(())
+    }
+
+    /// Persist any corporations currently in the ESI cache
+    pub(super) async fn persist_cached_corporations(
+        &self,
+        txn: &DatabaseTransaction,
+        cache: &mut CorporationOrchestrationCache,
+    ) -> Result<Vec<entity::eve_corporation::Model>, Error> {
+        let corporations: Vec<(i64, Corporation)> = cache
+            .corporation_esi
+            .iter()
+            .map(|(id, corporation)| (*id, corporation.clone()))
+            .collect();
+        self.persist_corporations(txn, corporations, cache).await
     }
 }

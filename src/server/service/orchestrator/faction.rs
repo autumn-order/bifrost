@@ -27,13 +27,15 @@ impl<'a> FactionOrchestrator<'a> {
         faction_id: i64,
         cache: &mut FactionOrchestrationCache,
     ) -> Result<Option<i32>, Error> {
-        let ids = self.get_faction_entry_ids(vec![faction_id], cache).await?;
+        let ids = self
+            .get_many_faction_entry_ids(vec![faction_id], cache)
+            .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
     /// Retrieve pairs of EVE faction IDs & DB faction IDs from a list of faction IDs
-    pub async fn get_faction_entry_ids(
+    pub async fn get_many_faction_entry_ids(
         &self,
         faction_ids: Vec<i64>,
         cache: &mut FactionOrchestrationCache,
@@ -127,33 +129,6 @@ impl<'a> FactionOrchestrator<'a> {
         Ok(Some(fetched_factions))
     }
 
-    /// Check database for provided faction ids, fetch factions from ESI if any are missing
-    pub async fn ensure_factions_exist(
-        &self,
-        faction_ids: Vec<i64>,
-        cache: &mut FactionOrchestrationCache,
-    ) -> Result<(), Error> {
-        let existing_ids = self
-            .get_faction_entry_ids(faction_ids.clone(), cache)
-            .await?;
-
-        let existing_faction_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();
-
-        let missing_ids: Vec<i64> = faction_ids
-            .into_iter()
-            .filter(|id| !existing_faction_ids.contains(id))
-            .collect();
-
-        if missing_ids.is_empty() {
-            return Ok(());
-        }
-
-        // Fetch the factions if any IDs are missing
-        self.fetch_factions(cache).await?;
-
-        Ok(())
-    }
-
     /// Persist factions fetched from ESI to database if applicable
     pub async fn persist_factions(
         &self,
@@ -182,8 +157,35 @@ impl<'a> FactionOrchestrator<'a> {
         Ok(persisted_models)
     }
 
+    /// Check database for provided faction ids, fetch factions from ESI if any are missing
+    pub(super) async fn ensure_factions_exist(
+        &self,
+        faction_ids: Vec<i64>,
+        cache: &mut FactionOrchestrationCache,
+    ) -> Result<(), Error> {
+        let existing_ids = self
+            .get_many_faction_entry_ids(faction_ids.clone(), cache)
+            .await?;
+
+        let existing_faction_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();
+
+        let missing_ids: Vec<i64> = faction_ids
+            .into_iter()
+            .filter(|id| !existing_faction_ids.contains(id))
+            .collect();
+
+        if missing_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Fetch the factions if any IDs are missing
+        self.fetch_factions(cache).await?;
+
+        Ok(())
+    }
+
     /// Persist any factions currently in the ESI cache
-    pub async fn persist_cached_factions(
+    pub(super) async fn persist_cached_factions(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut FactionOrchestrationCache,
