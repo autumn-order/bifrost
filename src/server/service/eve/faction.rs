@@ -4,7 +4,7 @@ use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
     service::{
-        orchestrator::{cache::faction::FactionOrchestrationCache, faction::FactionOrchestrator},
+        orchestrator::{faction::FactionOrchestrator, OrchestrationCache},
         retry::{cache::eve_fetch::EsiFactionCache, RetryContext},
     },
 };
@@ -24,7 +24,7 @@ impl<'a> FactionService<'a> {
     ///
     /// The NPC faction cache expires at 11:05 UTC (after downtime)
     pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
-        let mut ctx: RetryContext<FactionOrchestrationCache> = RetryContext::new();
+        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();
         let esi_client = self.esi_client.clone();
@@ -39,6 +39,9 @@ impl<'a> FactionService<'a> {
                 let Some(fetched_factions) = faction_orch.fetch_factions(cache).await? else {
                     return Ok(Vec::new());
                 };
+
+                // Reset persistence flags before transaction attempt
+                cache.reset_persistence_flags();
 
                 let txn = db.begin().await?;
 

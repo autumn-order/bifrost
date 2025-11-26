@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use dioxus_logger::tracing;
 use eve_esi::model::alliance::Alliance;
@@ -8,9 +8,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction};
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::{eve::EveError, Error},
-    service::orchestrator::{
-        cache::alliance::AllianceOrchestrationCache, faction::FactionOrchestrator,
-    },
+    service::orchestrator::{faction::FactionOrchestrator, OrchestrationCache},
 };
 
 const MAX_CONCURRENT_ALLIANCE_FETCHES: usize = 10;
@@ -30,7 +28,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub async fn get_alliance_entry_id(
         &self,
         alliance_id: i64,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
             .get_many_alliance_entry_ids(vec![alliance_id], cache)
@@ -43,7 +41,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub async fn get_many_alliance_entry_ids(
         &self,
         alliance_ids: Vec<i64>,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, i32)>, Error> {
         let missing_ids: Vec<i64> = alliance_ids
             .iter()
@@ -89,7 +87,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub async fn fetch_alliance(
         &self,
         alliance_id: i64,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Alliance, Error> {
         // Return alliance if it was already fetched and exists in cache
         if let Some(alliance) = cache.alliance_esi.get(&alliance_id) {
@@ -113,7 +111,7 @@ impl<'a> AllianceOrchestrator<'a> {
             let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
 
             faction_orch
-                .ensure_factions_exist(vec![faction_id], &mut cache.faction)
+                .ensure_factions_exist(vec![faction_id], cache)
                 .await?;
         };
 
@@ -123,7 +121,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub async fn fetch_many_alliances(
         &self,
         alliance_ids: Vec<i64>,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, Alliance)>, Error> {
         // Check which IDs are missing from cache
         let missing_ids: Vec<i64> = alliance_ids
@@ -186,7 +184,7 @@ impl<'a> AllianceOrchestrator<'a> {
             .map(|(_, alliance)| alliance)
             .collect();
 
-        let faction_ids = cache.get_faction_dependency_ids(&alliances_ref);
+        let faction_ids = cache.get_alliance_faction_dependency_ids(&alliances_ref);
 
         if faction_ids.is_empty() {
             return Ok(requested_alliances);
@@ -197,7 +195,7 @@ impl<'a> AllianceOrchestrator<'a> {
         // we have currently stored are out of date
         let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
         faction_orch
-            .ensure_factions_exist(faction_ids, &mut cache.faction)
+            .ensure_factions_exist(faction_ids, cache)
             .await?;
 
         Ok(requested_alliances)
@@ -207,34 +205,33 @@ impl<'a> AllianceOrchestrator<'a> {
         &self,
         txn: &DatabaseTransaction,
         alliances: Vec<(i64, Alliance)>,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
         if alliances.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.already_persisted {
+        if cache.alliances_persisted {
             return Ok(cache.alliance_model.values().cloned().collect());
-        };
+        }
 
         // Persist factions if any were fetched
         let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
-        faction_orch
-            .persist_cached_factions(txn, &mut cache.faction)
-            .await?;
+        faction_orch.persist_cached_factions(txn, cache).await?;
 
         // Get the DB IDs for factions to map to alliances
         let alliances_ref: Vec<&Alliance> =
             alliances.iter().map(|(_, alliance)| alliance).collect();
 
-        let faction_ids = cache.get_faction_dependency_ids(&alliances_ref);
+        let faction_ids = cache.get_alliance_faction_dependency_ids(&alliances_ref);
 
         let faction_db_ids = faction_orch
-            .get_many_faction_entry_ids(faction_ids, &mut cache.faction)
+            .get_many_faction_entry_ids(faction_ids, cache)
             .await?;
 
         // Create a map of faction_id -> db_id for easy lookup
-        let faction_id_map: HashMap<i64, i32> = faction_db_ids.into_iter().collect();
+        let faction_id_map: std::collections::HashMap<i64, i32> =
+            faction_db_ids.into_iter().collect();
 
         // Map alliances with their faction DB IDs
         let alliances_to_upsert: Vec<(i64, Alliance, Option<i32>)> = alliances
@@ -261,7 +258,7 @@ impl<'a> AllianceOrchestrator<'a> {
                 .insert(model.alliance_id, model.clone());
         }
 
-        cache.already_persisted = true;
+        cache.alliances_persisted = true;
 
         Ok(persisted_alliances)
     }
@@ -270,7 +267,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub(super) async fn ensure_alliances_exist(
         &self,
         alliance_ids: Vec<i64>,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
             .get_many_alliance_entry_ids(alliance_ids.clone(), cache)
@@ -287,7 +284,7 @@ impl<'a> AllianceOrchestrator<'a> {
             return Ok(());
         }
 
-        // Fetch the factions if any IDs are missing
+        // Fetch the alliances if any IDs are missing
         self.fetch_many_alliances(missing_ids, cache).await?;
 
         Ok(())
@@ -297,7 +294,7 @@ impl<'a> AllianceOrchestrator<'a> {
     pub(super) async fn persist_cached_alliances(
         &self,
         txn: &DatabaseTransaction,
-        cache: &mut AllianceOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
         let alliances: Vec<(i64, Alliance)> = cache
             .alliance_esi

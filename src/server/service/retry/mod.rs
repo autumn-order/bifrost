@@ -7,6 +7,10 @@ use dioxus_logger::tracing;
 use crate::server::error::{retry::ErrorRetryStrategy, Error};
 
 /// Context for service methods providing retry & caching logic
+///
+/// The cache type `T` should be `OrchestrationCache` which includes an embedded
+/// persistence tracker to enable proper idempotent persistence and single source of truth
+/// for all entity data.
 pub struct RetryContext<T> {
     /// cache to be used between retries to prevent unnecessary additional fetches
     cache: T,
@@ -34,12 +38,13 @@ where
     /// Execute a method with automatic retry logic
     ///
     /// The operation function receives:
-    /// - `retry_cache`: Optional cached data from previous attempt(s)
+    /// - `cache`: Mutable reference to cached data from previous attempt(s)
     ///
     /// The operation should:
-    /// - Use cached_data if available to skip additional fetches
-    /// - Fetch from ESI if cached_data is None
-    /// - Store to database
+    /// - Use cached data if available to skip additional fetches
+    /// - Fetch from ESI and populate cache if data is missing
+    /// - Call `cache.reset_persistence_flags()` before starting a transaction
+    /// - Store to database within a transaction (persistence flags prevent duplicate inserts)
     ///
     /// # Arguments
     /// - `description`: Description of the operation for logging (e.g., "alliance info update")

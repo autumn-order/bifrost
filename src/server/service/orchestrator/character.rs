@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -9,8 +7,7 @@ use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
     service::orchestrator::{
-        cache::character::CharacterOrchestrationCache, corporation::CorporationOrchestrator,
-        faction::FactionOrchestrator,
+        corporation::CorporationOrchestrator, faction::FactionOrchestrator, OrchestrationCache,
     },
 };
 
@@ -31,7 +28,7 @@ impl<'a> CharacterOrchestrator<'a> {
     pub async fn get_character_entry_id(
         &self,
         character_id: i64,
-        cache: &mut CharacterOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
             .get_many_character_entry_ids(vec![character_id], cache)
@@ -44,7 +41,7 @@ impl<'a> CharacterOrchestrator<'a> {
     pub async fn get_many_character_entry_ids(
         &self,
         character_ids: Vec<i64>,
-        cache: &mut CharacterOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, i32)>, Error> {
         let missing_ids: Vec<i64> = character_ids
             .iter()
@@ -90,7 +87,7 @@ impl<'a> CharacterOrchestrator<'a> {
     pub async fn fetch_character(
         &self,
         character_id: i64,
-        cache: &mut CharacterOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Character, Error> {
         // Return character if it was already fetched and exists in cache
         if let Some(character) = cache.character_esi.get(&character_id) {
@@ -112,10 +109,7 @@ impl<'a> CharacterOrchestrator<'a> {
         // Ensure the character's corporation exists in database else fetch it for persistence later
         let corporation_orch = CorporationOrchestrator::new(&self.db, &self.esi_client);
         corporation_orch
-            .ensure_corporations_exist(
-                vec![fetched_character.corporation_id],
-                &mut cache.corporation,
-            )
+            .ensure_corporations_exist(vec![fetched_character.corporation_id], cache)
             .await?;
 
         // Ensure the character's faction exists in database else fetch it for persistence later
@@ -123,7 +117,7 @@ impl<'a> CharacterOrchestrator<'a> {
             let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
 
             faction_orch
-                .ensure_factions_exist(vec![faction_id], &mut cache.faction)
+                .ensure_factions_exist(vec![faction_id], cache)
                 .await?;
         }
 
@@ -133,7 +127,7 @@ impl<'a> CharacterOrchestrator<'a> {
     pub async fn fetch_many_characters(
         &self,
         character_ids: Vec<i64>,
-        cache: &mut CharacterOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, Character)>, Error> {
         // Check which IDs are missing from cache
         let missing_ids: Vec<i64> = character_ids
@@ -196,20 +190,20 @@ impl<'a> CharacterOrchestrator<'a> {
             .map(|(_, character)| character)
             .collect();
 
-        let faction_ids = cache.get_faction_dependency_ids(&characters_ref);
-        let corporation_ids = cache.get_corporation_dependency_ids(&characters_ref);
+        let faction_ids = cache.get_character_faction_dependency_ids(&characters_ref);
+        let corporation_ids = cache.get_character_corporation_dependency_ids(&characters_ref);
 
         if !faction_ids.is_empty() {
             let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
             faction_orch
-                .ensure_factions_exist(faction_ids, &mut cache.faction)
+                .ensure_factions_exist(faction_ids, cache)
                 .await?;
         }
 
         if !corporation_ids.is_empty() {
             let corporation_orch = CorporationOrchestrator::new(&self.db, &self.esi_client);
             corporation_orch
-                .ensure_corporations_exist(corporation_ids, &mut cache.corporation)
+                .ensure_corporations_exist(corporation_ids, cache)
                 .await?;
         }
 
@@ -220,45 +214,45 @@ impl<'a> CharacterOrchestrator<'a> {
         &self,
         txn: &DatabaseTransaction,
         characters: Vec<(i64, Character)>,
-        cache: &mut CharacterOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_character::Model>, Error> {
         if characters.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.already_persisted {
+        if cache.characters_persisted {
             return Ok(cache.character_model.values().cloned().collect());
-        };
+        }
 
         // Persist factions if any were fetched
         let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
-        faction_orch
-            .persist_cached_factions(txn, &mut cache.faction)
-            .await?;
+        faction_orch.persist_cached_factions(txn, cache).await?;
 
         // Persist corporations if any were fetched
         let corporation_orch = CorporationOrchestrator::new(&self.db, &self.esi_client);
         corporation_orch
-            .persist_cached_corporations(txn, &mut cache.corporation)
+            .persist_cached_corporations(txn, cache)
             .await?;
 
         let characters_ref: Vec<&Character> =
             characters.iter().map(|(_, character)| character).collect();
 
-        let faction_ids = cache.get_faction_dependency_ids(&characters_ref);
-        let corporation_ids = cache.get_corporation_dependency_ids(&characters_ref);
+        let faction_ids = cache.get_character_faction_dependency_ids(&characters_ref);
+        let corporation_ids = cache.get_character_corporation_dependency_ids(&characters_ref);
 
         let faction_db_ids = faction_orch
-            .get_many_faction_entry_ids(faction_ids, &mut cache.faction)
+            .get_many_faction_entry_ids(faction_ids, cache)
             .await?;
 
         let corporation_db_ids = corporation_orch
-            .get_many_corporation_entry_ids(corporation_ids, &mut cache.corporation)
+            .get_many_corporation_entry_ids(corporation_ids, cache)
             .await?;
 
         // Create a map of faction/corporation id -> db_id for easy lookup
-        let faction_id_map: HashMap<i64, i32> = faction_db_ids.into_iter().collect();
-        let corporation_id_map: HashMap<i64, i32> = corporation_db_ids.into_iter().collect();
+        let faction_id_map: std::collections::HashMap<i64, i32> =
+            faction_db_ids.into_iter().collect();
+        let corporation_id_map: std::collections::HashMap<i64, i32> =
+            corporation_db_ids.into_iter().collect();
 
         // Map characters with their faction & corporation DB IDs
         let characters_to_upsert: Vec<(i64, Character, i32, Option<i32>)> = characters
@@ -307,7 +301,7 @@ impl<'a> CharacterOrchestrator<'a> {
                 .insert(model.character_id, model.clone());
         }
 
-        cache.already_persisted = true;
+        cache.characters_persisted = true;
 
         Ok(persisted_characters)
     }

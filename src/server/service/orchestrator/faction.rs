@@ -5,8 +5,7 @@ use eve_esi::model::universe::Faction;
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::server::{
-    data::eve::faction::FactionRepository, error::Error,
-    service::orchestrator::cache::faction::FactionOrchestrationCache,
+    data::eve::faction::FactionRepository, error::Error, service::orchestrator::OrchestrationCache,
     util::time::effective_faction_cache_expiry,
 };
 
@@ -25,7 +24,7 @@ impl<'a> FactionOrchestrator<'a> {
     pub async fn get_faction_entry_id(
         &self,
         faction_id: i64,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
             .get_many_faction_entry_ids(vec![faction_id], cache)
@@ -38,7 +37,7 @@ impl<'a> FactionOrchestrator<'a> {
     pub async fn get_many_faction_entry_ids(
         &self,
         faction_ids: Vec<i64>,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, i32)>, Error> {
         let missing_ids: Vec<i64> = faction_ids
             .iter()
@@ -89,7 +88,7 @@ impl<'a> FactionOrchestrator<'a> {
     /// are already up to date.
     ///
     /// # Arguments
-    /// - `cache`: Cache for the Faction orchestrator that prevents duplicate fetching of factions
+    /// - `cache`: Unified cache for orchestration that prevents duplicate fetching of factions
     ///   during retry attempts.
     ///
     /// # Returns
@@ -97,7 +96,7 @@ impl<'a> FactionOrchestrator<'a> {
     /// - `None`: If factions are already up to date
     pub async fn fetch_factions(
         &self,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Option<Vec<Faction>>, Error> {
         if !cache.faction_esi.is_empty() {
             return Ok(Some(cache.faction_esi.values().cloned().collect()));
@@ -134,15 +133,15 @@ impl<'a> FactionOrchestrator<'a> {
         &self,
         txn: &DatabaseTransaction,
         factions: Vec<Faction>,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_faction::Model>, Error> {
         if factions.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.already_persisted {
+        if cache.factions_persisted {
             return Ok(cache.faction_model.values().cloned().collect());
-        };
+        }
 
         // Upsert factions to database
         let faction_repo = FactionRepository::new(txn);
@@ -152,7 +151,7 @@ impl<'a> FactionOrchestrator<'a> {
             cache.faction_model.insert(model.faction_id, model.clone());
         }
 
-        cache.already_persisted = true;
+        cache.factions_persisted = true;
 
         Ok(persisted_models)
     }
@@ -161,7 +160,7 @@ impl<'a> FactionOrchestrator<'a> {
     pub(super) async fn ensure_factions_exist(
         &self,
         faction_ids: Vec<i64>,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
             .get_many_faction_entry_ids(faction_ids.clone(), cache)
@@ -188,7 +187,7 @@ impl<'a> FactionOrchestrator<'a> {
     pub(super) async fn persist_cached_factions(
         &self,
         txn: &DatabaseTransaction,
-        cache: &mut FactionOrchestrationCache,
+        cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_faction::Model>, Error> {
         let factions: Vec<Faction> = cache.faction_esi.values().cloned().collect();
         self.persist_factions(txn, factions, cache).await
