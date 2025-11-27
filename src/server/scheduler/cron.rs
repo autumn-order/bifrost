@@ -2,9 +2,8 @@ use crate::server::{
     scheduler::eve::{
         affiliation::schedule_character_affiliation_update,
         alliance::schedule_alliance_info_update, character::schedule_character_info_update,
-        corporation::schedule_corporation_info_update,
+        corporation::schedule_corporation_info_update, faction::schedule_faction_info_update,
     },
-    service::eve::faction::FactionService,
     worker::queue::WorkerQueue,
 };
 use dioxus_logger::tracing;
@@ -42,9 +41,17 @@ macro_rules! add_cron_job {
 pub async fn start_scheduler(
     db: DatabaseConnection,
     worker_queue: WorkerQueue,
-    esi_client: eve_esi::Client,
 ) -> Result<(), JobSchedulerError> {
     let sched = JobScheduler::new().await?;
+
+    add_cron_job!(
+        sched,
+        faction_config::CRON_EXPRESSION,
+        db,
+        worker_queue,
+        schedule_faction_info_update,
+        "faction info"
+    );
 
     add_cron_job!(
         sched,
@@ -82,33 +89,7 @@ pub async fn start_scheduler(
         "character affiliation"
     );
 
-    let db_clone = db.clone();
-    let esi_client_clone = esi_client.clone();
-
-    sched
-        .add(Job::new_async(
-            faction_config::CRON_EXPRESSION,
-            move |_, _| {
-                let db = db_clone.clone();
-                let esi_client = esi_client_clone.clone();
-
-                Box::pin(async move {
-                    let faction_service = FactionService::new(&db, &esi_client);
-
-                    match faction_service.update_factions().await {
-                        Ok(factions) => tracing::info!(
-                            "Updated information for {} NPC factions",
-                            factions.len()
-                        ),
-                        Err(e) => {
-                            tracing::error!("Error updating NPC faction info: {:?}", e)
-                        }
-                    }
-                })
-            },
-        )?)
-        .await?;
-
     sched.start().await?;
+
     Ok(())
 }
