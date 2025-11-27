@@ -123,7 +123,7 @@ impl<'a> AllianceOrchestrator<'a> {
 
     pub async fn fetch_many_alliances(
         &self,
-        alliance_ids: Vec<i64>,
+        alliance_ids: &[i64],
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, Alliance)>, Error> {
         // Check which IDs are missing from cache
@@ -289,7 +289,7 @@ impl<'a> AllianceOrchestrator<'a> {
         }
 
         // Fetch the alliances if any IDs are missing
-        self.fetch_many_alliances(missing_ids, cache).await?;
+        self.fetch_many_alliances(&missing_ids, cache).await?;
 
         Ok(())
     }
