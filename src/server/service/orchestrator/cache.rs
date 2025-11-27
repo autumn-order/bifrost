@@ -3,6 +3,9 @@ use std::collections::{HashMap, HashSet};
 use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
 };
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
+
+use crate::server::error::Error;
 
 /// Unified orchestration cache - single source of truth for all EVE entity data
 ///
@@ -69,6 +72,57 @@ impl OrchestrationCache {
         self.alliances_persisted = false;
         self.corporations_persisted = false;
         self.characters_persisted = false;
+    }
+
+    /// Persist all ESI models from cache in dependency order
+    ///
+    /// This method persists all fetched ESI data in the cache to the database,
+    /// respecting foreign key dependencies (factions -> alliances -> corporations -> characters).
+    /// It uses the persistence flags to avoid duplicate persistence operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection for creating orchestrators
+    /// - `esi_client` - ESI client for creating orchestrators
+    /// - `txn` - Database transaction to persist within
+    ///
+    /// # Returns
+    /// - `Ok(())` if all entities were successfully persisted
+    /// - `Err(Error)` if any persistence operation failed
+    pub async fn persist_all(
+        &mut self,
+        db: &DatabaseConnection,
+        esi_client: &eve_esi::Client,
+        txn: &DatabaseTransaction,
+    ) -> Result<(), Error> {
+        use super::{
+            alliance::AllianceOrchestrator, character::CharacterOrchestrator,
+            corporation::CorporationOrchestrator, faction::FactionOrchestrator,
+        };
+
+        // Persist in dependency order: factions -> alliances -> corporations -> characters
+        if !self.faction_esi.is_empty() {
+            let faction_orch = FactionOrchestrator::new(db, esi_client);
+            faction_orch.persist_cached_factions(txn, self).await?;
+        }
+
+        if !self.alliance_esi.is_empty() {
+            let alliance_orch = AllianceOrchestrator::new(db, esi_client);
+            alliance_orch.persist_cached_alliances(txn, self).await?;
+        }
+
+        if !self.corporation_esi.is_empty() {
+            let corporation_orch = CorporationOrchestrator::new(db, esi_client);
+            corporation_orch
+                .persist_cached_corporations(txn, self)
+                .await?;
+        }
+
+        if !self.character_esi.is_empty() {
+            let character_orch = CharacterOrchestrator::new(db, esi_client);
+            character_orch.persist_cached_characters(txn, self).await?;
+        }
+
+        Ok(())
     }
 }
 

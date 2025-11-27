@@ -315,7 +315,7 @@ impl<'a> CorporationOrchestrator<'a> {
     }
 
     /// Check database for provided corporation ids, fetch corporations from ESI if any are missing
-    pub(super) async fn ensure_corporations_exist(
+    pub async fn ensure_corporations_exist(
         &self,
         corporation_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -343,7 +343,7 @@ impl<'a> CorporationOrchestrator<'a> {
     }
 
     /// Persist any corporations currently in the ESI cache
-    pub(super) async fn persist_cached_corporations(
+    pub async fn persist_cached_corporations(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut OrchestrationCache,

@@ -158,7 +158,7 @@ impl<'a> FactionOrchestrator<'a> {
     }
 
     /// Check database for provided faction ids, fetch factions from ESI if any are missing
-    pub(super) async fn ensure_factions_exist(
+    pub async fn ensure_factions_exist(
         &self,
         faction_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -185,7 +185,7 @@ impl<'a> FactionOrchestrator<'a> {
     }
 
     /// Persist any factions currently in the ESI cache
-    pub(super) async fn persist_cached_factions(
+    pub async fn persist_cached_factions(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut OrchestrationCache,

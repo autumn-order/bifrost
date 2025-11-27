@@ -268,7 +268,7 @@ impl<'a> AllianceOrchestrator<'a> {
     }
 
     /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
-    pub(super) async fn ensure_alliances_exist(
+    pub async fn ensure_alliances_exist(
         &self,
         alliance_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -295,7 +295,7 @@ impl<'a> AllianceOrchestrator<'a> {
     }
 
     /// Persist any alliances currently in the ESI cache
-    pub(super) async fn persist_cached_alliances(
+    pub async fn persist_cached_alliances(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut OrchestrationCache,
