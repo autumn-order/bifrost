@@ -1,6 +1,6 @@
 use dioxus_logger::tracing;
 use eve_esi::model::oauth2::EveJwtClaims;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::{
     model::user::{AllianceDto, CharacterDto, CorporationDto},
@@ -161,9 +161,15 @@ impl<'a> UserCharacterService<'a> {
             .update(ownership_entry.id, new_user_id)
             .await?;
 
+        // TODO: temp for delete_user txn requirement, will be refined in later refactors
+        let txn = self.db.begin().await?;
+
         // If this was the last character for the user, delete them
         if ownership_entries.len() == 1 {
-            let _ = user_service.delete_user(ownership_entry.user_id).await?;
+            let _ = user_service
+                .delete_user(&txn, ownership_entry.user_id)
+                .await?;
+            txn.commit().await?;
             return Ok(true);
         }
 
@@ -193,6 +199,8 @@ impl<'a> UserCharacterService<'a> {
                 ))));
             }
         }
+
+        txn.commit().await?;
 
         Ok(false)
     }

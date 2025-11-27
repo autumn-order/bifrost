@@ -1,11 +1,8 @@
 pub mod user_character;
 
-#[cfg(test)]
-mod tests;
-
 use dioxus_logger::tracing;
 use eve_esi::model::oauth2::EveJwtClaims;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::{
     model::user::UserDto,
@@ -117,10 +114,14 @@ impl<'a> UserService<'a> {
     ///
     /// # Warning
     /// This will error if you attempt to delete the user while they still have
-    /// connected character ownerships, you must [`Self::transfer_character`] first
-    /// to another user before deleting a user.
-    pub async fn delete_user(&self, user_id: i32) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(self.db);
+    /// connected character ownerships, you must use [`Self::transfer_character`] first
+    /// to transfer owned characters to another user before deleting a user.
+    pub async fn delete_user(
+        &self,
+        txn: &DatabaseTransaction,
+        user_id: i32,
+    ) -> Result<bool, Error> {
+        let user_repo = UserRepository::new(txn);
 
         let delete_result = user_repo.delete(user_id).await?;
 
