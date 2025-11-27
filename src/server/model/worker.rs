@@ -3,6 +3,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum WorkerJob {
+    UpdateFactionInfo,
     UpdateAllianceInfo { alliance_id: i64 },
     UpdateCorporationInfo { corporation_id: i64 },
     UpdateCharacterInfo { character_id: i64 },

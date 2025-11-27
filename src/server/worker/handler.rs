@@ -6,7 +6,7 @@ use crate::server::{
     model::worker::WorkerJob,
     service::eve::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
-        corporation::CorporationService,
+        corporation::CorporationService, faction::FactionService,
     },
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
@@ -33,6 +33,7 @@ impl WorkerJobHandler {
     /// to the correct handler method based on the job type.
     pub async fn handle(&self, job: &WorkerJob) -> Result<(), Error> {
         match job {
+            WorkerJob::UpdateFactionInfo => self.update_faction_info().await,
             WorkerJob::UpdateAllianceInfo { alliance_id } => {
                 self.update_alliance_info(*alliance_id).await
             }
@@ -48,6 +49,29 @@ impl WorkerJobHandler {
         }
     }
 
+    pub async fn update_faction_info(&self) -> Result<(), Error> {
+        tracing::debug!("Checking for daily NPC faction info update");
+
+        let factions = FactionService::new(&self.db, &self.esi_client)
+            .update_factions()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update NPC faction information: {:?}", e);
+                e
+            })?;
+
+        if factions.is_empty() {
+            tracing::debug!("NPC faction information already up to date, no update needed");
+        } else {
+            tracing::debug!(
+                "Successfully updated NPC faction information for {} factions",
+                factions.len()
+            );
+        }
+
+        Ok(())
+    }
+
     pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
         tracing::debug!(
             "Processing alliance info update for alliance_id: {}",
@@ -55,7 +79,7 @@ impl WorkerJobHandler {
         );
 
         AllianceService::new(&self.db, &self.esi_client)
-            .upsert_alliance(alliance_id)
+            .update_alliance(alliance_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -78,7 +102,7 @@ impl WorkerJobHandler {
         );
 
         CorporationService::new(&self.db, &self.esi_client)
-            .upsert_corporation(corporation_id)
+            .update_corporation(corporation_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -104,7 +128,7 @@ impl WorkerJobHandler {
         );
 
         CharacterService::new(&self.db, &self.esi_client)
-            .upsert_character(character_id)
+            .update_character(character_id)
             .await
             .map_err(|e| {
                 tracing::error!(

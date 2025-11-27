@@ -123,7 +123,7 @@ impl<'a> AllianceOrchestrator<'a> {
 
     pub async fn fetch_many_alliances(
         &self,
-        alliance_ids: Vec<i64>,
+        alliance_ids: &[i64],
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<(i64, Alliance)>, Error> {
         // Check which IDs are missing from cache
@@ -268,7 +268,7 @@ impl<'a> AllianceOrchestrator<'a> {
     }
 
     /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
-    pub(super) async fn ensure_alliances_exist(
+    pub async fn ensure_alliances_exist(
         &self,
         alliance_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -289,13 +289,13 @@ impl<'a> AllianceOrchestrator<'a> {
         }
 
         // Fetch the alliances if any IDs are missing
-        self.fetch_many_alliances(missing_ids, cache).await?;
+        self.fetch_many_alliances(&missing_ids, cache).await?;
 
         Ok(())
     }
 
     /// Persist any alliances currently in the ESI cache
-    pub(super) async fn persist_cached_alliances(
+    pub async fn persist_cached_alliances(
         &self,
         txn: &DatabaseTransaction,
         cache: &mut OrchestrationCache,

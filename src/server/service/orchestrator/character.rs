@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::stream::{FuturesUnordered, StreamExt};
@@ -308,5 +310,46 @@ impl<'a> CharacterOrchestrator<'a> {
         cache.characters_persisted = true;
 
         Ok(persisted_characters)
+    }
+
+    /// Check database for provided character ids, fetch characters from ESI if any are missing
+    pub async fn ensure_characters_exist(
+        &self,
+        character_ids: Vec<i64>,
+        cache: &mut OrchestrationCache,
+    ) -> Result<(), Error> {
+        let existing_ids = self
+            .get_many_character_entry_ids(character_ids.clone(), cache)
+            .await?;
+
+        let existing_character_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();
+
+        let missing_ids: Vec<i64> = character_ids
+            .into_iter()
+            .filter(|id| !existing_character_ids.contains(id))
+            .collect();
+
+        if missing_ids.is_empty() {
+            return Ok(());
+        }
+
+        // Fetch the characters if any IDs are missing
+        self.fetch_many_characters(missing_ids, cache).await?;
+
+        Ok(())
+    }
+
+    /// Persist any characters currently in the ESI cache
+    pub async fn persist_cached_characters(
+        &self,
+        txn: &DatabaseTransaction,
+        cache: &mut OrchestrationCache,
+    ) -> Result<Vec<entity::eve_character::Model>, Error> {
+        let characters: Vec<(i64, Character)> = cache
+            .character_esi
+            .iter()
+            .map(|(id, character)| (*id, character.clone()))
+            .collect();
+        self.persist_characters(txn, characters, cache).await
     }
 }

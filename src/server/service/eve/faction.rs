@@ -29,7 +29,7 @@ impl<'a> FactionService<'a> {
         let db = self.db.clone();
         let esi_client = self.esi_client.clone();
 
-        ctx.execute_with_retry("faction update", |cache| {
+        ctx.execute_with_retry("faction info update", |cache| {
             let db = db.clone();
             let esi_client = esi_client.clone();
 

@@ -1,11 +1,16 @@
+use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::future::join_all;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
-    service::eve::{corporation::CorporationService, faction::FactionService},
+    service::{
+        eve::{corporation::CorporationService, faction::FactionService},
+        orchestrator::{character::CharacterOrchestrator, OrchestrationCache},
+        retry::RetryContext,
+    },
 };
 
 pub struct CharacterService<'a> {
@@ -17,6 +22,56 @@ impl<'a> CharacterService<'a> {
     /// Creates a new instance of [`CharacterService`]
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
+    }
+
+    /// Updates information for provided character ID from ESI
+    pub async fn update_character(
+        &self,
+        character_id: i64,
+    ) -> Result<entity::eve_character::Model, Error> {
+        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
+
+        let db = self.db.clone();
+        let esi_client = self.esi_client.clone();
+
+        ctx.execute_with_retry(
+            &format!("info update for character ID {}", character_id),
+            |cache| {
+                let db = db.clone();
+                let esi_client = esi_client.clone();
+
+                Box::pin(async move {
+                    let character_orch = CharacterOrchestrator::new(&db, &esi_client);
+
+                    let fetched_character = character_orch.fetch_character(character_id, cache).await?;
+
+                    // Reset persistence flags before transaction attempt in case of retry
+                    cache.reset_persistence_flags();
+
+                    let txn = db.begin().await?;
+
+                    let character_models = character_orch
+                        .persist_characters(&txn, vec![(character_id, fetched_character)], cache)
+                        .await?;
+
+                    txn.commit().await?;
+
+                    let model = character_models.into_iter().next().ok_or_else(|| {
+                        let msg = format!(
+                            "Failed to return model for character ID {} persisted to database - model not returned as expected",
+                            character_id
+                        );
+
+                        tracing::error!("{}", msg);
+
+                        Error::InternalError(msg)
+                    })?;
+
+                    Ok(model)
+                })
+            },
+        )
+        .await
     }
 
     /// Fetches a character from EVE Online's ESI and creates a database entry
