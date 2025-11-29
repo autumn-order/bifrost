@@ -28,10 +28,7 @@ pub async fn get_user_from_session(state: &AppState, session: &Session) -> Resul
     };
 
     // Get user from database
-    let Some(user) = UserService::new(&state.db, &state.esi_client)
-        .get_user(user_id)
-        .await?
-    else {
+    let Some(user) = UserService::new(&state.db).get_user(user_id).await? else {
         session.clear().await;
 
         tracing::debug!(

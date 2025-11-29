@@ -28,7 +28,7 @@ pub async fn get_user_characters(
 ) -> Result<impl IntoResponse, Error> {
     let user = get_user_from_session(&state, &session).await?;
 
-    let character_dtos = UserCharacterService::new(&state.db, &state.esi_client)
+    let character_dtos = UserCharacterService::new(&state.db)
         .get_user_characters(user.id)
         .await?;
 

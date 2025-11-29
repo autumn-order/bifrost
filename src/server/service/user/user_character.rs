@@ -1,25 +1,23 @@
 use dioxus_logger::tracing;
-use eve_esi::model::oauth2::EveJwtClaims;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::{
     model::user::{AllianceDto, CharacterDto, CorporationDto},
     server::{
         data::user::{user_character::UserCharacterRepository, UserRepository},
         error::{auth::AuthError, Error},
-        service::{eve::character::CharacterService, user::UserService},
+        model::db::{CharacterOwnershipModel, UserModel},
     },
 };
 
 pub struct UserCharacterService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> UserCharacterService<'a> {
     /// Creates a new instance of [`UserService`]
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection) -> Self {
+        Self { db }
     }
 
     /// Gets character information for all characters owned by the user,
@@ -64,185 +62,143 @@ impl<'a> UserCharacterService<'a> {
         Ok(character_dtos)
     }
 
-    /// Links or transfers character to provided user ID
+    /// Links a character to a user or updates ownership if already linked.
     ///
-    /// # Behavior
-    /// - If the character is already linked to the provided user (owner hash matches `claims.owner` &
-    ///   user ID matches the logged in user ID), no action is taken and the method returns `Ok(false)`.
-    /// - If the character is linked to a different owner hash or user ID, the method returns `Ok(true)`
-    ///   to indicate a transfer to the provided user ID
-    /// - If the character exists but has no owner, a link is created that associates the
-    ///   character with the provided `user_id` and owner hash, and the method returns `Ok(true)`.
-    /// - If the character does not exist, it is fetched/created via ESI and then linked to `user_id`,
-    ///   and the method returns `Ok(true)`
+    /// This function creates or updates the character ownership record, associating
+    /// the character with the specified user and updating the owner hash.
     ///
     /// # Arguments
-    /// - `user_id` (`i32`): The ID of the user to link or transfer the character to. If the user does not exist
-    ///   in the database then a database error will be returned (foreign-key constraint)
-    /// - `claims` ([`EveJwtClaims`]): JWT claims returned by EVE OAuth2. Contains the character ID
-    ///   (`claims.character_id()`) and an owner hash (`claims.owner`) used to determine current ownership.
+    /// - `txn` - Database transaction to execute the operation within
+    /// - `character_record_id` - Internal database ID of the character record
+    /// - `to_user_id` - ID of the user to link the character to
+    /// - `owner_hash` - EVE Online owner hash from JWT token for ownership verification
     ///
     /// # Returns
-    /// - `Ok(false)`: No link was created because the character is already linked to the `claims.owner`
-    /// - `Ok(true)`: A link was created or the character was transferred to the provided user ID
-    /// - `Err(Error::DbErr(_))`: Database error such as a foreign key violation due to invalid `user_id`
-    /// - `Err(Error::EsiError(_))`: Error when making an ESI request for character information or parsing
-    ///   character ID from claims (e.g. `claims.character_id()`)
-    pub async fn link_character(&self, user_id: i32, claims: EveJwtClaims) -> Result<bool, Error> {
-        let user_character_repo = UserCharacterRepository::new(self.db);
-        let character_service = CharacterService::new(self.db, self.esi_client);
+    /// - `Ok(CharacterOwnershipModel)` - The created or updated ownership record
+    /// - `Err(Error::DbErr)` - Database operation failed
+    pub async fn link_character(
+        txn: &DatabaseTransaction,
+        character_record_id: i32,
+        to_user_id: i32,
+        owner_hash: &str,
+    ) -> Result<CharacterOwnershipModel, Error> {
+        let user_character_repo = UserCharacterRepository::new(txn);
 
-        let character_id = claims.character_id()?;
-
-        // If the character exists, check ownership
-        if let Some((character, maybe_ownership)) = user_character_repo
-            .get_by_character_id(character_id)
-            .await?
-        {
-            if let Some(ownership) = maybe_ownership {
-                if ownership.owner_hash == claims.owner && user_id == ownership.user_id {
-                    // already linked to this owner -> nothing to do
-                    return Ok(false);
-                }
-
-                // existing character linked to different owner -> transfer
-                self.transfer_character(ownership, user_id).await?;
-
-                return Ok(true);
-            }
-
-            // existing character but no owner -> create link
-            user_character_repo
-                .create(user_id, character.id, claims.owner)
-                .await?;
-
-            return Ok(true);
-        }
-
-        // character doesn't exist -> create, then link
-        let character = character_service.create_character(character_id).await?;
-        user_character_repo
-            .create(user_id, character.id, claims.owner)
+        let ownership = user_character_repo
+            .upsert(character_record_id, to_user_id, owner_hash.to_string())
             .await?;
 
-        Ok(true)
+        Ok(ownership)
     }
 
-    /// Transfers a character from one user to another
+    /// Transfers a character from one user to another.
     ///
-    /// # Behavior
-    /// - If this character is the only remaining character for the user,
-    ///   the user will then be deleted as they have no way to login.
+    /// This function handles the complete transfer process including:
+    /// - Verifying the previous user exists in the database
+    /// - Updating the main character for the previous user if the transferred character was their main
+    /// - Deleting the previous user if they have no remaining characters
+    /// - Linking the character to the new user with updated ownership
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to execute the operation within
+    /// - `character_record_id` - Internal database ID of the character record
+    /// - `from_user_id` - ID of the user currently owning the character
+    /// - `to_user_id` - ID of the user to transfer the character to
+    /// - `owner_hash` - EVE Online owner hash from JWT token for ownership verification
+    ///
+    /// # Returns
+    /// - `Ok(CharacterOwnershipModel)` - The updated ownership record
+    /// - `Err(Error::AuthError(AuthError::UserNotInDatabase))` - Previous user not found in database
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn transfer_character(
-        &self,
-        ownership_entry: entity::bifrost_user_character::Model,
-        new_user_id: i32,
-    ) -> Result<bool, Error> {
-        let user_repo = UserRepository::new(self.db);
-        let user_character_repo = UserCharacterRepository::new(self.db);
-        let user_service = UserService::new(self.db, self.esi_client);
+        txn: &DatabaseTransaction,
+        character_record_id: i32,
+        to_user_id: i32,
+        owner_hash: &str,
+    ) -> Result<CharacterOwnershipModel, Error> {
+        let user_repo = UserRepository::new(txn);
+        let user_character_repo = UserCharacterRepository::new(txn);
 
-        let (old_user, _) = match user_repo.get(ownership_entry.user_id).await? {
-            Some(user) => user,
-            None => {
-                // This shouldn't occur due to DB foreign key constraints requiring a valid user ID
-                return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
-                    "User not found for user character ownership entry ID {}",
-                    ownership_entry.user_id
-                ))));
-            }
+        // Get current ownership to find the actual owner
+        let ownership = user_character_repo
+            .get_ownership_by_character_record_id(character_record_id)
+            .await?
+            .ok_or_else(|| Error::AuthError(AuthError::CharacterNotOwned))?;
+
+        let from_user_id = ownership.user_id;
+
+        // Now retrieve the user model for main character checking
+        let Some(previous_user) = user_repo.get(from_user_id).await?.map(|(user, _)| user) else {
+            return Err(Error::AuthError(AuthError::UserNotInDatabase(from_user_id)));
         };
-
-        let ownership_entries = user_character_repo
-            .get_many_by_user_id(ownership_entry.user_id)
+        let characters_owned_by_previous_user = user_character_repo
+            .get_many_by_user_id(previous_user.id)
             .await?;
 
-        user_character_repo
-            .update(ownership_entry.id, new_user_id)
-            .await?;
-
-        // If this was the last character for the user, delete them
-        if ownership_entries.len() == 1 {
-            let _ = user_service.delete_user(ownership_entry.user_id).await?;
-            return Ok(true);
-        }
-
-        // If the user's main character was transferred, change main to oldest linked character
-        if ownership_entry.character_id == old_user.main_character_id {
-            if let Some(character) = ownership_entries
+        // Handle main character change if:
+        // 1. Character is being transferred to a different user
+        // 2. The character being transferred was the previous user's main
+        if previous_user.id != to_user_id && previous_user.main_character_id == character_record_id
+        {
+            // Find another character to set as main, or delete the user if none exist
+            let alternative_character = characters_owned_by_previous_user
                 .iter()
-                .filter(|e| e.character_id != old_user.main_character_id)
-                .min_by_key(|e| e.created_at)
-            {
-                if user_repo
-                    .update(old_user.id, character.character_id)
-                    .await?
-                    .is_none()
-                {
-                    // This shouldn't occur unless the user were to be deleted while we are trying to update them
-                    return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
-                        "User with ID not found {}",
-                        old_user.id
-                    ))));
+                .find(|c| c.id != character_record_id);
+
+            match alternative_character {
+                Some(new_main) => {
+                    user_repo
+                        .update(previous_user.id, new_main.character_id)
+                        .await?;
                 }
-            } else {
-                // This shouldn't occur as we delete the user if there is no alternative characters
-                return Err(Error::DbErr(sea_orm::DbErr::RecordNotFound(format!(
-                    "No alternative character for user {} after removing main character ID {}",
-                    old_user.id, old_user.main_character_id
-                ))));
+                None => {
+                    user_repo.delete(previous_user.id).await?;
+                }
             }
         }
 
-        Ok(false)
+        // Use link_character method to update ownership to provided user ID
+        let ownership =
+            Self::link_character(&txn, character_record_id, to_user_id, &owner_hash).await?;
+
+        Ok(ownership)
     }
 
-    pub async fn change_main(&self, user_id: i32, character_id: i64) -> Result<(), Error> {
-        let user_repo = UserRepository::new(self.db);
-        let user_character_repo = UserCharacterRepository::new(self.db);
+    /// Sets a character as the main character for a user.
+    ///
+    /// This function updates the user's main character, but first verifies that the
+    /// character is actually owned by the specified user to prevent unauthorized changes.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to execute the operation within
+    /// - `user_id` - ID of the user whose main character should be updated
+    /// - `ownership` - Ownership record of the character to set as main
+    ///
+    /// # Returns
+    /// - `Ok(Some(UserModel))` - The updated user record
+    /// - `Ok(None)` - User was not found (should be unreachable in normal operation)
+    /// - `Err(Error::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Character is owned by a different user
+    /// - `Err(Error::DbErr)` - Database operation failed
+    pub async fn set_main_character(
+        txn: &DatabaseTransaction,
+        user_id: i32,
+        ownership: CharacterOwnershipModel,
+    ) -> Result<Option<UserModel>, Error> {
+        let user_repo = UserRepository::new(txn);
 
-        let character = user_character_repo
-            .get_by_character_id(character_id)
-            .await?;
+        if ownership.user_id != user_id {
+            tracing::warn!(
+                user_id = %user_id,
+                character_id = %ownership.character_id,
+                actual_owner_id = %ownership.user_id,
+                "User attempted to change main to character owned by another user"
+            );
 
-        let ownership = match character {
-            Some((_, maybe_ownership)) => {
-                if let Some(ownership) = maybe_ownership {
-                    // Verify the character is owned by this user
-                    if ownership.user_id != user_id {
-                        tracing::warn!(
-                            user_id = %user_id,
-                            character_id = %character_id,
-                            actual_owner_id = %ownership.user_id,
-                            "User attempted to change main to character owned by another user"
-                        );
+            return Err(AuthError::CharacterOwnedByAnotherUser.into());
+        }
 
-                        return Err(AuthError::CharacterOwnedByAnotherUser.into());
-                    }
-                    ownership
-                } else {
-                    tracing::warn!(
-                        user_id = %user_id,
-                        character_id = %character_id,
-                        "User attempted to change main to unowned character"
-                    );
+        let user = user_repo.update(user_id, ownership.character_id).await?;
 
-                    return Err(AuthError::CharacterNotOwned.into());
-                }
-            }
-            None => {
-                tracing::error!(
-                    user_id = %user_id,
-                    character_id = %character_id,
-                    "User attempted to change main to non-existent character"
-                );
-
-                return Err(AuthError::CharacterNotFound.into());
-            }
-        };
-
-        user_repo.update(user_id, ownership.character_id).await?;
-
-        Ok(())
+        Ok(user)
     }
 }
