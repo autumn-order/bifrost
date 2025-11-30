@@ -3,13 +3,14 @@ use std::collections::HashSet;
 use dioxus_logger::tracing;
 use eve_esi::model::alliance::Alliance;
 use futures::stream::{FuturesUnordered, StreamExt};
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::{eve::EveError, Error},
     service::orchestrator::{
-        cache::get_alliance_faction_dependency_ids, faction::FactionOrchestrator,
+        cache::{get_alliance_faction_dependency_ids, TrackedTransaction},
+        faction::FactionOrchestrator,
         OrchestrationCache,
     },
 };
@@ -150,14 +151,11 @@ impl<'a> AllianceOrchestrator<'a> {
 
         for chunk in missing_ids.chunks(MAX_CONCURRENT_ALLIANCE_FETCHES) {
             let mut futures = FuturesUnordered::new();
+            let esi_client = self.esi_client;
 
             for &id in chunk {
                 let future = async move {
-                    let alliance = self
-                        .esi_client
-                        .alliance()
-                        .get_alliance_information(id)
-                        .await?;
+                    let alliance = esi_client.alliance().get_alliance_information(id).await?;
                     Ok::<_, Error>((id, alliance))
                 };
                 futures.push(future);
@@ -206,16 +204,34 @@ impl<'a> AllianceOrchestrator<'a> {
 
     pub async fn persist_many(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         alliances: Vec<(i64, Alliance)>,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
+        // Check if this is a new transaction and clear caches if needed
+        cache.check_and_clear_on_new_transaction(txn.created_at);
         if alliances.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.alliances_persisted {
-            return Ok(cache.alliance_model.values().cloned().collect());
+        // Track which IDs were requested for return
+        let requested_ids: std::collections::HashSet<i64> =
+            alliances.iter().map(|(id, _)| *id).collect();
+
+        // Filter out alliances that are already in the database model cache
+        let alliances_to_persist: Vec<(i64, Alliance)> = alliances
+            .into_iter()
+            .filter(|(alliance_id, _)| !cache.alliance_model.contains_key(alliance_id))
+            .collect();
+
+        if alliances_to_persist.is_empty() {
+            // Return only the models that were requested
+            return Ok(cache
+                .alliance_model
+                .iter()
+                .filter(|(id, _)| requested_ids.contains(id))
+                .map(|(_, model)| model.clone())
+                .collect());
         }
 
         // Persist factions if any were fetched
@@ -223,8 +239,10 @@ impl<'a> AllianceOrchestrator<'a> {
         faction_orch.persist_cached_factions(txn, cache).await?;
 
         // Get the DB IDs for factions to map to alliances
-        let alliances_ref: Vec<&Alliance> =
-            alliances.iter().map(|(_, alliance)| alliance).collect();
+        let alliances_ref: Vec<&Alliance> = alliances_to_persist
+            .iter()
+            .map(|(_, alliance)| alliance)
+            .collect();
 
         let faction_ids = get_alliance_faction_dependency_ids(&alliances_ref);
 
@@ -237,7 +255,7 @@ impl<'a> AllianceOrchestrator<'a> {
             faction_db_ids.into_iter().collect();
 
         // Map alliances with their faction DB IDs
-        let alliances_to_upsert: Vec<(i64, Alliance, Option<i32>)> = alliances
+        let alliances_to_upsert: Vec<(i64, Alliance, Option<i32>)> = alliances_to_persist
             .into_iter()
             .map(|(alliance_id, alliance)| {
                 let faction_db_id = alliance.faction_id.and_then(|faction_id| {
@@ -252,7 +270,7 @@ impl<'a> AllianceOrchestrator<'a> {
             .collect();
 
         // Upsert alliances to database
-        let alliance_repo = AllianceRepository::new(txn);
+        let alliance_repo = AllianceRepository::new(txn.as_ref());
         let persisted_alliances = alliance_repo.upsert_many(alliances_to_upsert).await?;
 
         for model in &persisted_alliances {
@@ -262,15 +280,19 @@ impl<'a> AllianceOrchestrator<'a> {
             cache.alliance_db_id.insert(model.alliance_id, model.id);
         }
 
-        cache.alliances_persisted = true;
-
-        Ok(persisted_alliances)
+        // Return only the models that were requested (cached + newly persisted)
+        Ok(cache
+            .alliance_model
+            .iter()
+            .filter(|(id, _)| requested_ids.contains(id))
+            .map(|(_, model)| model.clone())
+            .collect())
     }
 
     /// Persist a single alliance to the database
     pub async fn persist(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         alliance_id: i64,
         alliance: Alliance,
         cache: &mut OrchestrationCache,
@@ -320,7 +342,7 @@ impl<'a> AllianceOrchestrator<'a> {
     /// Persist any alliances currently in the ESI cache
     pub async fn persist_cached_alliances(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
         let alliances: Vec<(i64, Alliance)> = cache

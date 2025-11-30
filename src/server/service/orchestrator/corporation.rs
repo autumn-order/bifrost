@@ -3,14 +3,17 @@ use std::collections::HashSet;
 use dioxus_logger::tracing;
 use eve_esi::model::corporation::Corporation;
 use futures::stream::{FuturesUnordered, StreamExt};
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::corporation::CorporationRepository,
     error::Error,
     service::orchestrator::{
         alliance::AllianceOrchestrator,
-        cache::{get_corporation_alliance_dependency_ids, get_corporation_faction_dependency_ids},
+        cache::{
+            get_corporation_alliance_dependency_ids, get_corporation_faction_dependency_ids,
+            TrackedTransaction,
+        },
         faction::FactionOrchestrator,
         OrchestrationCache,
     },
@@ -158,11 +161,11 @@ impl<'a> CorporationOrchestrator<'a> {
 
         for chunk in missing_ids.chunks(MAX_CONCURRENT_CORPORATION_FETCHES) {
             let mut futures = FuturesUnordered::new();
+            let esi_client = self.esi_client;
 
             for &id in chunk {
                 let future = async move {
-                    let corporation = self
-                        .esi_client
+                    let corporation = esi_client
                         .corporation()
                         .get_corporation_information(id)
                         .await?;
@@ -219,16 +222,35 @@ impl<'a> CorporationOrchestrator<'a> {
 
     pub async fn persist_many(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         corporations: Vec<(i64, Corporation)>,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_corporation::Model>, Error> {
+        // Check if this is a new transaction and clear caches if needed
+        cache.check_and_clear_on_new_transaction(txn.created_at);
+
         if corporations.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.corporations_persisted {
-            return Ok(cache.corporation_model.values().cloned().collect());
+        // Track which IDs were requested for return
+        let requested_ids: std::collections::HashSet<i64> =
+            corporations.iter().map(|(id, _)| *id).collect();
+
+        // Filter out corporations that are already in the database model cache
+        let corporations_to_persist: Vec<(i64, Corporation)> = corporations
+            .into_iter()
+            .filter(|(corporation_id, _)| !cache.corporation_model.contains_key(corporation_id))
+            .collect();
+
+        if corporations_to_persist.is_empty() {
+            // Return only the models that were requested
+            return Ok(cache
+                .corporation_model
+                .iter()
+                .filter(|(id, _)| requested_ids.contains(id))
+                .map(|(_, model)| model.clone())
+                .collect());
         }
 
         // Persist factions if any were fetched
@@ -239,7 +261,7 @@ impl<'a> CorporationOrchestrator<'a> {
         let alliance_orch = AllianceOrchestrator::new(&self.db, &self.esi_client);
         alliance_orch.persist_cached_alliances(txn, cache).await?;
 
-        let corporations_ref: Vec<&Corporation> = corporations
+        let corporations_ref: Vec<&Corporation> = corporations_to_persist
             .iter()
             .map(|(_, corporation)| corporation)
             .collect();
@@ -263,7 +285,7 @@ impl<'a> CorporationOrchestrator<'a> {
 
         // Map corporations with their faction & alliance DB IDs
         let corporations_to_upsert: Vec<(i64, Corporation, Option<i32>, Option<i32>)> =
-            corporations
+            corporations_to_persist
                 .into_iter()
                 .map(|(corporation_id, corporation)| {
                     let faction_db_id = corporation.faction_id.and_then(|faction_id| {
@@ -297,7 +319,7 @@ impl<'a> CorporationOrchestrator<'a> {
                 .collect();
 
         // Upsert corporations to database
-        let corporation_repo = CorporationRepository::new(txn);
+        let corporation_repo = CorporationRepository::new(txn.as_ref());
         let persisted_corporations = corporation_repo.upsert_many(corporations_to_upsert).await?;
 
         for model in &persisted_corporations {
@@ -309,15 +331,19 @@ impl<'a> CorporationOrchestrator<'a> {
                 .insert(model.corporation_id, model.id);
         }
 
-        cache.corporations_persisted = true;
-
-        Ok(persisted_corporations)
+        // Return only the models that were requested (cached + newly persisted)
+        Ok(cache
+            .corporation_model
+            .iter()
+            .filter(|(id, _)| requested_ids.contains(id))
+            .map(|(_, model)| model.clone())
+            .collect())
     }
 
     /// Persist a single corporation to the database
     pub async fn persist(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         corporation_id: i64,
         corporation: Corporation,
         cache: &mut OrchestrationCache,
@@ -368,7 +394,7 @@ impl<'a> CorporationOrchestrator<'a> {
     /// Persist any corporations currently in the ESI cache
     pub async fn persist_cached_corporations(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_corporation::Model>, Error> {
         let corporations: Vec<(i64, Corporation)> = cache

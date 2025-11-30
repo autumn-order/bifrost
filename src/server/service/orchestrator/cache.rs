@@ -1,23 +1,53 @@
 use std::collections::{HashMap, HashSet};
+use std::time::Instant;
 
 use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
 };
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
 use crate::server::error::Error;
+
+/// Wrapper around DatabaseTransaction that tracks when it was created
+///
+/// This allows the cache to automatically detect when a new transaction is being used
+/// (indicating a retry attempt) and clear the database model caches accordingly.
+pub struct TrackedTransaction {
+    txn: DatabaseTransaction,
+    pub created_at: Instant,
+}
+
+impl TrackedTransaction {
+    /// Create a new tracked transaction from a database connection
+    pub async fn begin(db: &DatabaseConnection) -> Result<Self, sea_orm::DbErr> {
+        Ok(Self {
+            txn: db.begin().await?,
+            created_at: Instant::now(),
+        })
+    }
+
+    /// Commit the underlying transaction
+    pub async fn commit(self) -> Result<(), sea_orm::DbErr> {
+        self.txn.commit().await
+    }
+
+    /// Get a reference to the underlying transaction
+    pub fn as_ref(&self) -> &DatabaseTransaction {
+        &self.txn
+    }
+}
 
 /// Unified orchestration cache - single source of truth for all EVE entity data
 ///
 /// This cache is designed to be shared across all orchestrators to prevent duplicate
-/// fetching of data from the database or ESI. It includes an embedded persistence tracker
-/// to enable idempotent persistence operations.
+/// fetching of data from the database or ESI. Idempotent persistence is achieved by
+/// checking which models exist in the database model cache before persisting.
 ///
 /// # Usage
 ///
 /// Create a single `OrchestrationCache` instance and pass it (by mutable reference) to
-/// all orchestrators that need to work together. Before retrying a transaction, call
-/// `reset_persistence_flags()` to ensure all entities are persisted again in the new attempt.
+/// all orchestrators that need to work together. On transaction rollback, ensure the
+/// database model caches are cleared to allow retry attempts to persist correctly.</parameter>
 #[derive(Clone, Default, Debug)]
 pub struct OrchestrationCache {
     // Faction data
@@ -40,18 +70,43 @@ pub struct OrchestrationCache {
     pub character_model: HashMap<i64, entity::eve_character::Model>,
     pub character_db_id: HashMap<i64, i32>,
 
-    // Persistence tracking - tracks which entity types have been persisted in current transaction
-    pub(super) factions_persisted: bool,
-    pub(super) alliances_persisted: bool,
-    pub(super) corporations_persisted: bool,
-    pub(super) characters_persisted: bool,
+    // Transaction tracking - used to detect when a new transaction is being used
+    transaction_id: Option<Instant>,
 }
 
 impl OrchestrationCache {
-    /// Reset all persistence flags for retry attempts
+    /// Check if the provided transaction ID differs from the cached one, and if so,
+    /// clear all database model caches automatically.
     ///
-    /// This should be called before retrying a transaction to ensure that
-    /// all entities are persisted again in the new transaction attempt.
+    /// This enables automatic cache clearing on transaction retries without requiring
+    /// explicit calls to clear the cache. Simply call this method at the start of each
+    /// persistence operation, passing the transaction's creation timestamp.
+    ///
+    /// # Arguments
+    /// - `txn_id`: Timestamp when the current transaction was created
+    ///
+    /// # Returns
+    /// - `true` if caches were cleared (new transaction detected)
+    /// - `false` if caches were not cleared (same transaction)
+    pub fn check_and_clear_on_new_transaction(&mut self, txn_id: Instant) -> bool {
+        if let Some(cached_id) = self.transaction_id {
+            if cached_id != txn_id {
+                // New transaction detected, clear database model caches
+                self.clear_db_model_caches();
+                self.transaction_id = Some(txn_id);
+                return true;
+            }
+        } else {
+            // First transaction, just record it
+            self.transaction_id = Some(txn_id);
+        }
+        false
+    }
+
+    /// Clear all database model caches manually
+    ///
+    /// This is now primarily used internally by `check_and_clear_on_new_transaction`.
+    /// You generally don't need to call this directly - instead use transaction tracking.
     ///
     /// # Example
     ///
@@ -62,28 +117,33 @@ impl OrchestrationCache {
     /// let result = perform_transaction(&mut cache).await;
     ///
     /// if result.is_err() {
-    ///     // Reset before retry
-    ///     cache.reset_persistence_flags();
+    ///     // Clear database model caches before retry
+    ///     cache.clear_db_model_caches();
     ///     let retry_result = perform_transaction(&mut cache).await;
     /// }
     /// ```
-    pub fn reset_persistence_flags(&mut self) {
-        self.factions_persisted = false;
-        self.alliances_persisted = false;
-        self.corporations_persisted = false;
-        self.characters_persisted = false;
+    pub fn clear_db_model_caches(&mut self) {
+        self.faction_model.clear();
+        self.alliance_model.clear();
+        self.corporation_model.clear();
+        self.character_model.clear();
+        self.faction_db_id.clear();
+        self.alliance_db_id.clear();
+        self.corporation_db_id.clear();
+        self.character_db_id.clear();
+        self.transaction_id = None;
     }
 
     /// Persist all ESI models from cache in dependency order
     ///
     /// This method persists all fetched ESI data in the cache to the database,
     /// respecting foreign key dependencies (factions -> alliances -> corporations -> characters).
-    /// It uses the persistence flags to avoid duplicate persistence operations.
+    /// Only ESI models not already present in the database model cache will be persisted.
     ///
     /// # Arguments
     /// - `db` - Database connection for creating orchestrators
     /// - `esi_client` - ESI client for creating orchestrators
-    /// - `txn` - Database transaction to persist within
+    /// - `txn` - Tracked database transaction to persist within
     ///
     /// # Returns
     /// - `Ok(())` if all entities were successfully persisted
@@ -92,7 +152,7 @@ impl OrchestrationCache {
         &mut self,
         db: &DatabaseConnection,
         esi_client: &eve_esi::Client,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
     ) -> Result<(), Error> {
         use super::{
             alliance::AllianceOrchestrator, character::CharacterOrchestrator,

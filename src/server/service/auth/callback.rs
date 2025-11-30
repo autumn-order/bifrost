@@ -1,13 +1,15 @@
 use eve_esi::model::oauth2::EveJwtClaims;
 use oauth2::TokenResponse;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::user::{user_character::UserCharacterRepository, UserRepository},
     error::Error,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
     service::{
-        orchestrator::{character::CharacterOrchestrator, OrchestrationCache},
+        orchestrator::{
+            cache::TrackedTransaction, character::CharacterOrchestrator, OrchestrationCache,
+        },
         user::user_character::UserCharacterService,
     },
 };
@@ -157,9 +159,9 @@ impl<'a> CallbackService<'a> {
                         .fetch_character(character_id, &mut cache)
                         .await?;
 
-                    let txn = self.db.begin().await?;
+                    let txn = TrackedTransaction::begin(self.db).await?;
 
-                    let user_repo = UserRepository::new(&txn);
+                    let user_repo = UserRepository::new(txn.as_ref());
 
                     let character = character_orch
                         .persist(&txn, character_id, fetched_character, &mut cache)
@@ -172,7 +174,7 @@ impl<'a> CallbackService<'a> {
 
                     // Use link_character method to assign newly created character to logged in user
                     let ownership = UserCharacterService::link_character(
-                        &txn,
+                        txn.as_ref(),
                         character.id,
                         user_id,
                         &owner_hash,
@@ -188,17 +190,17 @@ impl<'a> CallbackService<'a> {
                     character,
                     owner_hash,
                 } => {
-                    let txn = self.db.begin().await?;
+                    let txn = TrackedTransaction::begin(self.db).await?;
 
-                    let user_repo = UserRepository::new(&txn);
+                    let user_repo = UserRepository::new(txn.as_ref());
                     let user_id = match to_user_id {
                         Some(uid) => uid,
                         None => user_repo.create(character.id).await?.id,
                     };
 
-                    // Use link_character method to assign unowned character to logged in user
+                    // Use link_character method to assign newly created character to logged in user
                     let ownership = UserCharacterService::link_character(
-                        &txn,
+                        txn.as_ref(),
                         character.id,
                         user_id,
                         &owner_hash,
@@ -214,9 +216,9 @@ impl<'a> CallbackService<'a> {
                     character,
                     owner_hash,
                 } => {
-                    let txn = self.db.begin().await?;
+                    let txn = TrackedTransaction::begin(self.db).await?;
 
-                    let user_repo = UserRepository::new(&txn);
+                    let user_repo = UserRepository::new(txn.as_ref());
 
                     let user_id = match to_user_id {
                         Some(id) => id,
@@ -224,8 +226,8 @@ impl<'a> CallbackService<'a> {
                     };
 
                     // Transfer the character from previous user to currently logged in user
-                    let updated_ownership = UserCharacterService::transfer_character(
-                        &txn,
+                    let ownership = UserCharacterService::transfer_character(
+                        txn.as_ref(),
                         character.id,
                         user_id,
                         &owner_hash,
@@ -234,18 +236,19 @@ impl<'a> CallbackService<'a> {
 
                     txn.commit().await?;
 
-                    (user_id, updated_ownership)
+                    (user_id, ownership)
                 }
                 CharacterAction::UpdateOwnerHash {
                     user_id,
                     character,
                     owner_hash,
                 } => {
-                    let txn = self.db.begin().await?;
+                    let txn = TrackedTransaction::begin(self.db).await?;
 
                     // Update owner hash via the link_character method
+                    // Use link_character method to assign unowned character to logged in user
                     let ownership = UserCharacterService::link_character(
-                        &txn,
+                        txn.as_ref(),
                         character.id,
                         user_id,
                         &owner_hash,
@@ -260,8 +263,8 @@ impl<'a> CallbackService<'a> {
             };
 
         if change_main.unwrap_or(false) {
-            let txn = self.db.begin().await?;
-            UserCharacterService::set_main_character(&txn, user_id, ownership).await?;
+            let txn = TrackedTransaction::begin(self.db).await?;
+            UserCharacterService::set_main_character(txn.as_ref(), user_id, ownership).await?;
             txn.commit().await?;
         }
 

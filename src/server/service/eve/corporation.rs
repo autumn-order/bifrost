@@ -1,13 +1,15 @@
 use eve_esi::model::corporation::Corporation;
 use futures::future::join_all;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::corporation::CorporationRepository,
     error::Error,
     service::{
         eve::{alliance::AllianceService, faction::FactionService},
-        orchestrator::{corporation::CorporationOrchestrator, OrchestrationCache},
+        orchestrator::{
+            cache::TrackedTransaction, corporation::CorporationOrchestrator, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -46,10 +48,7 @@ impl<'a> CorporationService<'a> {
                         .fetch_corporation(corporation_id, cache)
                         .await?;
 
-                    // Reset persistence flags before transaction attempt in case of retry
-                    cache.reset_persistence_flags();
-
-                    let txn = db.begin().await?;
+                    let txn = TrackedTransaction::begin(&db).await?;
 
                     let model = corporation_orch
                         .persist(&txn, corporation_id, fetched_corporation, cache)

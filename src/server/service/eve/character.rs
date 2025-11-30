@@ -1,13 +1,15 @@
 use eve_esi::model::character::Character;
 use futures::future::join_all;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
     service::{
         eve::{corporation::CorporationService, faction::FactionService},
-        orchestrator::{character::CharacterOrchestrator, OrchestrationCache},
+        orchestrator::{
+            cache::TrackedTransaction, character::CharacterOrchestrator, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -45,10 +47,7 @@ impl<'a> CharacterService<'a> {
                     let fetched_character =
                         character_orch.fetch_character(character_id, cache).await?;
 
-                    // Reset persistence flags before transaction attempt in case of retry
-                    cache.reset_persistence_flags();
-
-                    let txn = db.begin().await?;
+                    let txn = TrackedTransaction::begin(&db).await?;
 
                     let model = character_orch
                         .persist(&txn, character_id, fetched_character, cache)

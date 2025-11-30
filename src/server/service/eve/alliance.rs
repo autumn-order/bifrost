@@ -1,13 +1,15 @@
 use eve_esi::model::alliance::Alliance;
 use futures::future::join_all;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::Error,
     service::{
         eve::faction::FactionService,
-        orchestrator::{alliance::AllianceOrchestrator, OrchestrationCache},
+        orchestrator::{
+            alliance::AllianceOrchestrator, cache::TrackedTransaction, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -44,10 +46,7 @@ impl<'a> AllianceService<'a> {
 
                     let fetched_alliance = alliance_orch.fetch_alliance(alliance_id, cache).await?;
 
-                    // Reset persistence flags before transaction attempt in case of retry
-                    cache.reset_persistence_flags();
-
-                    let txn = db.begin().await?;
+                    let txn = TrackedTransaction::begin(&db).await?;
 
                     let model = alliance_orch
                         .persist(&txn, alliance_id, fetched_alliance, cache)

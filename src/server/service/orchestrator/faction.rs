@@ -2,10 +2,12 @@ use std::collections::HashSet;
 
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::eve::faction::FactionRepository, error::Error, service::orchestrator::OrchestrationCache,
+    data::eve::faction::FactionRepository,
+    error::Error,
+    service::orchestrator::{cache::TrackedTransaction, OrchestrationCache},
     util::time::effective_faction_cache_expiry,
 };
 
@@ -131,30 +133,52 @@ impl<'a> FactionOrchestrator<'a> {
     /// Persist factions fetched from ESI to database if applicable
     pub async fn persist_factions(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         factions: Vec<Faction>,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_faction::Model>, Error> {
+        // Check if this is a new transaction and clear caches if needed
+        cache.check_and_clear_on_new_transaction(txn.created_at);
         if factions.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.factions_persisted {
-            return Ok(cache.faction_model.values().cloned().collect());
+        // Track which IDs were requested for return
+        let requested_ids: std::collections::HashSet<i64> =
+            factions.iter().map(|f| f.faction_id).collect();
+
+        // Filter out factions that are already in the database model cache
+        let factions_to_persist: Vec<Faction> = factions
+            .into_iter()
+            .filter(|faction| !cache.faction_model.contains_key(&faction.faction_id))
+            .collect();
+
+        if factions_to_persist.is_empty() {
+            // Return only the models that were requested
+            return Ok(cache
+                .faction_model
+                .iter()
+                .filter(|(id, _)| requested_ids.contains(id))
+                .map(|(_, model)| model.clone())
+                .collect());
         }
 
         // Upsert factions to database
-        let faction_repo = FactionRepository::new(txn);
-        let persisted_models = faction_repo.upsert_many(factions).await?;
+        let faction_repo = FactionRepository::new(txn.as_ref());
+        let persisted_models = faction_repo.upsert_many(factions_to_persist).await?;
 
         for model in &persisted_models {
             cache.faction_model.insert(model.faction_id, model.clone());
             cache.faction_db_id.insert(model.faction_id, model.id);
         }
 
-        cache.factions_persisted = true;
-
-        Ok(persisted_models)
+        // Return only the models that were requested (cached + newly persisted)
+        Ok(cache
+            .faction_model
+            .iter()
+            .filter(|(id, _)| requested_ids.contains(id))
+            .map(|(_, model)| model.clone())
+            .collect())
     }
 
     /// Check database for provided faction ids, fetch factions from ESI if any are missing
@@ -187,7 +211,7 @@ impl<'a> FactionOrchestrator<'a> {
     /// Persist any factions currently in the ESI cache
     pub async fn persist_cached_factions(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_faction::Model>, Error> {
         let factions: Vec<Faction> = cache.faction_esi.values().cloned().collect();

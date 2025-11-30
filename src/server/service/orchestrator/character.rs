@@ -3,13 +3,16 @@ use std::collections::HashSet;
 use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::stream::{FuturesUnordered, StreamExt};
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
     service::orchestrator::{
-        cache::{get_character_corporation_dependency_ids, get_character_faction_dependency_ids},
+        cache::{
+            get_character_corporation_dependency_ids, get_character_faction_dependency_ids,
+            TrackedTransaction,
+        },
         corporation::CorporationOrchestrator,
         faction::FactionOrchestrator,
         OrchestrationCache,
@@ -158,11 +161,11 @@ impl<'a> CharacterOrchestrator<'a> {
 
         for chunk in missing_ids.chunks(MAX_CONCURRENT_CHARACTER_FETCHES) {
             let mut futures = FuturesUnordered::new();
+            let esi_client = self.esi_client;
 
             for &id in chunk {
                 let future = async move {
-                    let character = self
-                        .esi_client
+                    let character = esi_client
                         .character()
                         .get_character_public_information(id)
                         .await?;
@@ -217,16 +220,34 @@ impl<'a> CharacterOrchestrator<'a> {
 
     pub async fn persist_many(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         characters: Vec<(i64, Character)>,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_character::Model>, Error> {
+        // Check if this is a new transaction and clear caches if needed
+        cache.check_and_clear_on_new_transaction(txn.created_at);
         if characters.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.characters_persisted {
-            return Ok(cache.character_model.values().cloned().collect());
+        // Track which IDs were requested for return
+        let requested_ids: std::collections::HashSet<i64> =
+            characters.iter().map(|(id, _)| *id).collect();
+
+        // Filter out characters that are already in the database model cache
+        let characters_to_persist: Vec<(i64, Character)> = characters
+            .into_iter()
+            .filter(|(character_id, _)| !cache.character_model.contains_key(character_id))
+            .collect();
+
+        if characters_to_persist.is_empty() {
+            // Return only the models that were requested
+            return Ok(cache
+                .character_model
+                .iter()
+                .filter(|(id, _)| requested_ids.contains(id))
+                .map(|(_, model)| model.clone())
+                .collect());
         }
 
         // Persist factions if any were fetched
@@ -239,8 +260,10 @@ impl<'a> CharacterOrchestrator<'a> {
             .persist_cached_corporations(txn, cache)
             .await?;
 
-        let characters_ref: Vec<&Character> =
-            characters.iter().map(|(_, character)| character).collect();
+        let characters_ref: Vec<&Character> = characters_to_persist
+            .iter()
+            .map(|(_, character)| character)
+            .collect();
 
         let faction_ids = get_character_faction_dependency_ids(&characters_ref);
         let corporation_ids = get_character_corporation_dependency_ids(&characters_ref);
@@ -260,7 +283,7 @@ impl<'a> CharacterOrchestrator<'a> {
             corporation_db_ids.into_iter().collect();
 
         // Map characters with their faction & corporation DB IDs
-        let characters_to_upsert: Vec<(i64, Character, i32, Option<i32>)> = characters
+        let characters_to_upsert: Vec<(i64, Character, i32, Option<i32>)> = characters_to_persist
             .into_iter()
             .filter_map(|(character_id, character)| {
                 let faction_db_id = character.faction_id.and_then(|faction_id| {
@@ -297,7 +320,7 @@ impl<'a> CharacterOrchestrator<'a> {
             .collect();
 
         // Upsert characters to database
-        let character_repo = CharacterRepository::new(txn);
+        let character_repo = CharacterRepository::new(txn.as_ref());
         let persisted_characters = character_repo.upsert_many(characters_to_upsert).await?;
 
         for model in &persisted_characters {
@@ -307,15 +330,19 @@ impl<'a> CharacterOrchestrator<'a> {
             cache.character_db_id.insert(model.character_id, model.id);
         }
 
-        cache.characters_persisted = true;
-
-        Ok(persisted_characters)
+        // Return only the models that were requested (cached + newly persisted)
+        Ok(cache
+            .character_model
+            .iter()
+            .filter(|(id, _)| requested_ids.contains(id))
+            .map(|(_, model)| model.clone())
+            .collect())
     }
 
     /// Persist a single character to the database
     pub async fn persist(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         character_id: i64,
         character: Character,
         cache: &mut OrchestrationCache,
@@ -365,7 +392,7 @@ impl<'a> CharacterOrchestrator<'a> {
     /// Persist any characters currently in the ESI cache
     pub async fn persist_cached_characters(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_character::Model>, Error> {
         let characters: Vec<(i64, Character)> = cache

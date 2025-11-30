@@ -1,10 +1,12 @@
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::{eve::EveError, Error},
     service::{
-        orchestrator::{faction::FactionOrchestrator, OrchestrationCache},
+        orchestrator::{
+            cache::TrackedTransaction, faction::FactionOrchestrator, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -40,10 +42,7 @@ impl<'a> FactionService<'a> {
                     return Ok(Vec::new());
                 };
 
-                // Reset persistence flags before transaction attempt
-                cache.reset_persistence_flags();
-
-                let txn = db.begin().await?;
+                let txn = TrackedTransaction::begin(&db).await?;
 
                 let faction_models = faction_orch
                     .persist_factions(&txn, fetched_factions, cache)
@@ -94,7 +93,7 @@ impl<'a> FactionService<'a> {
                     return Err(EveError::FactionNotFound(faction_id).into());
                 };
 
-                let txn = db.begin().await?;
+                let txn = TrackedTransaction::begin(&db).await?;
 
                 let updated_factions = faction_orch
                     .persist_factions(&txn, fetched_factions, cache)
