@@ -11,18 +11,61 @@ use crate::server::{
     util::time::effective_faction_cache_expiry,
 };
 
-/// Orchestrator for fetching and persisting EVE factions
+/// Orchestrator for fetching and persisting EVE factions.
+///
+/// This orchestrator manages the complete lifecycle of EVE faction data including:
+/// - Fetching faction information from ESI
+/// - Persisting factions to the database
+/// - Maintaining cache consistency across operations
+/// - Managing ESI's 24-hour faction cache window
+///
+/// Factions have no foreign key dependencies on other entities, making them the base
+/// of the dependency hierarchy for other orchestrators.
+///
+/// # ESI Cache Management
+///
+/// ESI caches faction data for 24 hours and resets at 11:05 UTC daily. This orchestrator
+/// respects this cache window and avoids unnecessary fetches when stored factions are
+/// still within the valid cache period.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut cache = OrchestrationCache::default();
+/// let faction_orch = FactionOrchestrator::new(&db, &esi_client);
+///
+/// // Fetch all factions if cache is expired
+/// if let Some(factions) = faction_orch.fetch_factions(&mut cache).await? {
+///     // Persist within a transaction
+///     let txn = TrackedTransaction::begin(&db).await?;
+///     let models = faction_orch.persist_factions(&txn, factions, &mut cache).await?;
+///     txn.commit().await?;
+/// }
+/// ```
 pub struct FactionOrchestrator<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> FactionOrchestrator<'a> {
+    /// Creates a new instance of [`FactionOrchestrator`]
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    /// Retrieve faction entry ID from database that corresponds to provided EVE faction ID
+    /// Retrieves the database entry ID for a faction by its EVE faction ID.
+    ///
+    /// This method first checks the cache, then queries the database if the ID is not cached.
+    /// The result is cached for subsequent lookups.
+    ///
+    /// # Arguments
+    /// - `faction_id` - EVE Online faction ID to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Some(i32))` - Database entry ID if faction exists
+    /// - `Ok(None)` - Faction does not exist in database
+    /// - `Err(Error::DbErr)` - Database query failed
     pub async fn get_faction_entry_id(
         &self,
         faction_id: i64,
@@ -35,7 +78,21 @@ impl<'a> FactionOrchestrator<'a> {
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
-    /// Retrieve pairs of EVE faction IDs & DB faction IDs from a list of faction IDs
+    /// Retrieves database entry IDs for multiple factions by their EVE faction IDs.
+    ///
+    /// This method efficiently batches database lookups for factions not already in cache.
+    /// Only missing IDs are queried from the database, and results are cached.
+    ///
+    /// # Arguments
+    /// - `faction_ids` - List of EVE Online faction IDs to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, i32)>)` - Pairs of (EVE faction ID, database entry ID) for factions that exist
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// Only returns entries for factions that exist in the database. Missing factions are silently omitted.
     pub async fn get_many_faction_entry_ids(
         &self,
         faction_ids: Vec<i64>,
@@ -82,20 +139,25 @@ impl<'a> FactionOrchestrator<'a> {
             .collect())
     }
 
-    /// Retrieve NPC faction information from ESI
+    /// Retrieves NPC faction information from ESI if the cache has expired.
     ///
-    /// ESI only supports the fetching of all factions at once, additionally, ESI caches alliance
-    /// information for 24 hours which resets at 11:05 UTC. This method will check existing
-    /// factions in database first, no fetch attempt will be made if the factions we have stored
-    /// are already up to date.
+    /// ESI only supports fetching all factions at once and caches faction information for
+    /// 24 hours, resetting at 11:05 UTC daily. This method checks if the stored factions
+    /// are within the valid cache window before fetching from ESI.
     ///
     /// # Arguments
-    /// - `cache`: Unified cache for orchestration that prevents duplicate fetching of factions
-    ///   during retry attempts.
+    /// - `cache` - Unified cache for orchestration that prevents duplicate fetching of factions
+    ///   during retry attempts
     ///
     /// # Returns
-    /// - `Some`: If factions currently stored are not within the ESI 24 hour faction cache window
-    /// - `None`: If factions are already up to date
+    /// - `Ok(Some(Vec<Faction>))` - Factions were fetched because cache expired
+    /// - `Ok(None)` - Factions are already up to date, no fetch was performed
+    /// - `Err(Error::EsiError)` - Failed to fetch factions from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for latest faction timestamp
+    ///
+    /// # Note
+    /// The effective cache expiry is calculated based on ESI's 24-hour cache window.
+    /// Factions are automatically added to the cache when fetched.
     pub async fn fetch_factions(
         &self,
         cache: &mut OrchestrationCache,
@@ -130,7 +192,25 @@ impl<'a> FactionOrchestrator<'a> {
         Ok(Some(fetched_factions))
     }
 
-    /// Persist factions fetched from ESI to database if applicable
+    /// Persists factions fetched from ESI to the database within a transaction.
+    ///
+    /// This method handles the complete persistence workflow:
+    /// - Checks for new transactions and clears model caches if needed
+    /// - Filters out factions already persisted in this transaction
+    /// - Upserts factions to the database
+    /// - Updates cache with persisted models
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `factions` - List of faction data from ESI to persist
+    /// - `cache` - Unified cache for tracking persisted models
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for the requested factions (cached + newly persisted)
+    /// - `Err(Error::DbErr)` - Database operation failed
+    ///
+    /// # Note
+    /// Factions have no dependencies, so this method can be called independently.
     pub async fn persist_factions(
         &self,
         txn: &TrackedTransaction,
@@ -181,7 +261,26 @@ impl<'a> FactionOrchestrator<'a> {
             .collect())
     }
 
-    /// Check database for provided faction ids, fetch factions from ESI if any are missing
+    /// Ensures factions exist in the database, fetching from ESI if missing.
+    ///
+    /// This method checks the database for the provided faction IDs and fetches
+    /// all factions from ESI if any are missing (since ESI only supports fetching
+    /// all factions at once). Fetched factions are cached but not persisted.
+    ///
+    /// # Arguments
+    /// - `faction_ids` - List of EVE Online faction IDs to verify/fetch
+    /// - `cache` - Unified cache for tracking database entries and ESI data
+    ///
+    /// # Returns
+    /// - `Ok(())` - All factions now exist in database or are cached for persistence
+    /// - `Err(Error::EsiError)` - Failed to fetch factions from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// This method only ensures factions are fetched and cached. To persist them,
+    /// use [`persist_cached_factions`](Self::persist_cached_factions) within a transaction.
+    /// ESI fetches all factions at once, so even if only one faction is missing, all
+    /// factions will be fetched and cached.
     pub async fn ensure_factions_exist(
         &self,
         faction_ids: Vec<i64>,
@@ -208,7 +307,19 @@ impl<'a> FactionOrchestrator<'a> {
         Ok(())
     }
 
-    /// Persist any factions currently in the ESI cache
+    /// Persists all factions currently in the ESI cache to the database.
+    ///
+    /// This is a convenience method that persists all factions that have been fetched
+    /// from ESI and are currently stored in the cache. Useful after calling methods like
+    /// [`ensure_factions_exist`](Self::ensure_factions_exist).
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `cache` - Unified cache containing fetched factions
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for all persisted factions
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist_cached_factions(
         &self,
         txn: &TrackedTransaction,

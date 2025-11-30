@@ -17,18 +17,54 @@ use crate::server::{
 
 const MAX_CONCURRENT_ALLIANCE_FETCHES: usize = 10;
 
-/// Orchestrator for fetching and persisting EVE alliances and their dependencies
+/// Orchestrator for fetching and persisting EVE alliances and their dependencies.
+///
+/// This orchestrator manages the complete lifecycle of EVE alliance data including:
+/// - Fetching alliance information from ESI
+/// - Managing alliance dependencies (factions)
+/// - Persisting alliances to the database
+///
+/// Alliance data has an optional foreign key dependency on factions.
+/// The orchestrator automatically ensures faction dependencies exist before persisting alliances.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut cache = OrchestrationCache::default();
+/// let alliance_orch = AllianceOrchestrator::new(&db, &esi_client);
+///
+/// // Fetch and cache an alliance
+/// let alliance = alliance_orch.fetch_alliance(alliance_id, &mut cache).await?;
+///
+/// // Persist it within a transaction
+/// let txn = TrackedTransaction::begin(&db).await?;
+/// let model = alliance_orch.persist(&txn, alliance_id, alliance, &mut cache).await?;
+/// txn.commit().await?;
+/// ```
 pub struct AllianceOrchestrator<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> AllianceOrchestrator<'a> {
+    /// Creates a new instance of [`AllianceOrchestrator`]
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    /// Retrieve alliance entry ID from database that corresponds to provided EVE alliance ID
+    /// Retrieves the database entry ID for an alliance by its EVE alliance ID.
+    ///
+    /// This method first checks the cache, then queries the database if the ID is not cached.
+    /// The result is cached for subsequent lookups.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Some(i32))` - Database entry ID if alliance exists
+    /// - `Ok(None)` - Alliance does not exist in database
+    /// - `Err(Error::DbErr)` - Database query failed
     pub async fn get_alliance_entry_id(
         &self,
         alliance_id: i64,
@@ -41,7 +77,21 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
-    /// Retrieve pairs of EVE alliance IDs & DB alliance IDs from a list of alliance IDs
+    /// Retrieves database entry IDs for multiple alliances by their EVE alliance IDs.
+    ///
+    /// This method efficiently batches database lookups for alliances not already in cache.
+    /// Only missing IDs are queried from the database, and results are cached.
+    ///
+    /// # Arguments
+    /// - `alliance_ids` - List of EVE Online alliance IDs to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, i32)>)` - Pairs of (EVE alliance ID, database entry ID) for alliances that exist
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// Only returns entries for alliances that exist in the database. Missing alliances are silently omitted.
     pub async fn get_many_alliance_entry_ids(
         &self,
         alliance_ids: Vec<i64>,
@@ -88,6 +138,24 @@ impl<'a> AllianceOrchestrator<'a> {
             .collect())
     }
 
+    /// Fetches a single alliance from ESI and ensures its dependencies exist.
+    ///
+    /// This method retrieves alliance information from ESI, caches it, and ensures that
+    /// the alliance's faction (if any) exists in the database. Dependencies are fetched
+    /// and cached if they don't already exist.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Alliance)` - The fetched alliance data from ESI
+    /// - `Err(Error::EsiError)` - Failed to fetch alliance from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - The alliance is cached after fetching to avoid duplicate ESI calls during retries.
+    /// - Dependencies (faction) are also fetched and cached if missing.
     pub async fn fetch_alliance(
         &self,
         alliance_id: i64,
@@ -122,6 +190,25 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(fetched_alliance)
     }
 
+    /// Fetches multiple alliances from ESI concurrently and ensures their dependencies exist.
+    ///
+    /// This method efficiently fetches multiple alliances by:
+    /// - Checking cache first to avoid redundant ESI calls
+    /// - Fetching missing alliances concurrently (up to MAX_CONCURRENT_ALLIANCE_FETCHES at a time)
+    /// - Automatically ensuring all faction dependencies exist
+    ///
+    /// # Arguments
+    /// - `alliance_ids` - Slice of EVE Online alliance IDs to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, Alliance)>)` - Pairs of (alliance ID, alliance data) for requested alliances
+    /// - `Err(Error::EsiError)` - Failed to fetch one or more alliances from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - All fetched alliances are cached.
+    /// - The method ensures all faction dependencies exist before returning.
     pub async fn fetch_many_alliances(
         &self,
         alliance_ids: &[i64],
@@ -202,6 +289,27 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(requested_alliances)
     }
 
+    /// Persists multiple alliances to the database within a transaction.
+    ///
+    /// This method handles the complete persistence workflow:
+    /// - Checks for new transactions and clears model caches for retry if needed
+    /// - Filters out alliances already persisted in this transaction
+    /// - Persists all dependencies (factions) first
+    /// - Maps alliances to their dependency database IDs
+    /// - Upserts alliances to the database
+    /// - Updates cache with persisted models
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `alliances` - List of (alliance ID, alliance data) pairs to persist
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for the requested alliances (cached + newly persisted)
+    /// - `Err(Error::DbErr)` - Database operation failed
+    ///
+    /// # Note
+    /// - Optional faction dependencies that are missing will set the faction ID to None with a warning.
     pub async fn persist_many(
         &self,
         txn: &TrackedTransaction,
@@ -289,7 +397,20 @@ impl<'a> AllianceOrchestrator<'a> {
             .collect())
     }
 
-    /// Persist a single alliance to the database
+    /// Persists a single alliance to the database within a transaction.
+    ///
+    /// This is a convenience wrapper around [`persist_many`](Self::persist_many) for single alliance persistence.
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `alliance_id` - EVE Online alliance ID
+    /// - `alliance` - Alliance data from ESI
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Model)` - Database model for the persisted alliance
+    /// - `Err(Error::InternalError)` - Alliance persistence failed unexpectedly
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist(
         &self,
         txn: &TrackedTransaction,
@@ -312,7 +433,23 @@ impl<'a> AllianceOrchestrator<'a> {
         })
     }
 
-    /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
+    /// Ensures alliances exist in the database, fetching from ESI if missing.
+    ///
+    /// This method checks the database for the provided alliance IDs and fetches
+    /// any missing alliances from ESI. Fetched alliances are cached but not persisted.
+    ///
+    /// # Arguments
+    /// - `alliance_ids` - List of EVE Online alliance IDs to verify/fetch
+    /// - `cache` - Unified cache for tracking database entries and ESI data
+    ///
+    /// # Returns
+    /// - `Ok(())` - All alliances exist in database or are now cached for persistence
+    /// - `Err(Error::EsiError)` - Failed to fetch missing alliances from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// This method only ensures alliances are fetched and cached. To persist them,
+    /// use [`persist_cached_alliances`](Self::persist_cached_alliances) within a transaction.
     pub async fn ensure_alliances_exist(
         &self,
         alliance_ids: Vec<i64>,
@@ -339,7 +476,19 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(())
     }
 
-    /// Persist any alliances currently in the ESI cache
+    /// Persists all alliances currently in the ESI cache to the database.
+    ///
+    /// This is a convenience method that persists all alliances that have been fetched
+    /// from ESI and are currently stored in the cache. Useful after calling methods like
+    /// [`ensure_alliances_exist`](Self::ensure_alliances_exist).
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `cache` - Unified cache containing fetched alliances
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for all persisted alliances
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist_cached_alliances(
         &self,
         txn: &TrackedTransaction,

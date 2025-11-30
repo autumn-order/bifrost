@@ -21,16 +21,55 @@ use crate::server::{
 
 const MAX_CONCURRENT_CORPORATION_FETCHES: usize = 10;
 
+/// Orchestrator for fetching and persisting EVE corporations and their dependencies.
+///
+/// This orchestrator manages the complete lifecycle of EVE corporation data including:
+/// - Fetching corporation information from ESI
+/// - Managing corporation dependencies (alliances, factions)
+/// - Persisting corporations to the database
+/// - Maintaining cache consistency across operations
+///
+/// Corporation data has optional foreign key dependencies on alliances and factions.
+/// The orchestrator automatically ensures these dependencies exist before persisting corporations.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut cache = OrchestrationCache::default();
+/// let corporation_orch = CorporationOrchestrator::new(&db, &esi_client);
+///
+/// // Fetch and cache a corporation
+/// let corporation = corporation_orch.fetch_corporation(corporation_id, &mut cache).await?;
+///
+/// // Persist it within a transaction
+/// let txn = TrackedTransaction::begin(&db).await?;
+/// let model = corporation_orch.persist(&txn, corporation_id, corporation, &mut cache).await?;
+/// txn.commit().await?;
+/// ```
 pub struct CorporationOrchestrator<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> CorporationOrchestrator<'a> {
+    /// Creates a new instance of [`CorporationOrchestrator`]
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
+    /// Retrieves the database entry ID for a corporation by its EVE corporation ID.
+    ///
+    /// This method first checks the cache, then queries the database if the ID is not cached.
+    /// The result is cached for subsequent lookups.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Some(i32))` - Database entry ID if corporation exists
+    /// - `Ok(None)` - Corporation does not exist in database
+    /// - `Err(Error::DbErr)` - Database query failed
     pub async fn get_corporation_entry_id(
         &self,
         corporation_id: i64,
@@ -43,6 +82,21 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
+    /// Retrieves database entry IDs for multiple corporations by their EVE corporation IDs.
+    ///
+    /// This method efficiently batches database lookups for corporations not already in cache.
+    /// Only missing IDs are queried from the database, and results are cached.
+    ///
+    /// # Arguments
+    /// - `corporation_ids` - List of EVE Online corporation IDs to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, i32)>)` - Pairs of (EVE corporation ID, database entry ID) for corporations that exist
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// Only returns entries for corporations that exist in the database. Missing corporations are silently omitted.
     pub async fn get_many_corporation_entry_ids(
         &self,
         corporation_ids: Vec<i64>,
@@ -89,6 +143,24 @@ impl<'a> CorporationOrchestrator<'a> {
             .collect())
     }
 
+    /// Fetches a single corporation from ESI and ensures its dependencies exist.
+    ///
+    /// This method retrieves corporation information from ESI, caches it, and ensures that
+    /// the corporation's alliance and faction (if any) exist in the database. Dependencies
+    /// are fetched and cached if they don't already exist.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Corporation)` - The fetched corporation data from ESI
+    /// - `Err(Error::EsiError)` - Failed to fetch corporation from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - The corporation is cached after fetching to avoid duplicate ESI calls during retries.
+    /// - Dependencies (alliance, faction) are also fetched and cached if missing.
     pub async fn fetch_corporation(
         &self,
         corporation_id: i64,
@@ -132,6 +204,25 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(fetched_corporation)
     }
 
+    /// Fetches multiple corporations from ESI concurrently and ensures their dependencies exist.
+    ///
+    /// This method efficiently fetches multiple corporations by:
+    /// - Checking cache first to avoid redundant ESI calls
+    /// - Fetching missing corporations concurrently (up to MAX_CONCURRENT_CORPORATION_FETCHES at a time)
+    /// - Automatically ensuring all dependencies (alliances, factions) exist
+    ///
+    /// # Arguments
+    /// - `corporation_ids` - List of EVE Online corporation IDs to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, Corporation)>)` - Pairs of (corporation ID, corporation data) for requested corporations
+    /// - `Err(Error::EsiError)` - Failed to fetch one or more corporations from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - All fetched corporations are cached.
+    /// - The method ensures all alliance and faction dependencies exist before returning.
     pub async fn fetch_many_corporations(
         &self,
         corporation_ids: Vec<i64>,
@@ -220,6 +311,27 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(requested_corporations)
     }
 
+    /// Persists multiple corporations to the database within a transaction.
+    ///
+    /// This method handles the complete persistence workflow:
+    /// - Checks for new transactions and clears model caches if needed
+    /// - Filters out corporations already persisted in this transaction
+    /// - Persists all dependencies (factions, alliances) first
+    /// - Maps corporations to their dependency database IDs
+    /// - Upserts corporations to the database
+    /// - Updates cache with persisted models
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `corporations` - List of (corporation ID, corporation data) pairs to persist
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for the requested corporations (cached + newly persisted)
+    /// - `Err(Error::DbErr)` - Database operation failed
+    ///
+    /// # Note
+    /// Optional alliance and faction dependencies that are missing will set their respective IDs to None with warnings.
     pub async fn persist_many(
         &self,
         txn: &TrackedTransaction,
@@ -340,7 +452,20 @@ impl<'a> CorporationOrchestrator<'a> {
             .collect())
     }
 
-    /// Persist a single corporation to the database
+    /// Persists a single corporation to the database within a transaction.
+    ///
+    /// This is a convenience wrapper around [`persist_many`](Self::persist_many) for single corporation persistence.
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `corporation_id` - EVE Online corporation ID
+    /// - `corporation` - Corporation data from ESI
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Model)` - Database model for the persisted corporation
+    /// - `Err(Error::InternalError)` - Corporation persistence failed unexpectedly
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist(
         &self,
         txn: &TrackedTransaction,
@@ -363,7 +488,23 @@ impl<'a> CorporationOrchestrator<'a> {
         })
     }
 
-    /// Check database for provided corporation ids, fetch corporations from ESI if any are missing
+    /// Ensures corporations exist in the database, fetching from ESI if missing.
+    ///
+    /// This method checks the database for the provided corporation IDs and fetches
+    /// any missing corporations from ESI. Fetched corporations are cached but not persisted.
+    ///
+    /// # Arguments
+    /// - `corporation_ids` - List of EVE Online corporation IDs to verify/fetch
+    /// - `cache` - Unified cache for tracking database entries and ESI data
+    ///
+    /// # Returns
+    /// - `Ok(())` - All corporations now exist in database or are cached for persistence
+    /// - `Err(Error::EsiError)` - Failed to fetch missing corporations from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// This method only ensures corporations are fetched and cached. To persist them,
+    /// use [`persist_cached_corporations`](Self::persist_cached_corporations) within a transaction.
     pub async fn ensure_corporations_exist(
         &self,
         corporation_ids: Vec<i64>,
@@ -391,7 +532,19 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(())
     }
 
-    /// Persist any corporations currently in the ESI cache
+    /// Persists all corporations currently in the ESI cache to the database.
+    ///
+    /// This is a convenience method that persists all corporations that have been fetched
+    /// from ESI and are currently stored in the cache. Useful after calling methods like
+    /// [`ensure_corporations_exist`](Self::ensure_corporations_exist).
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `cache` - Unified cache containing fetched corporations
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for all persisted corporations
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist_cached_corporations(
         &self,
         txn: &TrackedTransaction,
