@@ -215,7 +215,7 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(requested_characters)
     }
 
-    pub async fn persist_characters(
+    pub async fn persist_many(
         &self,
         txn: &DatabaseTransaction,
         characters: Vec<(i64, Character)>,
@@ -312,6 +312,29 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(persisted_characters)
     }
 
+    /// Persist a single character to the database
+    pub async fn persist(
+        &self,
+        txn: &DatabaseTransaction,
+        character_id: i64,
+        character: Character,
+        cache: &mut OrchestrationCache,
+    ) -> Result<entity::eve_character::Model, Error> {
+        // Delegate to persist_many with a single element
+        let mut models = self
+            .persist_many(txn, vec![(character_id, character)], cache)
+            .await?;
+
+        // Extract the single result - note that persist_many uses filter_map
+        // and will skip characters if their required corporation dependency is missing
+        models.pop().ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to persist character ID {} - likely missing corporation dependency",
+                character_id
+            ))
+        })
+    }
+
     /// Check database for provided character ids, fetch characters from ESI if any are missing
     pub async fn ensure_characters_exist(
         &self,
@@ -350,6 +373,6 @@ impl<'a> CharacterOrchestrator<'a> {
             .iter()
             .map(|(id, character)| (*id, character.clone()))
             .collect();
-        self.persist_characters(txn, characters, cache).await
+        self.persist_many(txn, characters, cache).await
     }
 }

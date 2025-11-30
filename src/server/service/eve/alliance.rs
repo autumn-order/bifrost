@@ -1,4 +1,3 @@
-use dioxus_logger::tracing;
 use eve_esi::model::alliance::Alliance;
 use futures::future::join_all;
 use sea_orm::{DatabaseConnection, TransactionTrait};
@@ -50,22 +49,11 @@ impl<'a> AllianceService<'a> {
 
                     let txn = db.begin().await?;
 
-                    let alliance_models = alliance_orch
-                        .persist_alliances(&txn, vec![(alliance_id, fetched_alliance)], cache)
+                    let model = alliance_orch
+                        .persist(&txn, alliance_id, fetched_alliance, cache)
                         .await?;
 
                     txn.commit().await?;
-
-                    let model = alliance_models.into_iter().next().ok_or_else(|| {
-                        let msg = format!(
-                            "Failed to return model for alliance ID {} persisted to database - model not returned as expected",
-                            alliance_id
-                        );
-
-                        tracing::error!("{}", msg);
-
-                        Error::InternalError(msg)
-                    })?;
 
                     Ok(model)
                 })

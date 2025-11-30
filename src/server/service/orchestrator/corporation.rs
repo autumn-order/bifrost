@@ -217,7 +217,7 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(requested_corporations)
     }
 
-    pub async fn persist_corporations(
+    pub async fn persist_many(
         &self,
         txn: &DatabaseTransaction,
         corporations: Vec<(i64, Corporation)>,
@@ -314,6 +314,29 @@ impl<'a> CorporationOrchestrator<'a> {
         Ok(persisted_corporations)
     }
 
+    /// Persist a single corporation to the database
+    pub async fn persist(
+        &self,
+        txn: &DatabaseTransaction,
+        corporation_id: i64,
+        corporation: Corporation,
+        cache: &mut OrchestrationCache,
+    ) -> Result<entity::eve_corporation::Model, Error> {
+        // Delegate to persist_many with a single element
+        let mut models = self
+            .persist_many(txn, vec![(corporation_id, corporation)], cache)
+            .await?;
+
+        // Extract the single result - we expect exactly one since persist_many
+        // returns one model per input corporation
+        models.pop().ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to persist corporation ID {} - expected one result but got none",
+                corporation_id
+            ))
+        })
+    }
+
     /// Check database for provided corporation ids, fetch corporations from ESI if any are missing
     pub async fn ensure_corporations_exist(
         &self,
@@ -353,6 +376,6 @@ impl<'a> CorporationOrchestrator<'a> {
             .iter()
             .map(|(id, corporation)| (*id, corporation.clone()))
             .collect();
-        self.persist_corporations(txn, corporations, cache).await
+        self.persist_many(txn, corporations, cache).await
     }
 }

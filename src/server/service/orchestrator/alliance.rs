@@ -204,7 +204,7 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(requested_alliances)
     }
 
-    pub async fn persist_alliances(
+    pub async fn persist_many(
         &self,
         txn: &DatabaseTransaction,
         alliances: Vec<(i64, Alliance)>,
@@ -267,6 +267,29 @@ impl<'a> AllianceOrchestrator<'a> {
         Ok(persisted_alliances)
     }
 
+    /// Persist a single alliance to the database
+    pub async fn persist(
+        &self,
+        txn: &DatabaseTransaction,
+        alliance_id: i64,
+        alliance: Alliance,
+        cache: &mut OrchestrationCache,
+    ) -> Result<entity::eve_alliance::Model, Error> {
+        // Delegate to persist_many with a single element
+        let mut models = self
+            .persist_many(txn, vec![(alliance_id, alliance)], cache)
+            .await?;
+
+        // Extract the single result - we expect exactly one since persist_many
+        // returns one model per input alliance
+        models.pop().ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to persist alliance ID {} - expected one result but got none",
+                alliance_id
+            ))
+        })
+    }
+
     /// Check database for provided alliance ids, fetch alliances from ESI if any are missing
     pub async fn ensure_alliances_exist(
         &self,
@@ -305,6 +328,6 @@ impl<'a> AllianceOrchestrator<'a> {
             .iter()
             .map(|(id, alliance)| (*id, alliance.clone()))
             .collect();
-        self.persist_alliances(txn, alliances, cache).await
+        self.persist_many(txn, alliances, cache).await
     }
 }

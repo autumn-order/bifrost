@@ -1,4 +1,3 @@
-use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::future::join_all;
 use sea_orm::{DatabaseConnection, TransactionTrait};
@@ -43,29 +42,19 @@ impl<'a> CharacterService<'a> {
                 Box::pin(async move {
                     let character_orch = CharacterOrchestrator::new(&db, &esi_client);
 
-                    let fetched_character = character_orch.fetch_character(character_id, cache).await?;
+                    let fetched_character =
+                        character_orch.fetch_character(character_id, cache).await?;
 
                     // Reset persistence flags before transaction attempt in case of retry
                     cache.reset_persistence_flags();
 
                     let txn = db.begin().await?;
 
-                    let character_models = character_orch
-                        .persist_characters(&txn, vec![(character_id, fetched_character)], cache)
+                    let model = character_orch
+                        .persist(&txn, character_id, fetched_character, cache)
                         .await?;
 
                     txn.commit().await?;
-
-                    let model = character_models.into_iter().next().ok_or_else(|| {
-                        let msg = format!(
-                            "Failed to return model for character ID {} persisted to database - model not returned as expected",
-                            character_id
-                        );
-
-                        tracing::error!("{}", msg);
-
-                        Error::InternalError(msg)
-                    })?;
 
                     Ok(model)
                 })
