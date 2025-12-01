@@ -17,26 +17,16 @@ fn main() {
         use crate::server::{config::Config, model::app::AppState, startup};
 
         dotenvy::dotenv().ok();
-        let config = match Config::from_env() {
-            Ok(config) => config,
-            Err(e) => {
-                eprintln!("Configuration error: {}", e);
-                std::process::exit(1);
-            }
-        };
+        let config = Config::from_env()?;
 
-        let db = startup::connect_to_database(&config).await.unwrap();
-        let redis_pool = startup::connect_to_redis(&config).await.unwrap();
-        let esi_client = startup::build_esi_client(&config).unwrap();
-        let session = startup::connect_to_session(redis_pool.clone())
-            .await
-            .unwrap();
-        let worker = startup::start_workers(&config, db.clone(), redis_pool, esi_client.clone())
-            .await
-            .unwrap();
-        startup::start_scheduler(db.clone(), worker.queue.clone())
-            .await
-            .unwrap();
+        let db = startup::connect_to_database(&config).await?;
+        let redis_pool = startup::connect_to_redis(&config).await?;
+        let session = startup::connect_to_session(redis_pool.clone()).await?;
+        let esi_client = startup::build_esi_client(&config)?;
+
+        let worker =
+            startup::start_workers(&config, db.clone(), redis_pool, esi_client.clone()).await?;
+        startup::start_scheduler(db.clone(), worker.queue.clone()).await?;
 
         tracing::info!("Starting server");
 

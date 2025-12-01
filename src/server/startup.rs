@@ -31,13 +31,9 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
     let mut opt = ConnectOptions::new(&config.database_url);
     opt.sqlx_logging(false);
 
-    let db = Database::connect(opt)
-        .await
-        .expect("Failed to connect to database");
+    let db = Database::connect(opt).await?;
 
-    Migrator::up(&db, None)
-        .await
-        .expect("Failed to run database migrations.");
+    Migrator::up(&db, None).await?;
 
     Ok(db)
 }
