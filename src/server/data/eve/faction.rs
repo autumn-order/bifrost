@@ -58,28 +58,6 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
-    /// Get a faction using its EVE Online faction ID
-    pub async fn get_by_faction_id(
-        &self,
-        faction_id: i64,
-    ) -> Result<Option<entity::eve_faction::Model>, DbErr> {
-        entity::prelude::EveFaction::find()
-            .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
-            .one(self.db)
-            .await
-    }
-
-    /// Get multiple factions using their EVE Online faction IDs
-    pub async fn get_by_faction_ids(
-        &self,
-        faction_ids: &[i64],
-    ) -> Result<Vec<entity::eve_faction::Model>, DbErr> {
-        entity::prelude::EveFaction::find()
-            .filter(entity::eve_faction::Column::FactionId.is_in(faction_ids.iter().copied()))
-            .all(self.db)
-            .await
-    }
-
     pub async fn get_entry_ids_by_faction_ids(
         &self,
         faction_ids: &[i64],
@@ -148,59 +126,6 @@ mod tests {
             // created_at should not change and updated_at should increase
             assert_eq!(latest_entry.created_at, initial_created_at);
             assert!(latest_entry.updated_at > initial_updated_at);
-
-            Ok(())
-        }
-    }
-
-    mod get_by_faction_id {
-        use super::*;
-
-        /// Expect Some when faction is present in the table
-        #[tokio::test]
-        async fn finds_existing_faction() -> Result<(), TestError> {
-            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let faction_id = 1;
-            let mock_faction = test.eve().with_mock_faction(faction_id);
-
-            let repo = FactionRepository::new(&test.state.db);
-            let initial = repo.upsert_many(vec![mock_faction]).await?;
-            let initial_entry = initial.into_iter().next().expect("no entry returned");
-            let result = repo.get_by_faction_id(faction_id).await?;
-
-            assert!(result.is_some());
-            let faction = result.unwrap();
-
-            assert_eq!(initial_entry.id, faction.id);
-            assert_eq!(initial_entry.faction_id, faction.faction_id);
-
-            Ok(())
-        }
-
-        /// Expect None when faction is not present in the table
-        #[tokio::test]
-        async fn returns_none_for_nonexistent_faction() -> Result<(), TestError> {
-            let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
-            let mock_faction = test.eve().with_mock_faction(1);
-
-            let repo = FactionRepository::new(&test.state.db);
-            let result = repo.get_by_faction_id(mock_faction.faction_id).await?;
-
-            assert!(result.is_none());
-
-            Ok(())
-        }
-
-        /// Expect Error when trying to get faction when required tables have not been created
-        #[tokio::test]
-        async fn fails_when_tables_missing() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
-
-            let faction_id = 1;
-            let repo = FactionRepository::new(&test.state.db);
-            let result = repo.get_by_faction_id(faction_id).await;
-
-            assert!(result.is_err());
 
             Ok(())
         }
