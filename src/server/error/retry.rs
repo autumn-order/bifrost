@@ -73,8 +73,10 @@ impl Error {
             // Worker errors - permanent failures (validation errors)
             Self::WorkerError(_) => ErrorRetryStrategy::Fail,
 
+            // Job scheduler errors - permanent failures (configuration issue)
+            Self::SchedulerError(_) => ErrorRetryStrategy::Fail,
+
             // Internal EVE-related errors - might resolve after cache update, but rare
-            // Treating as permanent since retrying won't help in the short term
             Self::EveError(_) => ErrorRetryStrategy::Fail,
 
             // Session errors - transient, could be Redis connection issues
