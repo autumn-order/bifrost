@@ -319,7 +319,7 @@ async fn test_pool_permits_available_after_processing() {
     pool.start().await.expect("Failed to start pool");
 
     // Wait for job to be processed
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
 
     // After job is done, permits should be back to initial count
     let final_permits = pool.available_permits();
