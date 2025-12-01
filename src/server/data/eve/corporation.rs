@@ -2,8 +2,7 @@ use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
-    QuerySelect,
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
 };
 
 pub struct CorporationRepository<'a, C: ConnectionTrait> {
@@ -13,104 +12,6 @@ pub struct CorporationRepository<'a, C: ConnectionTrait> {
 impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
     pub fn new(db: &'a C) -> Self {
         Self { db }
-    }
-
-    pub async fn create(
-        &self,
-        corporation_id: i64,
-        corporation: Corporation,
-        alliance_id: Option<i32>,
-        faction_id: Option<i32>,
-    ) -> Result<entity::eve_corporation::Model, DbErr> {
-        let date_founded = match corporation.date_founded {
-            Some(date) => Some(date.naive_utc()),
-            None => None,
-        };
-
-        let corporation = entity::eve_corporation::ActiveModel {
-            corporation_id: ActiveValue::Set(corporation_id),
-            alliance_id: ActiveValue::Set(alliance_id),
-            faction_id: ActiveValue::Set(faction_id),
-            ceo_id: ActiveValue::Set(corporation.ceo_id),
-            creator_id: ActiveValue::Set(corporation.creator_id),
-            date_founded: ActiveValue::Set(date_founded),
-            description: ActiveValue::Set(corporation.description),
-            home_station_id: ActiveValue::Set(corporation.home_station_id),
-            member_count: ActiveValue::Set(corporation.member_count),
-            name: ActiveValue::Set(corporation.name),
-            shares: ActiveValue::Set(corporation.shares),
-            tax_rate: ActiveValue::Set(corporation.tax_rate),
-            ticker: ActiveValue::Set(corporation.ticker),
-            url: ActiveValue::Set(corporation.url),
-            war_eligible: ActiveValue::Set(corporation.war_eligible),
-            created_at: ActiveValue::Set(Utc::now().naive_utc()),
-            info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-            affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-            ..Default::default()
-        };
-
-        corporation.insert(self.db).await
-    }
-
-    /// Create or update a corporation entry using its ESI model
-    pub async fn upsert(
-        &self,
-        corporation_id: i64,
-        corporation: Corporation,
-        alliance_id: Option<i32>,
-        faction_id: Option<i32>,
-    ) -> Result<entity::eve_corporation::Model, DbErr> {
-        let date_founded = match corporation.date_founded {
-            Some(date) => Some(date.naive_utc()),
-            None => None,
-        };
-
-        Ok(
-            entity::prelude::EveCorporation::insert(entity::eve_corporation::ActiveModel {
-                corporation_id: ActiveValue::Set(corporation_id),
-                alliance_id: ActiveValue::Set(alliance_id),
-                faction_id: ActiveValue::Set(faction_id),
-                ceo_id: ActiveValue::Set(corporation.ceo_id),
-                creator_id: ActiveValue::Set(corporation.creator_id),
-                date_founded: ActiveValue::Set(date_founded),
-                description: ActiveValue::Set(corporation.description),
-                home_station_id: ActiveValue::Set(corporation.home_station_id),
-                member_count: ActiveValue::Set(corporation.member_count),
-                name: ActiveValue::Set(corporation.name),
-                shares: ActiveValue::Set(corporation.shares),
-                tax_rate: ActiveValue::Set(corporation.tax_rate),
-                ticker: ActiveValue::Set(corporation.ticker),
-                url: ActiveValue::Set(corporation.url),
-                war_eligible: ActiveValue::Set(corporation.war_eligible),
-                created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                ..Default::default()
-            })
-            .on_conflict(
-                OnConflict::column(entity::eve_corporation::Column::CorporationId)
-                    .update_columns([
-                        entity::eve_corporation::Column::AllianceId,
-                        entity::eve_corporation::Column::FactionId,
-                        entity::eve_corporation::Column::CeoId,
-                        entity::eve_corporation::Column::CreatorId,
-                        entity::eve_corporation::Column::DateFounded,
-                        entity::eve_corporation::Column::Description,
-                        entity::eve_corporation::Column::HomeStationId,
-                        entity::eve_corporation::Column::MemberCount,
-                        entity::eve_corporation::Column::Name,
-                        entity::eve_corporation::Column::Shares,
-                        entity::eve_corporation::Column::TaxRate,
-                        entity::eve_corporation::Column::Ticker,
-                        entity::eve_corporation::Column::Url,
-                        entity::eve_corporation::Column::WarEligible,
-                        entity::eve_corporation::Column::InfoUpdatedAt,
-                    ])
-                    .to_owned(),
-            )
-            .exec_with_returning(self.db)
-            .await?,
-        )
     }
 
     pub async fn upsert_many(
@@ -174,31 +75,6 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
             .await
     }
 
-    /// Get a corporation from database using EVE Online corporation ID
-    pub async fn get_by_corporation_id(
-        &self,
-        corporation_id: i64,
-    ) -> Result<Option<entity::eve_corporation::Model>, DbErr> {
-        entity::prelude::EveCorporation::find()
-            .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
-            .one(self.db)
-            .await
-    }
-
-    /// Get multiple corporations using their EVE Online corporation IDs
-    pub async fn get_by_corporation_ids(
-        &self,
-        corporation_ids: &[i64],
-    ) -> Result<Vec<entity::eve_corporation::Model>, DbErr> {
-        entity::prelude::EveCorporation::find()
-            .filter(
-                entity::eve_corporation::Column::CorporationId
-                    .is_in(corporation_ids.iter().copied()),
-            )
-            .all(self.db)
-            .await
-    }
-
     pub async fn get_entry_ids_by_corporation_ids(
         &self,
         corporation_ids: &[i64],
@@ -253,7 +129,7 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
                 )
                 .col_expr(
                     entity::eve_corporation::Column::AffiliationUpdatedAt,
-                    Expr::current_timestamp(),
+                    Expr::value(Utc::now().naive_utc()),
                 )
                 .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))
                 .exec(self.db)

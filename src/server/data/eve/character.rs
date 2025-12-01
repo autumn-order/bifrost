@@ -2,8 +2,7 @@ use chrono::Utc;
 use eve_esi::model::character::Character;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
-    QuerySelect,
+    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
 };
 
 pub struct CharacterRepository<'a, C: ConnectionTrait> {
@@ -13,81 +12,6 @@ pub struct CharacterRepository<'a, C: ConnectionTrait> {
 impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
     pub fn new(db: &'a C) -> Self {
         Self { db }
-    }
-
-    pub async fn create(
-        &self,
-        character_id: i64,
-        character: Character,
-        corporation_id: i32,
-        faction_id: Option<i32>,
-    ) -> Result<entity::eve_character::Model, DbErr> {
-        let character = entity::eve_character::ActiveModel {
-            character_id: ActiveValue::Set(character_id),
-            corporation_id: ActiveValue::Set(corporation_id),
-            faction_id: ActiveValue::Set(faction_id),
-            birthday: ActiveValue::Set(character.birthday.naive_utc()),
-            bloodline_id: ActiveValue::Set(character.bloodline_id),
-            description: ActiveValue::Set(character.description),
-            gender: ActiveValue::Set(character.gender),
-            name: ActiveValue::Set(character.name),
-            race_id: ActiveValue::Set(character.race_id),
-            security_status: ActiveValue::Set(character.security_status),
-            title: ActiveValue::Set(character.title),
-            created_at: ActiveValue::Set(Utc::now().naive_utc()),
-            info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-            affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-            ..Default::default()
-        };
-
-        character.insert(self.db).await
-    }
-
-    pub async fn upsert(
-        &self,
-        character_id: i64,
-        character: Character,
-        corporation_id: i32,
-        faction_id: Option<i32>,
-    ) -> Result<entity::eve_character::Model, DbErr> {
-        Ok(
-            entity::prelude::EveCharacter::insert(entity::eve_character::ActiveModel {
-                character_id: ActiveValue::Set(character_id),
-                corporation_id: ActiveValue::Set(corporation_id),
-                faction_id: ActiveValue::Set(faction_id),
-                birthday: ActiveValue::Set(character.birthday.naive_utc()),
-                bloodline_id: ActiveValue::Set(character.bloodline_id),
-                description: ActiveValue::Set(character.description),
-                gender: ActiveValue::Set(character.gender),
-                name: ActiveValue::Set(character.name),
-                race_id: ActiveValue::Set(character.race_id),
-                security_status: ActiveValue::Set(character.security_status),
-                title: ActiveValue::Set(character.title),
-                created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                ..Default::default()
-            })
-            .on_conflict(
-                OnConflict::column(entity::eve_character::Column::CharacterId)
-                    .update_columns([
-                        entity::eve_character::Column::CorporationId,
-                        entity::eve_character::Column::FactionId,
-                        entity::eve_character::Column::Birthday,
-                        entity::eve_character::Column::BloodlineId,
-                        entity::eve_character::Column::Description,
-                        entity::eve_character::Column::Gender,
-                        entity::eve_character::Column::Name,
-                        entity::eve_character::Column::RaceId,
-                        entity::eve_character::Column::SecurityStatus,
-                        entity::eve_character::Column::Title,
-                        entity::eve_character::Column::InfoUpdatedAt,
-                    ])
-                    .to_owned(),
-            )
-            .exec_with_returning(self.db)
-            .await?,
-        )
     }
 
     pub async fn upsert_many(
@@ -136,27 +60,6 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
                     .to_owned(),
             )
             .exec_with_returning(self.db)
-            .await
-    }
-
-    pub async fn get_by_character_id(
-        &self,
-        character_id: i64,
-    ) -> Result<Option<entity::eve_character::Model>, DbErr> {
-        entity::prelude::EveCharacter::find()
-            .filter(entity::eve_character::Column::CharacterId.eq(character_id))
-            .one(self.db)
-            .await
-    }
-
-    /// Get multiple characters using their EVE Online character IDs
-    pub async fn get_by_character_ids(
-        &self,
-        character_ids: &[i64],
-    ) -> Result<Vec<entity::eve_character::Model>, DbErr> {
-        entity::prelude::EveCharacter::find()
-            .filter(entity::eve_character::Column::CharacterId.is_in(character_ids.iter().copied()))
-            .all(self.db)
             .await
     }
 
@@ -223,7 +126,7 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
                 )
                 .col_expr(
                     entity::eve_character::Column::AffiliationUpdatedAt,
-                    Expr::current_timestamp(),
+                    Expr::value(Utc::now().naive_utc()),
                 )
                 .filter(entity::eve_character::Column::Id.is_in(character_ids))
                 .exec(self.db)
