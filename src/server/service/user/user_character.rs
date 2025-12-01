@@ -131,6 +131,10 @@ impl<'a> UserCharacterService<'a> {
             return Err(Error::AuthError(AuthError::UserNotInDatabase(from_user_id)));
         };
 
+        // Use link_character method to update ownership to provided user ID
+        let ownership =
+            Self::link_character(&txn, character_record_id, to_user_id, &owner_hash).await?;
+
         // Handle main character change if:
         // 1. Character is being transferred to a different user
         // 2. The character being transferred was the previous user's main
@@ -156,7 +160,7 @@ impl<'a> UserCharacterService<'a> {
                 None => {
                     if let Some(character) = maybe_main_character {
                         tracing::info!(
-                            user_id = %prev_user.id,
+                            deleted_user_id = %prev_user.id,
                             character_id = %character.character_id,
                             character_name = %character.name,
                             new_owner_id = %to_user_id,
@@ -166,7 +170,7 @@ impl<'a> UserCharacterService<'a> {
                         // Only occurs if foreign-key constraint requiring user's main character to
                         // exist in database is not properly enforced.
                         tracing::warn!(
-                            user_id = %prev_user.id,
+                            deleted_user_id = %prev_user.id,
                             new_owner_id = %to_user_id,
                             character_record_id = %character_record_id,
                             "Deleted user after transferring their only remaining character to another user. Could not retrieve character information from database, likely due to FK constraint violation."
@@ -177,10 +181,6 @@ impl<'a> UserCharacterService<'a> {
                 }
             }
         }
-
-        // Use link_character method to update ownership to provided user ID
-        let ownership =
-            Self::link_character(&txn, character_record_id, to_user_id, &owner_hash).await?;
 
         Ok(ownership)
     }
