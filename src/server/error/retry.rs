@@ -1,3 +1,5 @@
+use sea_orm::SqlErr;
+
 use super::Error;
 
 /// Strategy for handling errors in a retry context
@@ -37,8 +39,21 @@ impl Error {
                 }
             }
 
-            // Database errors - transient, could be connection issues
-            Self::DbErr(_) => ErrorRetryStrategy::Retry,
+            Self::DbErr(db_err) => {
+                if let Some(sql_err) = db_err.sql_err() {
+                    match sql_err {
+                        // Foreign key constraint violations are permanent failures
+                        SqlErr::ForeignKeyConstraintViolation(_) => ErrorRetryStrategy::Fail,
+                        // Unique constraint violations are also permanent
+                        SqlErr::UniqueConstraintViolation(_) => ErrorRetryStrategy::Fail,
+                        // Other SQL errors should retry
+                        _ => ErrorRetryStrategy::Retry,
+                    }
+                } else {
+                    // Other database errors (connection issues, etc.) should retry
+                    ErrorRetryStrategy::Retry
+                }
+            }
 
             // ESI errors - other errors, OAuth, parsing, etc
             Self::EsiError(_) => ErrorRetryStrategy::Fail,
