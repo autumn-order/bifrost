@@ -1,14 +1,15 @@
-use dioxus_logger::tracing;
 use eve_esi::model::alliance::Alliance;
 use futures::future::join_all;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::Error,
     service::{
         eve::faction::FactionService,
-        orchestrator::{alliance::AllianceOrchestrator, OrchestrationCache},
+        orchestrator::{
+            alliance::AllianceOrchestrator, cache::TrackedTransaction, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -45,27 +46,13 @@ impl<'a> AllianceService<'a> {
 
                     let fetched_alliance = alliance_orch.fetch_alliance(alliance_id, cache).await?;
 
-                    // Reset persistence flags before transaction attempt in case of retry
-                    cache.reset_persistence_flags();
+                    let txn = TrackedTransaction::begin(&db).await?;
 
-                    let txn = db.begin().await?;
-
-                    let alliance_models = alliance_orch
-                        .persist_alliances(&txn, vec![(alliance_id, fetched_alliance)], cache)
+                    let model = alliance_orch
+                        .persist(&txn, alliance_id, fetched_alliance, cache)
                         .await?;
 
                     txn.commit().await?;
-
-                    let model = alliance_models.into_iter().next().ok_or_else(|| {
-                        let msg = format!(
-                            "Failed to return model for alliance ID {} persisted to database - model not returned as expected",
-                            alliance_id
-                        );
-
-                        tracing::error!("{}", msg);
-
-                        Error::InternalError(msg)
-                    })?;
 
                     Ok(model)
                 })

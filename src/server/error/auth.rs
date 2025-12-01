@@ -12,7 +12,7 @@ use crate::{model::api::ErrorDto, server::error::InternalServerError};
 pub enum AuthError {
     #[error("User ID is not present in session")]
     UserNotInSession,
-    #[error("User ID {0:?} not found in database despite having an active session")]
+    #[error("User ID {0:?} not found in database")]
     UserNotInDatabase(i32),
     #[error("Failed to login user due to CSRF state mismatch")]
     CsrfValidationFailed,

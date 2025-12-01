@@ -1,9 +1,7 @@
 use chrono::Utc;
 use dioxus_logger::tracing;
-use sea_orm::{
-    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait,
-    IntoActiveModel, QueryFilter,
-};
+use migration::OnConflict;
+use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 
 pub struct UserCharacterRepository<'a, C: ConnectionTrait> {
     db: &'a C,
@@ -15,34 +13,83 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
         Self { db }
     }
 
-    /// Create a new entry for a character owned by a user
+    /// Upsert a user character entry (insert or update based on character_id)
     ///
     /// # Arguments
     /// - `user_id` (`i32`): ID of the user entry in the database
     /// - `character_id` (`i32`): ID of the character entry in the database
     /// - `owner_hash` (`String`): A string representing the ownership of the character
-    pub async fn create(
+    ///
+    /// # Returns
+    /// Returns the created or updated user character model
+    pub async fn upsert(
         &self,
-        user_id: i32,
         character_id: i32,
+        user_id: i32,
         owner_hash: String,
     ) -> Result<entity::bifrost_user_character::Model, DbErr> {
-        let user_character = entity::bifrost_user_character::ActiveModel {
-            user_id: ActiveValue::Set(user_id),
-            character_id: ActiveValue::Set(character_id),
-            owner_hash: ActiveValue::Set(owner_hash),
-            created_at: ActiveValue::Set(Utc::now().naive_utc()),
-            updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-            ..Default::default()
-        };
-
-        user_character.insert(self.db).await
+        Ok(entity::prelude::BifrostUserCharacter::insert(
+            entity::bifrost_user_character::ActiveModel {
+                user_id: ActiveValue::Set(user_id),
+                character_id: ActiveValue::Set(character_id),
+                owner_hash: ActiveValue::Set(owner_hash),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
+                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+                ..Default::default()
+            },
+        )
+        .on_conflict(
+            OnConflict::column(entity::bifrost_user_character::Column::CharacterId)
+                .update_columns([
+                    entity::bifrost_user_character::Column::UserId,
+                    entity::bifrost_user_character::Column::OwnerHash,
+                    entity::bifrost_user_character::Column::UpdatedAt,
+                ])
+                .to_owned(),
+        )
+        .exec_with_returning(self.db)
+        .await?)
     }
 
-    /// Get a user character entry using their EVE Online character ID
-    pub async fn get_by_character_id(
+    /// Retrieves the character ownership record by the character's internal database ID.
+    ///
+    /// This function fetches the ownership record (user-character link) from the
+    /// `bifrost_user_character` table using the character's internal record ID.
+    /// Note: This uses the internal database ID (`id` column), not the EVE character ID.
+    ///
+    /// # Arguments
+    /// - `character_record_id` - Internal database ID for the character entry
+    ///
+    /// # Returns
+    /// - `Ok(Some(BifrostUserCharacter))` - Ownership record found for this character
+    /// - `Ok(None)` - Character exists but has no ownership record (unowned character)
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn get_ownership_by_character_record_id(
         &self,
-        character_id: i64,
+        character_record_id: i32,
+    ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
+        entity::prelude::BifrostUserCharacter::find_by_id(character_record_id)
+            .one(self.db)
+            .await
+    }
+
+    /// Retrieves a character and its ownership status by EVE Online character ID.
+    ///
+    /// This function fetches the character record from the `eve_character` table along
+    /// with its optional ownership record from the `bifrost_user_character` table.
+    /// This is useful for determining if a character exists and whether it's owned by a user.
+    ///
+    /// # Arguments
+    /// - `eve_character_id` - EVE Online character ID
+    ///
+    /// # Returns
+    /// - `Ok(Some((character, Some(ownership))))` - Character exists and is owned by a user
+    /// - `Ok(Some((character, None)))` - Character exists but is not owned by any user
+    /// - `Ok(None)` - Character does not exist in the database
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn get_character_with_ownership(
+        &self,
+        eve_character_id: i64,
     ) -> Result<
         Option<(
             entity::eve_character::Model,
@@ -51,7 +98,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
         DbErr,
     > {
         entity::prelude::EveCharacter::find()
-            .filter(entity::eve_character::Column::CharacterId.eq(character_id))
+            .filter(entity::eve_character::Column::CharacterId.eq(eve_character_id))
             .find_also_related(entity::bifrost_user_character::Entity)
             .one(self.db)
             .await
@@ -202,122 +249,10 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 
         Ok(result)
     }
-
-    /// Update a user character entry with a new user id
-    ///
-    /// # Arguments
-    /// - `user_character_entry_id`: The ID of the user character entry to update
-    /// - `new_user_id`: The ID of the user to change the entry to
-    ///
-    /// # Returns
-    /// Returns a result containing:
-    /// - `Option<`[`entity::bifrost_user_character::Model`]`>`: Some if update is successful
-    ///   or None if entry not found
-    /// - [`DbErr`]: If a database-related error occurs
-    pub async fn update(
-        &self,
-        user_character_entry_id: i32,
-        new_user_id: i32,
-    ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
-        let user_character =
-            match entity::prelude::BifrostUserCharacter::find_by_id(user_character_entry_id)
-                .one(self.db)
-                .await?
-            {
-                Some(user_character) => user_character,
-                None => return Ok(None),
-            };
-
-        let mut user_character_am = user_character.into_active_model();
-        user_character_am.user_id = ActiveValue::Set(new_user_id);
-        user_character_am.updated_at = ActiveValue::Set(Utc::now().naive_utc());
-
-        let user_character = user_character_am.update(self.db).await?;
-
-        Ok(Some(user_character))
-    }
 }
 
 #[cfg(test)]
 mod tests {
-
-    mod create {
-        use bifrost_test_utils::prelude::*;
-        use sea_orm::{DbErr, RuntimeErr};
-
-        use crate::server::data::user::user_character::UserCharacterRepository;
-
-        /// Expect success when creating user character linked to existing user and character
-        #[tokio::test]
-        async fn creates_user_character() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
-            let user_model = test.user().insert_user(character_model.id).await?;
-
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repository
-                .create(user_model.id, character_model.id, "owner_hash".to_string())
-                .await;
-
-            assert!(result.is_ok());
-
-            Ok(())
-        }
-
-        /// Expect error when creating user character linked to missing user
-        #[tokio::test]
-        async fn fails_for_missing_user() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
-
-            // Don't create a user first, this will cause a foreign key error
-            let user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repository
-                .create(user_id, character_model.id, "owner_hash".to_string())
-                .await;
-
-            // Assert error code is 787 indicating a foreign key constraint error
-            assert!(matches!(
-                result,
-                Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
-                    .as_database_error()
-                    .and_then(|d| d.code().map(|c| c == "787"))
-                    .unwrap_or(false)
-            ));
-
-            Ok(())
-        }
-
-        /// Expect error when creating user character linked to missing character
-        #[tokio::test]
-        async fn fails_for_missing_character() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
-            let user_model = test.user().insert_user(character_model.id).await?;
-
-            // Increment character ID to one that does not exist, causing a foreign key error
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repository
-                .create(
-                    user_model.id,
-                    character_model.id + 1,
-                    "owner hash".to_string(),
-                )
-                .await;
-
-            // Assert error code is 787 indicating a foreign key constraint error
-            assert!(matches!(
-                result,
-                Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
-                    .as_database_error()
-                    .and_then(|d| d.code().map(|c| c == "787"))
-                    .unwrap_or(false)
-            ));
-
-            Ok(())
-        }
-    }
 
     mod get_by_character_id {
         use bifrost_test_utils::prelude::*;
@@ -335,7 +270,7 @@ mod tests {
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character_model.character_id)
+                .get_character_with_ownership(character_model.character_id)
                 .await;
 
             assert!(result.is_ok());
@@ -355,7 +290,7 @@ mod tests {
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character_model.character_id)
+                .get_character_with_ownership(character_model.character_id)
                 .await;
 
             assert!(result.is_ok());
@@ -375,7 +310,7 @@ mod tests {
             let nonexistent_character_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(nonexistent_character_id)
+                .get_character_with_ownership(nonexistent_character_id)
                 .await;
 
             assert!(result.is_ok());
@@ -394,7 +329,7 @@ mod tests {
             let character_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
             let result = user_character_repository
-                .get_by_character_id(character_id)
+                .get_character_with_ownership(character_id)
                 .await;
 
             assert!(result.is_err());
@@ -625,86 +560,6 @@ mod tests {
                 .await;
 
             assert!(result.is_err());
-
-            Ok(())
-        }
-    }
-
-    mod update {
-        use bifrost_test_utils::prelude::*;
-        use sea_orm::{DbErr, RuntimeErr};
-
-        use crate::server::data::user::user_character::UserCharacterRepository;
-
-        /// Expect Some when user character update is successful
-        #[tokio::test]
-        async fn updates_user_character() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let (_, user_one_character_model, _) = test
-                .user()
-                .insert_user_with_mock_character(1, 1, None, None)
-                .await?;
-            let (user_two_model, _, _) = test
-                .user()
-                .insert_user_with_mock_character(2, 1, None, None)
-                .await?;
-
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repo
-                .update(user_one_character_model.id, user_two_model.id)
-                .await;
-
-            assert!(result.is_ok());
-            let result_option = result.unwrap();
-            assert!(result_option.is_some());
-
-            Ok(())
-        }
-
-        /// Expect None when user character entry is not found
-        #[tokio::test]
-        async fn returns_none_for_nonexistent_entry() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
-            // Set character ID as main but don't actually set any ownership records
-            let user_model = test.user().insert_user(character_model.id).await?;
-
-            let nonexistent_id = 1;
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repo
-                .update(nonexistent_id, user_model.id)
-                .await;
-
-            assert!(result.is_ok());
-            let result_option = result.unwrap();
-            assert!(result_option.is_none());
-
-            Ok(())
-        }
-
-        /// Expect Error when updating user character entry to user that doesn't exist
-        #[tokio::test]
-        async fn fails_for_nonexistent_user() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
-            let (user_model, user_character_model, _) = test
-                .user()
-                .insert_user_with_mock_character(1, 1, None, None)
-                .await?;
-
-            // Try to update entry to new_user_id that doesn't exist
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repository
-                .update(user_character_model.id, user_model.id + 1)
-                .await;
-
-            // Assert error code is 787 indicating a foreign key constraint error
-            assert!(matches!(
-                result,
-                Err(DbErr::Query(RuntimeErr::SqlxError(err))) if err
-                    .as_database_error()
-                    .and_then(|d| d.code().map(|c| c == "787"))
-                    .unwrap_or(false)
-            ));
 
             Ok(())
         }

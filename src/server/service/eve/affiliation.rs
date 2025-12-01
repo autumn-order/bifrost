@@ -2,15 +2,16 @@ use std::collections::HashSet;
 
 use dioxus_logger::tracing;
 use eve_esi::model::character::CharacterAffiliation;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::{character::CharacterRepository, corporation::CorporationRepository},
     error::Error,
     service::{
         orchestrator::{
-            alliance::AllianceOrchestrator, character::CharacterOrchestrator,
-            corporation::CorporationOrchestrator, faction::FactionOrchestrator, OrchestrationCache,
+            alliance::AllianceOrchestrator, cache::TrackedTransaction,
+            character::CharacterOrchestrator, corporation::CorporationOrchestrator,
+            faction::FactionOrchestrator, OrchestrationCache,
         },
         retry::RetryContext,
     },
@@ -156,17 +157,14 @@ impl<'a> AffiliationService<'a> {
                         .await?;
                 }
 
-                // Reset persistence flags before transaction attempt
-                cache.reset_persistence_flags();
-
                 // Persist all fetched entities and update affiliations in a transaction
-                let txn = db.begin().await?;
+                let txn = TrackedTransaction::begin(&db).await?;
 
                 // Persist all entities from cache in dependency order
                 cache.persist_all(&db, &esi_client, &txn).await?;
 
                 // Update the affiliation relationships
-                Self::update_affiliation_relationships(&txn, &affiliations, cache).await?;
+                Self::update_affiliation_relationships(txn.as_ref(), &affiliations, cache).await?;
 
                 txn.commit().await?;
 

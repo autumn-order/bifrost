@@ -1,14 +1,15 @@
-use dioxus_logger::tracing;
 use eve_esi::model::corporation::Corporation;
 use futures::future::join_all;
-use sea_orm::{DatabaseConnection, TransactionTrait};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::corporation::CorporationRepository,
     error::Error,
     service::{
         eve::{alliance::AllianceService, faction::FactionService},
-        orchestrator::{corporation::CorporationOrchestrator, OrchestrationCache},
+        orchestrator::{
+            cache::TrackedTransaction, corporation::CorporationOrchestrator, OrchestrationCache,
+        },
         retry::RetryContext,
     },
 };
@@ -43,29 +44,17 @@ impl<'a> CorporationService<'a> {
                 Box::pin(async move {
                     let corporation_orch = CorporationOrchestrator::new(&db, &esi_client);
 
-                    let fetched_corporation = corporation_orch.fetch_corporation(corporation_id, cache).await?;
+                    let fetched_corporation = corporation_orch
+                        .fetch_corporation(corporation_id, cache)
+                        .await?;
 
-                    // Reset persistence flags before transaction attempt in case of retry
-                    cache.reset_persistence_flags();
+                    let txn = TrackedTransaction::begin(&db).await?;
 
-                    let txn = db.begin().await?;
-
-                    let corporation_models = corporation_orch
-                        .persist_corporations(&txn, vec![(corporation_id, fetched_corporation)], cache)
+                    let model = corporation_orch
+                        .persist(&txn, corporation_id, fetched_corporation, cache)
                         .await?;
 
                     txn.commit().await?;
-
-                    let model = corporation_models.into_iter().next().ok_or_else(|| {
-                        let msg = format!(
-                            "Failed to return model for corporation ID {} persisted to database - model not returned as expected",
-                            corporation_id
-                        );
-
-                        tracing::error!("{}", msg);
-
-                        Error::InternalError(msg)
-                    })?;
 
                     Ok(model)
                 })

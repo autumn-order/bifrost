@@ -41,8 +41,6 @@ where
     /// The operation should:
     /// - Use cached data if available to skip additional fetches
     /// - Fetch from ESI and populate cache if data is missing
-    /// - Call `cache.reset_persistence_flags()` before starting a transaction
-    /// - Store to database within a transaction (persistence flags prevent duplicate inserts)
     ///
     /// # Arguments
     /// - `description`: Description of the operation for logging (e.g., "alliance info update")

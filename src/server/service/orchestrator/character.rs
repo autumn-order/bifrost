@@ -3,13 +3,16 @@ use std::collections::HashSet;
 use dioxus_logger::tracing;
 use eve_esi::model::character::Character;
 use futures::stream::{FuturesUnordered, StreamExt};
-use sea_orm::{DatabaseConnection, DatabaseTransaction};
+use sea_orm::DatabaseConnection;
 
 use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
     service::orchestrator::{
-        cache::{get_character_corporation_dependency_ids, get_character_faction_dependency_ids},
+        cache::{
+            get_character_corporation_dependency_ids, get_character_faction_dependency_ids,
+            TrackedTransaction,
+        },
         corporation::CorporationOrchestrator,
         faction::FactionOrchestrator,
         OrchestrationCache,
@@ -18,18 +21,55 @@ use crate::server::{
 
 const MAX_CONCURRENT_CHARACTER_FETCHES: usize = 10;
 
-/// Orchestrator for fetching and persisting EVE characters and their dependencies
+/// Orchestrator for fetching and persisting EVE characters and their dependencies.
+///
+/// This orchestrator manages the complete lifecycle of EVE character data including:
+/// - Fetching character information from ESI
+/// - Managing character dependencies (corporations, factions)
+/// - Persisting characters to the database
+/// - Maintaining cache consistency across operations
+///
+/// Character data has foreign key dependencies on corporations (required) and factions (optional).
+/// The orchestrator automatically ensures these dependencies exist before persisting characters.
+///
+/// # Example
+///
+/// ```ignore
+/// let mut cache = OrchestrationCache::default();
+/// let character_orch = CharacterOrchestrator::new(&db, &esi_client);
+///
+/// // Fetch and cache a character
+/// let character = character_orch.fetch_character(character_id, &mut cache).await?;
+///
+/// // Persist it within a transaction
+/// let txn = TrackedTransaction::begin(&db).await?;
+/// let model = character_orch.persist(&txn, character_id, character, &mut cache).await?;
+/// txn.commit().await?;
+/// ```
 pub struct CharacterOrchestrator<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> CharacterOrchestrator<'a> {
+    /// Creates a new instance of [`CharacterOrchestrator`]
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    /// Retrieve character entry ID from database that corresponds to provided EVE character ID
+    /// Retrieves the database entry ID for a character by its EVE character ID.
+    ///
+    /// This method first checks the cache, then queries the database if the ID is not cached.
+    /// The result is cached for subsequent lookups.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Some(i32))` - Database entry ID if character exists
+    /// - `Ok(None)` - Character does not exist in database
+    /// - `Err(Error::DbErr)` - Database query failed
     pub async fn get_character_entry_id(
         &self,
         character_id: i64,
@@ -42,7 +82,22 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
     }
 
-    /// Retrieve pairs of EVE character IDs & DB character IDs from a list of character IDs
+    /// Retrieves database entry IDs for multiple characters by their EVE character IDs.
+    ///
+    /// This method efficiently batches database lookups for characters not already in cache.
+    /// Only missing IDs are queried from the database, and results are cached.
+    ///
+    /// # Arguments
+    /// - `character_ids` - List of EVE Online character IDs to look up
+    /// - `cache` - Unified cache to prevent duplicate database queries
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, i32)>)` - Pairs of (EVE character ID, database entry ID) for characters that exist
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// - Only returns entries for characters that exist in the database.
+    /// - Missing characters are silently omitted.
     pub async fn get_many_character_entry_ids(
         &self,
         character_ids: Vec<i64>,
@@ -89,6 +144,24 @@ impl<'a> CharacterOrchestrator<'a> {
             .collect())
     }
 
+    /// Fetches a single character from ESI and ensures its dependencies exist.
+    ///
+    /// This method retrieves character information from ESI, caches it, and ensures that
+    /// the character's corporation and faction (if any) exist in the database. Dependencies
+    /// are fetched and cached if they don't already exist.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Character)` - The fetched character data from ESI
+    /// - `Err(Error::EsiError)` - Failed to fetch character from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - The character is cached after fetching to avoid duplicate ESI calls during retries.
+    /// - Dependencies (corporation, faction) are also fetched and cached if missing.
     pub async fn fetch_character(
         &self,
         character_id: i64,
@@ -129,6 +202,25 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(fetched_character)
     }
 
+    /// Fetches multiple characters from ESI concurrently and ensures their dependencies exist.
+    ///
+    /// This method efficiently fetches multiple characters by:
+    /// - Checking cache first to avoid redundant ESI calls
+    /// - Fetching missing characters concurrently (up to MAX_CONCURRENT_CHARACTER_FETCHES at a time)
+    /// - Automatically ensuring all dependencies (corporations, factions) exist
+    ///
+    /// # Arguments
+    /// - `character_ids` - List of EVE Online character IDs to fetch
+    /// - `cache` - Unified cache to store fetched data and prevent duplicate ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i64, Character)>)` - Pairs of (character ID, character data) for requested characters
+    /// - `Err(Error::EsiError)` - Failed to fetch one or more characters from ESI
+    /// - `Err(Error::DbErr)` - Failed to query database for dependencies
+    ///
+    /// # Note
+    /// - All fetched characters are cached.
+    /// - The method ensures all corporation and faction dependencies exist before returning.
     pub async fn fetch_many_characters(
         &self,
         character_ids: Vec<i64>,
@@ -158,11 +250,11 @@ impl<'a> CharacterOrchestrator<'a> {
 
         for chunk in missing_ids.chunks(MAX_CONCURRENT_CHARACTER_FETCHES) {
             let mut futures = FuturesUnordered::new();
+            let esi_client = self.esi_client;
 
             for &id in chunk {
                 let future = async move {
-                    let character = self
-                        .esi_client
+                    let character = esi_client
                         .character()
                         .get_character_public_information(id)
                         .await?;
@@ -215,18 +307,58 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(requested_characters)
     }
 
-    pub async fn persist_characters(
+    /// Persists multiple characters to the database within a transaction.
+    ///
+    /// This method handles the complete persistence workflow:
+    /// - Checks for new transactions and clears model caches if needed
+    /// - Filters out characters already persisted in this transaction
+    /// - Persists all dependencies (factions, corporations) first
+    /// - Maps characters to their dependency database IDs
+    /// - Upserts characters to the database
+    /// - Updates cache with persisted models
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `characters` - List of (character ID, character data) pairs to persist
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for the requested characters (cached + newly persisted)
+    /// - `Err(Error::DbErr)` - Database operation failed
+    ///
+    /// # Note
+    /// - Characters missing their required corporation dependency will be skipped with a warning.
+    /// - Optional faction dependencies that are missing will set the faction ID to None with a warning.
+    pub async fn persist_many(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         characters: Vec<(i64, Character)>,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_character::Model>, Error> {
+        // Check if this is a new transaction and clear caches if needed
+        cache.check_and_clear_on_new_transaction(txn.created_at);
         if characters.is_empty() {
             return Ok(Vec::new());
         }
 
-        if cache.characters_persisted {
-            return Ok(cache.character_model.values().cloned().collect());
+        // Track which IDs were requested for return
+        let requested_ids: std::collections::HashSet<i64> =
+            characters.iter().map(|(id, _)| *id).collect();
+
+        // Filter out characters that are already in the database model cache
+        let characters_to_persist: Vec<(i64, Character)> = characters
+            .into_iter()
+            .filter(|(character_id, _)| !cache.character_model.contains_key(character_id))
+            .collect();
+
+        if characters_to_persist.is_empty() {
+            // Return only the models that were requested
+            return Ok(cache
+                .character_model
+                .iter()
+                .filter(|(id, _)| requested_ids.contains(id))
+                .map(|(_, model)| model.clone())
+                .collect());
         }
 
         // Persist factions if any were fetched
@@ -239,8 +371,10 @@ impl<'a> CharacterOrchestrator<'a> {
             .persist_cached_corporations(txn, cache)
             .await?;
 
-        let characters_ref: Vec<&Character> =
-            characters.iter().map(|(_, character)| character).collect();
+        let characters_ref: Vec<&Character> = characters_to_persist
+            .iter()
+            .map(|(_, character)| character)
+            .collect();
 
         let faction_ids = get_character_faction_dependency_ids(&characters_ref);
         let corporation_ids = get_character_corporation_dependency_ids(&characters_ref);
@@ -260,7 +394,7 @@ impl<'a> CharacterOrchestrator<'a> {
             corporation_db_ids.into_iter().collect();
 
         // Map characters with their faction & corporation DB IDs
-        let characters_to_upsert: Vec<(i64, Character, i32, Option<i32>)> = characters
+        let characters_to_upsert: Vec<(i64, Character, i32, Option<i32>)> = characters_to_persist
             .into_iter()
             .filter_map(|(character_id, character)| {
                 let faction_db_id = character.faction_id.and_then(|faction_id| {
@@ -297,7 +431,7 @@ impl<'a> CharacterOrchestrator<'a> {
             .collect();
 
         // Upsert characters to database
-        let character_repo = CharacterRepository::new(txn);
+        let character_repo = CharacterRepository::new(txn.as_ref());
         let persisted_characters = character_repo.upsert_many(characters_to_upsert).await?;
 
         for model in &persisted_characters {
@@ -307,12 +441,68 @@ impl<'a> CharacterOrchestrator<'a> {
             cache.character_db_id.insert(model.character_id, model.id);
         }
 
-        cache.characters_persisted = true;
-
-        Ok(persisted_characters)
+        // Return only the models that were requested (cached + newly persisted)
+        Ok(cache
+            .character_model
+            .iter()
+            .filter(|(id, _)| requested_ids.contains(id))
+            .map(|(_, model)| model.clone())
+            .collect())
     }
 
-    /// Check database for provided character ids, fetch characters from ESI if any are missing
+    /// Persists a single character to the database within a transaction.
+    ///
+    /// This is a convenience wrapper around [`persist_many`](Self::persist_many) for single character persistence.
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `character_id` - EVE Online character ID
+    /// - `character` - Character data from ESI
+    /// - `cache` - Unified cache for tracking persisted models and dependencies
+    ///
+    /// # Returns
+    /// - `Ok(Model)` - Database model for the persisted character
+    /// - `Err(Error::InternalError)` - Character persistence failed (likely missing corporation dependency)
+    /// - `Err(Error::DbErr)` - Database operation failed
+    pub async fn persist(
+        &self,
+        txn: &TrackedTransaction,
+        character_id: i64,
+        character: Character,
+        cache: &mut OrchestrationCache,
+    ) -> Result<entity::eve_character::Model, Error> {
+        // Delegate to persist_many with a single element
+        let mut models = self
+            .persist_many(txn, vec![(character_id, character)], cache)
+            .await?;
+
+        // Extract the single result - note that persist_many uses filter_map
+        // and will skip characters if their required corporation dependency is missing
+        models.pop().ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to persist character ID {} - likely missing corporation dependency",
+                character_id
+            ))
+        })
+    }
+
+    /// Ensures characters exist in the database, fetching from ESI if missing.
+    ///
+    /// This method checks the database for the provided character IDs and fetches
+    /// any missing characters from ESI. Fetched characters are cached but not persisted.
+    ///
+    /// # Arguments
+    /// - `character_ids` - List of EVE Online character IDs to verify/fetch
+    /// - `cache` - Unified cache for tracking database entries and ESI data
+    ///
+    /// # Returns
+    /// - `Ok(())` - All characters now exist in database or are cached for persistence
+    /// - `Err(Error::EsiError)` - Failed to fetch missing characters from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    ///
+    /// # Note
+    /// This method only ensures characters are fetched and cached. To persist them,
+    /// use [`persist_cached_characters`](Self::persist_cached_characters) within a transaction.
     pub async fn ensure_characters_exist(
         &self,
         character_ids: Vec<i64>,
@@ -339,10 +529,22 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(())
     }
 
-    /// Persist any characters currently in the ESI cache
+    /// Persists all characters currently in the ESI cache to the database.
+    ///
+    /// This is a convenience method that persists all characters that have been fetched
+    /// from ESI and are currently stored in the cache. Useful after calling methods like
+    /// [`ensure_characters_exist`](Self::ensure_characters_exist).
+    ///
+    /// # Arguments
+    /// - `txn` - Tracked database transaction to persist within
+    /// - `cache` - Unified cache containing fetched characters
+    ///
+    /// # Returns
+    /// - `Ok(Vec<Model>)` - Database models for all persisted characters
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn persist_cached_characters(
         &self,
-        txn: &DatabaseTransaction,
+        txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
     ) -> Result<Vec<entity::eve_character::Model>, Error> {
         let characters: Vec<(i64, Character)> = cache
@@ -350,6 +552,6 @@ impl<'a> CharacterOrchestrator<'a> {
             .iter()
             .map(|(id, character)| (*id, character.clone()))
             .collect();
-        self.persist_characters(txn, characters, cache).await
+        self.persist_many(txn, characters, cache).await
     }
 }
