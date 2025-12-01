@@ -1,8 +1,7 @@
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    data::eve::faction::FactionRepository,
-    error::{eve::EveError, Error},
+    error::Error,
     service::{
         orchestrator::{
             cache::TrackedTransaction, faction::FactionOrchestrator, OrchestrationCache,
@@ -51,65 +50,6 @@ impl<'a> FactionService<'a> {
                 txn.commit().await?;
 
                 Ok(faction_models)
-            })
-        })
-        .await
-    }
-
-    /// Attempt to get a faction from the database using its EVE Online faction ID, attempt to update factions if faction is not found
-    ///
-    /// Faction updates will only occur once per 24 hour period which resets at 11:05 UTC when the EVE ESI
-    /// faction cache expires.
-    ///
-    /// For simply getting a faction without an update, use [`FactionRepository::get_by_faction_id`]
-    pub async fn get_or_update_factions(
-        &self,
-        faction_id: i64,
-    ) -> Result<entity::eve_faction::Model, Error> {
-        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
-
-        let db = self.db.clone();
-        let esi_client = self.esi_client.clone();
-
-        ctx.execute_with_retry("get or update factions", |cache| {
-            let db = db.clone();
-            let esi_client = esi_client.clone();
-
-            Box::pin(async move {
-                let faction_repo = FactionRepository::new(&db);
-                let faction_orch = FactionOrchestrator::new(&db, &esi_client);
-
-                let result = faction_repo.get_by_faction_id(faction_id).await?;
-
-                if let Some(faction) = result {
-                    return Ok(faction);
-                };
-
-                // If the faction is not found, then a new patch may have come out adding
-                // a new faction. Attempt to update factions if they haven't already been
-                // updated since downtime.
-                let Some(fetched_factions) = faction_orch.fetch_factions(cache).await? else {
-                    // Factions are already up to date - return error
-                    return Err(EveError::FactionNotFound(faction_id).into());
-                };
-
-                let txn = TrackedTransaction::begin(&db).await?;
-
-                let updated_factions = faction_orch
-                    .persist_factions(&txn, fetched_factions, cache)
-                    .await?;
-
-                txn.commit().await?;
-
-                if let Some(faction) = updated_factions
-                    .into_iter()
-                    .find(|f| f.faction_id == faction_id)
-                {
-                    return Ok(faction);
-                }
-
-                // Factions have been updated yet still haven't found required faction - return error
-                Err(EveError::FactionNotFound(faction_id).into())
             })
         })
         .await
