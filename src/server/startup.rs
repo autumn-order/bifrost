@@ -1,3 +1,4 @@
+use dioxus_logger::tracing;
 use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 use tower_sessions::SessionManagerLayer;
@@ -6,7 +7,8 @@ use tower_sessions_redis_store::RedisStore;
 use crate::server::{
     config::Config,
     error::Error,
-    worker::{handler::WorkerJobHandler, Worker},
+    scheduler::Scheduler,
+    worker::{handler::WorkerJobHandler, Worker, WorkerQueue},
 };
 
 /// Build and configure the ESI client with the provided credentials
@@ -84,4 +86,35 @@ pub async fn start_workers(
     worker.pool.start().await?;
 
     Ok(worker)
+}
+
+/// Initialize and start the scheduler in a background task.
+///
+/// Creates a new scheduler instance and spawns it in a detached Tokio task to run independently
+/// in the background. The scheduler will register all EVE Online data refresh jobs (factions,
+/// alliances, corporations, characters, and affiliations) and begin executing them according to
+/// their configured cron schedules.
+///
+/// The scheduler runs in a fire-and-forget manner - errors are logged but do not propagate back
+/// to the caller. This ensures that scheduler failures don't bring down the main application.
+///
+/// # Arguments
+/// - `db` - Database connection for querying entities that need updates
+/// - `queue` - Worker queue for dispatching asynchronous refresh tasks
+///
+/// # Returns
+/// - `Ok(())` - Scheduler successfully created and background task spawned
+/// - `Err(Error)` - Failed to initialize the scheduler (occurs before spawning)
+pub async fn start_scheduler(db: DatabaseConnection, queue: WorkerQueue) -> Result<(), Error> {
+    let scheduler = Scheduler::new(db, queue).await?;
+
+    tokio::spawn(async move {
+        if let Err(e) = scheduler.start().await {
+            tracing::error!("Scheduler error: {:?}", e);
+        }
+
+        tracing::info!("Job scheduler started");
+    });
+
+    Ok(())
 }

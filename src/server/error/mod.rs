@@ -40,6 +40,8 @@ pub enum Error {
     SessionError(#[from] tower_sessions::session::Error),
     #[error(transparent)]
     SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
+    #[error(transparent)]
+    SchedulerError(#[from] tokio_cron_scheduler::JobSchedulerError),
 }
 
 impl IntoResponse for Error {

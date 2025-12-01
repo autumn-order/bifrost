@@ -25,10 +25,10 @@ impl SchedulableEntity for CharacterInfo {
 
 /// Checks for character information nearing expiration & schedules an update
 pub async fn schedule_character_info_update(
-    db: &DatabaseConnection,
-    worker_queue: &WorkerQueue,
+    db: DatabaseConnection,
+    worker_queue: WorkerQueue,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(&db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need updating (returns character_ids)
     let character_ids = refresh_tracker

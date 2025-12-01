@@ -9,6 +9,8 @@ pub enum WorkerError {
     AffiliationBatchTooLarge { size: usize, max: usize },
     #[error("Failed to serialize/deserialize WorkerJob: {0}")]
     SerializationError(String),
+    #[error("Failed to schedule task: {0}")]
+    Scheduler(String),
 }
 
 impl IntoResponse for WorkerError {

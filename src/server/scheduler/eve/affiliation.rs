@@ -26,10 +26,10 @@ impl SchedulableEntity for CharacterAffiliation {
 
 /// Checks for character affiliation nearing expiration & schedules an update
 pub async fn schedule_character_affiliation_update(
-    db: &DatabaseConnection,
-    worker_queue: &WorkerQueue,
+    db: DatabaseConnection,
+    worker_queue: WorkerQueue,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(&db, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need affiliation updates (returns character_ids)
     let character_ids = refresh_tracker

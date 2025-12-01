@@ -23,7 +23,7 @@ async fn returns_zero_when_no_alliances() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -43,7 +43,7 @@ async fn returns_zero_when_all_alliances_up_to_date() -> Result<(), TestError> {
     test.eve().insert_mock_alliance(2, None).await?;
     test.eve().insert_mock_alliance(3, None).await?;
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -71,7 +71,7 @@ async fn schedules_single_expired_alliance() -> Result<(), TestError> {
         .exec(&test.state.db)
         .await?;
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -100,7 +100,7 @@ async fn schedules_multiple_expired_alliances() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 5);
@@ -133,7 +133,7 @@ async fn schedules_only_expired_alliances() -> Result<(), TestError> {
     test.eve().insert_mock_alliance(4, None).await?;
     test.eve().insert_mock_alliance(5, None).await?;
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     // Only the 3 expired alliances should be scheduled
@@ -176,7 +176,7 @@ async fn schedules_oldest_alliances_first() -> Result<(), TestError> {
         .exec(&test.state.db)
         .await?;
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 3);
@@ -204,13 +204,13 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
         .await?;
 
     // Schedule first time
-    let result1 = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result1 = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
-    let result2 = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result2 = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
@@ -225,7 +225,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_err());
 
@@ -253,7 +253,7 @@ async fn schedules_many_alliances() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_alliance_info_update(&test.state.db, &queue).await;
+    let result = schedule_alliance_info_update(test.state.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 50);
