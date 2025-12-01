@@ -102,7 +102,6 @@ impl<'a> UserCharacterService<'a> {
     /// # Arguments
     /// - `txn` - Database transaction to execute the operation within
     /// - `character_record_id` - Internal database ID of the character record
-    /// - `from_user_id` - ID of the user currently owning the character
     /// - `to_user_id` - ID of the user to transfer the character to
     /// - `owner_hash` - EVE Online owner hash from JWT token for ownership verification
     ///
@@ -127,32 +126,54 @@ impl<'a> UserCharacterService<'a> {
 
         let from_user_id = ownership.user_id;
 
-        // Now retrieve the user model for main character checking
-        let Some(previous_user) = user_repo.get(from_user_id).await?.map(|(user, _)| user) else {
+        // Retrieve user information to check if main character change is needed
+        let Some((prev_user, maybe_main_character)) = user_repo.get(from_user_id).await? else {
             return Err(Error::AuthError(AuthError::UserNotInDatabase(from_user_id)));
         };
-        let characters_owned_by_previous_user = user_character_repo
-            .get_many_by_user_id(previous_user.id)
-            .await?;
 
         // Handle main character change if:
         // 1. Character is being transferred to a different user
         // 2. The character being transferred was the previous user's main
-        if previous_user.id != to_user_id && previous_user.main_character_id == character_record_id
-        {
+        if prev_user.id != to_user_id && prev_user.main_character_id == character_record_id {
+            let prev_user_character_ids: Vec<i32> = user_character_repo
+                .get_many_by_user_id(prev_user.id)
+                .await?
+                .into_iter()
+                .map(|c| c.id)
+                .collect();
+
             // Find another character to set as main, or delete the user if none exist
-            let alternative_character = characters_owned_by_previous_user
-                .iter()
-                .find(|c| c.id != character_record_id);
+            let alternative_character = prev_user_character_ids
+                .into_iter()
+                .find(|id| *id != character_record_id);
 
             match alternative_character {
-                Some(new_main) => {
+                Some(new_main_character_id) => {
                     user_repo
-                        .update(previous_user.id, new_main.character_id)
+                        .update(prev_user.id, new_main_character_id)
                         .await?;
                 }
                 None => {
-                    user_repo.delete(previous_user.id).await?;
+                    if let Some(character) = maybe_main_character {
+                        tracing::info!(
+                            user_id = %prev_user.id,
+                            character_id = %character.character_id,
+                            character_name = %character.name,
+                            new_owner_id = %to_user_id,
+                            "Deleted user after transferring their only remaining character to another user"
+                        )
+                    } else {
+                        // Only occurs if foreign-key constraint requiring user's main character to
+                        // exist in database is not properly enforced.
+                        tracing::warn!(
+                            user_id = %prev_user.id,
+                            new_owner_id = %to_user_id,
+                            character_record_id = %character_record_id,
+                            "Deleted user after transferring their only remaining character to another user. Could not retrieve character information from database, likely due to FK constraint violation."
+                        )
+                    }
+
+                    user_repo.delete(prev_user.id).await?;
                 }
             }
         }
