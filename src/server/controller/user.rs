@@ -1,3 +1,9 @@
+//! User controller endpoints.
+//!
+//! This module provides HTTP endpoints for user-related operations, such as retrieving
+//! information about characters owned by the authenticated user. These endpoints require
+//! an active session and return user-specific data.
+
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use tower_sessions::Session;
 
@@ -9,9 +15,22 @@ use crate::{
     },
 };
 
+/// OpenAPI tag for user-related endpoints.
 pub static USER_TAG: &str = "user";
 
-/// Get all characters owned by logged in user
+/// Retrieves all characters owned by the currently authenticated user.
+///
+/// Fetches the user ID from the session, queries the database for all characters associated
+/// with that user account, and returns them as a list of character DTOs. Each character DTO
+/// includes the character's ID, name, corporation, alliance, and other relevant information.
+///
+/// # Arguments
+/// - `state` - Application state containing the database connection for character lookup
+/// - `session` - User's session containing their user ID
+///
+/// # Returns
+/// - `Ok(Vec<CharacterDto>)` - List of characters owned by the user (may be empty)
+/// - `Err(Error)` - User not in session, not found in database, or database error
 #[utoipa::path(
     get,
     path = "/api/user/characters",
