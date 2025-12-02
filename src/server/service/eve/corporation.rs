@@ -21,8 +21,8 @@ impl<'a> CorporationService<'a> {
         Self { db, esi_client }
     }
 
-    /// Updates information for provided corporation ID from ESI
-    pub async fn update_corporation(
+    /// Upserts information for provided corporation ID from ESI
+    pub async fn upsert(
         &self,
         corporation_id: i64,
     ) -> Result<entity::eve_corporation::Model, Error> {

@@ -79,7 +79,7 @@ impl WorkerJobHandler {
         );
 
         AllianceService::new(&self.db, &self.esi_client)
-            .update_alliance(alliance_id)
+            .upsert(alliance_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -102,7 +102,7 @@ impl WorkerJobHandler {
         );
 
         CorporationService::new(&self.db, &self.esi_client)
-            .update_corporation(corporation_id)
+            .upsert(corporation_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -128,7 +128,7 @@ impl WorkerJobHandler {
         );
 
         CharacterService::new(&self.db, &self.esi_client)
-            .update_character(character_id)
+            .upsert(character_id)
             .await
             .map_err(|e| {
                 tracing::error!(
