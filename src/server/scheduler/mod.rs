@@ -1,3 +1,10 @@
+//! Scheduler for periodic EVE Online data refresh tasks.
+//!
+//! This module provides a cron-based job scheduler that automatically refreshes cached EVE Online
+//! entity data (factions, alliances, corporations, characters, and affiliations) by dispatching
+//! worker queue jobs at configured intervals. The scheduler ensures data remains fresh according
+//! to ESI cache expiration times while distributing load evenly across refresh windows.
+
 use std::sync::Arc;
 
 use dioxus_logger::tracing;

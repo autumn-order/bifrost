@@ -1,3 +1,9 @@
+//! Authentication controller endpoints.
+//!
+//! This module provides HTTP endpoints for EVE Online SSO authentication flow, including
+//! login initiation, OAuth callback handling, logout, and retrieving the current user's
+//! information. It manages session state for CSRF protection and user identity tracking.
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -22,22 +28,49 @@ use crate::{
     },
 };
 
+/// OpenAPI tag for authentication-related endpoints.
 pub static AUTH_TAG: &str = "auth";
 
+/// Query parameters for the login endpoint.
+///
+/// # Fields
+/// - `change_main` - Optional flag to indicate if the login should change the user's main character
 #[derive(Deserialize)]
 pub struct LoginParams {
+    /// If true, the authenticated character will become the user's main character.
     pub change_main: Option<bool>,
 }
 
+/// Query parameters for the OAuth callback endpoint.
+///
+/// These parameters are provided by EVE Online's SSO server after successful authentication.
+///
+/// # Fields
+/// - `state` - CSRF protection token that must match the value stored in the session
+/// - `code` - Authorization code used to exchange for access tokens
 #[derive(Deserialize)]
 pub struct CallbackParams {
+    /// CSRF state token to be validated against the session value.
     pub state: String,
+    /// Authorization code from EVE Online SSO for token exchange.
     pub code: String,
 }
 
-/// Login route to initiate login with EVE Online
+/// Initiates EVE Online SSO authentication flow.
 ///
-/// Creates a URL to login with EVE Online and redirects the user to that URL to begin the login process.
+/// Generates an EVE Online SSO login URL with CSRF protection and redirects the user to it.
+/// The CSRF state token is stored in the session for validation during the callback. If the
+/// `change_main` parameter is set, the session is flagged so that the authenticated character
+/// will become the user's new main character after successful login.
+///
+/// # Arguments
+/// - `state` - Application state containing the ESI client for login URL generation
+/// - `session` - User's session for storing CSRF token and change_main flag
+/// - `params` - Query parameters, optionally including `change_main` flag
+///
+/// # Returns
+/// - `Ok(Redirect)` - 307 temporary redirect to EVE Online SSO login page
+/// - `Err(Error)` - Failed to generate login URL or store session data
 #[utoipa::path(
     get,
     path = "/api/auth/login",
@@ -69,10 +102,22 @@ pub async fn login(
     Ok(Redirect::temporary(&login.login_url))
 }
 
-/// Callback route user is redirected to after successful login at EVE Online's website
+/// Handles OAuth callback from EVE Online SSO after successful authentication.
 ///
-/// This route fetches & validates the user's token to access character information as well as
-/// the access & refresh token for fetching data related to the requested scopes.
+/// Validates the CSRF state token, exchanges the authorization code for access/refresh tokens,
+/// verifies the character JWT token, and either creates a new user or associates the character
+/// with an existing user. If `change_main` was set during login, the authenticated character
+/// becomes the user's new main character. The user ID is stored in the session for subsequent
+/// requests.
+///
+/// # Arguments
+/// - `state` - Application state containing database and ESI client for callback processing
+/// - `session` - User's session for CSRF validation and storing user ID
+/// - `params` - Query parameters containing CSRF state and authorization code from EVE SSO
+///
+/// # Returns
+/// - `Ok(Redirect)` - 308 permanent redirect to `/auth` after successful authentication
+/// - `Err(Error)` - CSRF validation failed, token exchange failed, or database error
 #[utoipa::path(
     get,
     path = "/api/auth/callback",
@@ -115,7 +160,18 @@ pub async fn callback(
     Ok(Redirect::permanent("/auth"))
 }
 
-/// Logs the user out by clearing their session
+/// Logs out the current user by clearing their session data.
+///
+/// Removes all session data including user ID, effectively logging the user out. Only attempts
+/// to clear the session if a user ID is present, avoiding errors when clearing empty sessions.
+/// After logout, redirects to the home page.
+///
+/// # Arguments
+/// - `session` - User's session to be cleared
+///
+/// # Returns
+/// - `Ok(Redirect)` - 307 temporary redirect to home page (`/`)
+/// - `Err(Error)` - Failed to retrieve or clear session data
 #[utoipa::path(
     get,
     path = "/api/auth/logout",
@@ -139,7 +195,19 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
     Ok(Redirect::temporary("/"))
 }
 
-/// Returns information on the currently logged in user
+/// Retrieves information about the currently authenticated user.
+///
+/// Fetches the user ID from the session and queries the database for complete user information,
+/// including their main character details. Returns a 404 error if the user is not found in the
+/// database (which may indicate their account was deleted or the session is stale).
+///
+/// # Arguments
+/// - `state` - Application state containing the database connection for user lookup
+/// - `session` - User's session containing their user ID
+///
+/// # Returns
+/// - `Ok(UserDto)` - User information including ID and main character details
+/// - `Err(Error)` - User not in session, not found in database, or database error
 #[utoipa::path(
     get,
     path = "/api/auth/user",

@@ -1,3 +1,9 @@
+//! OAuth2 callback service for EVE Online SSO authentication.
+//!
+//! This module provides the `CallbackService` for handling OAuth2 callbacks from EVE SSO.
+//! It orchestrates token validation, character ownership management, user creation/updates,
+//! and main character assignment with comprehensive retry logic and caching.
+
 use eve_esi::model::oauth2::EveJwtClaims;
 use oauth2::TokenResponse;
 use sea_orm::DatabaseConnection;
@@ -106,7 +112,16 @@ pub struct CallbackService<'a> {
 }
 
 impl<'a> CallbackService<'a> {
-    /// Creates a new instance of [`CallbackService`]
+    /// Creates a new instance of CallbackService.
+    ///
+    /// Constructs a service for handling OAuth2 callbacks from EVE SSO.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference with OAuth2 configuration
+    ///
+    /// # Returns
+    /// - `CallbackService` - New service instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }

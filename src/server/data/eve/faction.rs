@@ -1,3 +1,8 @@
+//! Faction repository for EVE Online faction data management.
+//!
+//! This module provides the `FactionRepository` for managing faction records from
+//! EVE Online's ESI API.
+
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
 use migration::OnConflict;
@@ -6,15 +11,39 @@ use sea_orm::{
     QuerySelect,
 };
 
+/// Repository for managing EVE Online faction records in the database.
+///
+/// Provides operations for upserting faction data from ESI, retrieving faction
+/// record IDs, and querying the latest faction update timestamp.
 pub struct FactionRepository<'a, C: ConnectionTrait> {
     db: &'a C,
 }
 
 impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
+    /// Creates a new instance of FactionRepository.
+    ///
+    /// Constructs a repository for managing EVE faction records in the database.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    ///
+    /// # Returns
+    /// - `FactionRepository` - New repository instance
     pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
+    /// Inserts or updates multiple faction records from ESI data.
+    ///
+    /// Creates new faction records or updates existing ones based on faction_id.
+    /// On conflict, updates all faction fields except created_at.
+    ///
+    /// # Arguments
+    /// - `factions` - Vector of ESI faction data
+    ///
+    /// # Returns
+    /// - `Ok(Vec<EveFaction>)` - The created or updated faction records
+    /// - `Err(DbErr)` - Database operation failed
     pub async fn upsert_many(
         &self,
         factions: Vec<Faction>,
@@ -58,6 +87,17 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
+    /// Retrieves internal database record IDs for EVE faction IDs.
+    ///
+    /// Maps EVE Online faction IDs to their corresponding internal database record IDs.
+    /// Returns only entries that exist in the database.
+    ///
+    /// # Arguments
+    /// - `faction_ids` - Slice of EVE faction IDs to look up
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i32, i64)>)` - List of (record_id, faction_id) tuples for found factions
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_record_ids_by_faction_ids(
         &self,
         faction_ids: &[i64],
@@ -72,7 +112,15 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
-    /// Get the latest faction entry
+    /// Retrieves the most recently updated faction record.
+    ///
+    /// Fetches the faction with the latest updated_at timestamp. Useful for determining
+    /// when faction data was last refreshed from ESI.
+    ///
+    /// # Returns
+    /// - `Ok(Some(EveFaction))` - The most recently updated faction record
+    /// - `Ok(None)` - No factions exist in the database
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_latest(&self) -> Result<Option<entity::eve_faction::Model>, DbErr> {
         entity::prelude::EveFaction::find()
             .order_by(entity::eve_faction::Column::UpdatedAt, Order::Desc)

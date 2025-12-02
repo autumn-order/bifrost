@@ -1,3 +1,9 @@
+//! Character service for EVE Online character data operations.
+//!
+//! This module provides the `CharacterService` for fetching character information from ESI
+//! and persisting it to the database. Operations use orchestrators to handle dependencies
+//! and include retry logic for reliability.
+
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -10,18 +16,43 @@ use crate::server::{
     },
 };
 
+/// Service for managing EVE Online character operations.
+///
+/// Provides methods for fetching character data from ESI and persisting it to the database.
+/// Uses orchestrators to handle dependency resolution and automatic retry logic for transient failures.
 pub struct CharacterService<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> CharacterService<'a> {
-    /// Creates a new instance of [`CharacterService`]
+    /// Creates a new instance of CharacterService.
+    ///
+    /// Constructs a service for managing EVE character data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `CharacterService` - New service instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    /// Upserts information for provided character ID from ESI
+    /// Fetches and persists character information from ESI.
+    ///
+    /// Retrieves complete character data from the ESI API and stores it in the database.
+    /// If the character has corporation or faction affiliations, those dependencies are resolved
+    /// and persisted first. Uses retry logic to handle transient ESI or database failures.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID to fetch and store
+    ///
+    /// # Returns
+    /// - `Ok(EveCharacter)` - The created or updated character record
+    /// - `Err(Error::EsiError)` - Failed to fetch character data from ESI
+    /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn upsert(&self, character_id: i64) -> Result<entity::eve_character::Model, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 

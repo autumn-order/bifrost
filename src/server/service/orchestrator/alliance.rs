@@ -1,3 +1,9 @@
+//! Alliance orchestrator for EVE Online alliance data operations.
+//!
+//! This module provides the `AllianceOrchestrator` for managing the complete lifecycle of
+//! EVE alliance data including fetching from ESI, dependency resolution, and database persistence.
+//! Alliances have optional foreign key dependencies on factions.
+
 use std::collections::HashSet;
 
 use dioxus_logger::tracing;
@@ -47,7 +53,16 @@ pub struct AllianceOrchestrator<'a> {
 }
 
 impl<'a> AllianceOrchestrator<'a> {
-    /// Creates a new instance of [`AllianceOrchestrator`]
+    /// Creates a new instance of AllianceOrchestrator.
+    ///
+    /// Constructs an orchestrator for managing EVE alliance data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `AllianceOrchestrator` - New orchestrator instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }

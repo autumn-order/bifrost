@@ -1,3 +1,12 @@
+//! Orchestration cache and transaction tracking for EVE data operations.
+//!
+//! This module provides the unified orchestration cache that serves as the single source of truth
+//! for all EVE entity data during complex operations. It includes transaction tracking to automatically
+//! handle cache invalidation during retry attempts, and utility functions for extracting dependency IDs.
+//!
+//! The cache is designed to prevent duplicate fetching from ESI or database, enable idempotent
+//! persistence across retries, and maintain consistency across multiple orchestrator operations.
+
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -38,7 +47,9 @@ use crate::server::error::Error;
 /// }
 /// ```
 pub struct TrackedTransaction {
+    /// Underlying database transaction.
     txn: DatabaseTransaction,
+    /// Timestamp when this transaction was created (for cache invalidation).
     pub created_at: Instant,
 }
 
@@ -125,26 +136,39 @@ impl TrackedTransaction {
 #[derive(Clone, Default, Debug)]
 pub struct OrchestrationCache {
     // Faction data
+    /// ESI faction data cache (faction_id -> ESI Faction).
     pub faction_esi: HashMap<i64, Faction>,
+    /// Persisted faction database models (faction_id -> Model).
     pub faction_model: HashMap<i64, entity::eve_faction::Model>,
+    /// Faction database entry IDs (faction_id -> database primary key).
     pub faction_db_id: HashMap<i64, i32>,
 
     // Alliance data
+    /// ESI alliance data cache (alliance_id -> ESI Alliance).
     pub alliance_esi: HashMap<i64, Alliance>,
+    /// Persisted alliance database models (alliance_id -> Model).
     pub alliance_model: HashMap<i64, entity::eve_alliance::Model>,
+    /// Alliance database entry IDs (alliance_id -> database primary key).
     pub alliance_db_id: HashMap<i64, i32>,
 
     // Corporation data
+    /// ESI corporation data cache (corporation_id -> ESI Corporation).
     pub corporation_esi: HashMap<i64, Corporation>,
+    /// Persisted corporation database models (corporation_id -> Model).
     pub corporation_model: HashMap<i64, entity::eve_corporation::Model>,
+    /// Corporation database entry IDs (corporation_id -> database primary key).
     pub corporation_db_id: HashMap<i64, i32>,
 
     // Character data
+    /// ESI character data cache (character_id -> ESI Character).
     pub character_esi: HashMap<i64, Character>,
+    /// Persisted character database models (character_id -> Model).
     pub character_model: HashMap<i64, entity::eve_character::Model>,
+    /// Character database entry IDs (character_id -> database primary key).
     pub character_db_id: HashMap<i64, i32>,
 
     // Transaction tracking - used to detect when a new transaction is being used
+    /// Current transaction timestamp for detecting transaction retries and cache invalidation.
     transaction_id: Option<Instant>,
 }
 

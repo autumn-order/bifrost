@@ -1,3 +1,9 @@
+//! Faction orchestrator for EVE Online faction data operations.
+//!
+//! This module provides the `FactionOrchestrator` for managing the complete lifecycle of
+//! EVE faction data including fetching from ESI, dependency resolution, and database persistence.
+//! Factions are the base of the dependency hierarchy with no foreign key dependencies.
+
 use std::collections::HashSet;
 
 use chrono::Utc;
@@ -48,7 +54,16 @@ pub struct FactionOrchestrator<'a> {
 }
 
 impl<'a> FactionOrchestrator<'a> {
-    /// Creates a new instance of [`FactionOrchestrator`]
+    /// Creates a new instance of FactionOrchestrator.
+    ///
+    /// Constructs an orchestrator for managing EVE faction data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `FactionOrchestrator` - New orchestrator instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }

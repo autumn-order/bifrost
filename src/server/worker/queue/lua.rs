@@ -1,4 +1,8 @@
-//! Lua scripts for WorkerJobQueue redis implementation
+//! Lua scripts for Redis-based worker job queue operations.
+//!
+//! This module contains Lua scripts that run atomically on Redis to ensure thread-safe
+//! queue operations including duplicate detection, job scheduling, job popping, and
+//! stale job cleanup. All scripts operate on Redis sorted sets with timestamps as scores.
 
 // Lua script to atomically check for duplicates and add job to sorted set
 // Uses ZSET for scheduling with identity as member (leverages native uniqueness)
