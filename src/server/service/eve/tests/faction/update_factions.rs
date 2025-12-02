@@ -2,7 +2,8 @@ use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ActiveValue, IntoActiveModel};
 
 use crate::server::{
-    error::Error, service::eve::faction::FactionService, util::time::effective_faction_cache_expiry,
+    error::Error,
+    service::{eve::faction::FactionService, orchestrator::faction::FactionOrchestrator},
 };
 
 use super::*;
@@ -40,7 +41,7 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
 
     // Set updated_at to *before* the effective expiry so an update should be performed.
     let now = Utc::now();
-    let effective_expiry = effective_faction_cache_expiry(now).unwrap();
+    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
     let updated_at = effective_expiry
         .checked_sub_signed(Duration::minutes(5))
         .unwrap_or(effective_expiry);
@@ -73,7 +74,7 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
 
     // Set updated_at to just after the effective expiry so it should be considered cached.
     let now = Utc::now();
-    let effective_expiry = effective_faction_cache_expiry(now).unwrap();
+    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
     let updated_at = effective_expiry
         .checked_add_signed(Duration::minutes(1))
         .unwrap_or(effective_expiry);
@@ -220,7 +221,7 @@ async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestErro
 
     // Set updated_at to within cache period
     let now = Utc::now();
-    let effective_expiry = effective_faction_cache_expiry(now).unwrap();
+    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
     let updated_at = effective_expiry
         .checked_add_signed(Duration::minutes(1))
         .unwrap_or(effective_expiry);
