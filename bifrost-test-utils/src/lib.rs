@@ -1,6 +1,7 @@
 pub mod constant;
 pub mod error;
 pub mod fixtures;
+pub mod model;
 pub mod setup;
 
 pub use error::TestError;

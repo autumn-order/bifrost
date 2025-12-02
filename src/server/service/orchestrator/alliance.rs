@@ -14,6 +14,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::alliance::AllianceRepository,
     error::{eve::EveError, Error},
+    model::db::EveAllianceModel,
     service::orchestrator::{
         cache::{get_alliance_faction_dependency_ids, TrackedTransaction},
         faction::FactionOrchestrator,
@@ -330,7 +331,7 @@ impl<'a> AllianceOrchestrator<'a> {
         txn: &TrackedTransaction,
         alliances: Vec<(i64, Alliance)>,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
+    ) -> Result<Vec<EveAllianceModel>, Error> {
         // Check if this is a new transaction and clear caches if needed
         cache.check_and_clear_on_new_transaction(txn.created_at);
         if alliances.is_empty() {
@@ -432,7 +433,7 @@ impl<'a> AllianceOrchestrator<'a> {
         alliance_id: i64,
         alliance: Alliance,
         cache: &mut OrchestrationCache,
-    ) -> Result<entity::eve_alliance::Model, Error> {
+    ) -> Result<EveAllianceModel, Error> {
         // Delegate to persist_many with a single element
         let mut models = self
             .persist_many(txn, vec![(alliance_id, alliance)], cache)
@@ -508,7 +509,7 @@ impl<'a> AllianceOrchestrator<'a> {
         &self,
         txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_alliance::Model>, Error> {
+    ) -> Result<Vec<EveAllianceModel>, Error> {
         let alliances: Vec<(i64, Alliance)> = cache
             .alliance_esi
             .iter()

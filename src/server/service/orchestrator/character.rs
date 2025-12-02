@@ -14,6 +14,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::character::CharacterRepository,
     error::Error,
+    model::db::EveCharacterModel,
     service::orchestrator::{
         cache::{
             get_character_corporation_dependency_ids, get_character_faction_dependency_ids,
@@ -349,7 +350,7 @@ impl<'a> CharacterOrchestrator<'a> {
         txn: &TrackedTransaction,
         characters: Vec<(i64, Character)>,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_character::Model>, Error> {
+    ) -> Result<Vec<EveCharacterModel>, Error> {
         // Check if this is a new transaction and clear caches if needed
         cache.check_and_clear_on_new_transaction(txn.created_at);
         if characters.is_empty() {
@@ -485,7 +486,7 @@ impl<'a> CharacterOrchestrator<'a> {
         character_id: i64,
         character: Character,
         cache: &mut OrchestrationCache,
-    ) -> Result<entity::eve_character::Model, Error> {
+    ) -> Result<EveCharacterModel, Error> {
         // Delegate to persist_many with a single element
         let mut models = self
             .persist_many(txn, vec![(character_id, character)], cache)
@@ -561,7 +562,7 @@ impl<'a> CharacterOrchestrator<'a> {
         &self,
         txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_character::Model>, Error> {
+    ) -> Result<Vec<EveCharacterModel>, Error> {
         let characters: Vec<(i64, Character)> = cache
             .character_esi
             .iter()

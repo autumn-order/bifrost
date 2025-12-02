@@ -8,6 +8,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
+    model::db::EveAllianceModel,
     service::{
         orchestrator::{
             alliance::AllianceOrchestrator, cache::TrackedTransaction, OrchestrationCache,
@@ -53,7 +54,7 @@ impl<'a> AllianceService<'a> {
     /// - `Ok(EveAlliance)` - The created or updated alliance record
     /// - `Err(Error::EsiError)` - Failed to fetch alliance data from ESI
     /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn upsert(&self, alliance_id: i64) -> Result<entity::eve_alliance::Model, Error> {
+    pub async fn upsert(&self, alliance_id: i64) -> Result<EveAllianceModel, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();

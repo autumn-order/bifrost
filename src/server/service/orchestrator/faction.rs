@@ -13,6 +13,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::faction::FactionRepository,
     error::Error,
+    model::db::EveFactionModel,
     service::orchestrator::{cache::TrackedTransaction, OrchestrationCache},
 };
 
@@ -296,7 +297,7 @@ impl<'a> FactionOrchestrator<'a> {
         txn: &TrackedTransaction,
         factions: Vec<Faction>,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_faction::Model>, Error> {
+    ) -> Result<Vec<EveFactionModel>, Error> {
         // Check if this is a new transaction and clear caches if needed
         cache.check_and_clear_on_new_transaction(txn.created_at);
         if factions.is_empty() {
@@ -404,7 +405,7 @@ impl<'a> FactionOrchestrator<'a> {
         &self,
         txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_faction::Model>, Error> {
+    ) -> Result<Vec<EveFactionModel>, Error> {
         let factions: Vec<Faction> = cache.faction_esi.values().cloned().collect();
         self.persist_factions(txn, factions, cache).await
     }

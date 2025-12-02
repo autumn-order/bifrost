@@ -8,6 +8,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
+    model::db::EveCharacterModel,
     service::{
         orchestrator::{
             cache::TrackedTransaction, character::CharacterOrchestrator, OrchestrationCache,
@@ -53,7 +54,7 @@ impl<'a> CharacterService<'a> {
     /// - `Ok(EveCharacter)` - The created or updated character record
     /// - `Err(Error::EsiError)` - Failed to fetch character data from ESI
     /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn upsert(&self, character_id: i64) -> Result<entity::eve_character::Model, Error> {
+    pub async fn upsert(&self, character_id: i64) -> Result<EveCharacterModel, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();

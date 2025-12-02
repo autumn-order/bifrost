@@ -3,6 +3,7 @@
 //! This module provides the `AllianceRepository` for managing alliance records from
 //! EVE Online's ESI API.
 
+use crate::server::model::db::EveAllianceModel;
 use chrono::Utc;
 use eve_esi::model::alliance::Alliance;
 use migration::OnConflict;
@@ -47,7 +48,7 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
     pub async fn upsert_many(
         &self,
         alliances: Vec<(i64, Alliance, Option<i32>)>,
-    ) -> Result<Vec<entity::eve_alliance::Model>, DbErr> {
+    ) -> Result<Vec<EveAllianceModel>, DbErr> {
         let alliances = alliances
             .into_iter()
             .map(

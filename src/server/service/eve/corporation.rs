@@ -8,6 +8,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
+    model::db::EveCorporationModel,
     service::{
         orchestrator::{
             cache::TrackedTransaction, corporation::CorporationOrchestrator, OrchestrationCache,
@@ -53,10 +54,7 @@ impl<'a> CorporationService<'a> {
     /// - `Ok(EveCorporation)` - The created or updated corporation record
     /// - `Err(Error::EsiError)` - Failed to fetch corporation data from ESI
     /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn upsert(
-        &self,
-        corporation_id: i64,
-    ) -> Result<entity::eve_corporation::Model, Error> {
+    pub async fn upsert(&self, corporation_id: i64) -> Result<EveCorporationModel, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();

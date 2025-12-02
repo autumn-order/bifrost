@@ -15,7 +15,10 @@ use eve_esi::model::{
 };
 use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
-use crate::server::error::Error;
+use crate::server::{
+    error::Error,
+    model::db::{EveAllianceModel, EveCharacterModel, EveCorporationModel, EveFactionModel},
+};
 
 /// Wrapper around DatabaseTransaction that tracks when it was created.
 ///
@@ -134,7 +137,7 @@ pub struct OrchestrationCache {
     /// ESI faction data cache (faction_id -> ESI Faction).
     pub faction_esi: HashMap<i64, Faction>,
     /// Persisted faction database models (faction_id -> Model).
-    pub faction_model: HashMap<i64, entity::eve_faction::Model>,
+    pub faction_model: HashMap<i64, EveFactionModel>,
     /// Faction database entry IDs (faction_id -> database primary key).
     pub faction_db_id: HashMap<i64, i32>,
 
@@ -142,7 +145,7 @@ pub struct OrchestrationCache {
     /// ESI alliance data cache (alliance_id -> ESI Alliance).
     pub alliance_esi: HashMap<i64, Alliance>,
     /// Persisted alliance database models (alliance_id -> Model).
-    pub alliance_model: HashMap<i64, entity::eve_alliance::Model>,
+    pub alliance_model: HashMap<i64, EveAllianceModel>,
     /// Alliance database entry IDs (alliance_id -> database primary key).
     pub alliance_db_id: HashMap<i64, i32>,
 
@@ -150,7 +153,7 @@ pub struct OrchestrationCache {
     /// ESI corporation data cache (corporation_id -> ESI Corporation).
     pub corporation_esi: HashMap<i64, Corporation>,
     /// Persisted corporation database models (corporation_id -> Model).
-    pub corporation_model: HashMap<i64, entity::eve_corporation::Model>,
+    pub corporation_model: HashMap<i64, EveCorporationModel>,
     /// Corporation database entry IDs (corporation_id -> database primary key).
     pub corporation_db_id: HashMap<i64, i32>,
 
@@ -158,7 +161,7 @@ pub struct OrchestrationCache {
     /// ESI character data cache (character_id -> ESI Character).
     pub character_esi: HashMap<i64, Character>,
     /// Persisted character database models (character_id -> Model).
-    pub character_model: HashMap<i64, entity::eve_character::Model>,
+    pub character_model: HashMap<i64, EveCharacterModel>,
     /// Character database entry IDs (character_id -> database primary key).
     pub character_db_id: HashMap<i64, i32>,
 
