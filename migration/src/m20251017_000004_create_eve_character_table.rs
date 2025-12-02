@@ -35,9 +35,12 @@ impl MigrationTrait for Migration {
                     .col(big_integer(EveCharacter::RaceId))
                     .col(double_null(EveCharacter::SecurityStatus))
                     .col(string_null(EveCharacter::Title))
-                    .col(timestamp(EveCharacter::CreatedAt))
-                    .col(timestamp(EveCharacter::InfoUpdatedAt))
-                    .col(timestamp(EveCharacter::AffiliationUpdatedAt))
+                    .col(timestamp(EveCharacter::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(EveCharacter::InfoUpdatedAt).default(Expr::current_timestamp()))
+                    .col(
+                        timestamp(EveCharacter::AffiliationUpdatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;

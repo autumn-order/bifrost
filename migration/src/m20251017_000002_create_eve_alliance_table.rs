@@ -26,8 +26,8 @@ impl MigrationTrait for Migration {
                     .col(timestamp(EveAlliance::DateFounded))
                     .col(string(EveAlliance::Name))
                     .col(string(EveAlliance::Ticker))
-                    .col(timestamp(EveAlliance::CreatedAt))
-                    .col(timestamp(EveAlliance::UpdatedAt))
+                    .col(timestamp(EveAlliance::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(EveAlliance::UpdatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
             )
             .await?;

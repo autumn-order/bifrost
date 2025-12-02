@@ -41,7 +41,6 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
                     ticker: ActiveValue::Set(corporation.ticker),
                     url: ActiveValue::Set(corporation.url),
                     war_eligible: ActiveValue::Set(corporation.war_eligible),
-                    created_at: ActiveValue::Set(Utc::now().naive_utc()),
                     info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                     affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                     ..Default::default()
