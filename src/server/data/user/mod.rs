@@ -30,7 +30,7 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
         user.insert(self.db).await
     }
 
-    pub async fn get(
+    pub async fn get_by_id(
         &self,
         user_id: i32,
     ) -> Result<
@@ -115,7 +115,7 @@ mod tests {
         }
     }
 
-    mod get {
+    mod get_by_id {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;
@@ -130,7 +130,7 @@ mod tests {
                 .await?;
 
             let user_repo = UserRepository::new(&test.state.db);
-            let result = user_repo.get(user_model.id).await;
+            let result = user_repo.get_by_id(user_model.id).await;
 
             assert!(matches!(result, Ok(Some(_))));
 
@@ -144,7 +144,7 @@ mod tests {
 
             let nonexistent_user_id = 1;
             let user_repo = UserRepository::new(&test.state.db);
-            let result = user_repo.get(nonexistent_user_id).await;
+            let result = user_repo.get_by_id(nonexistent_user_id).await;
 
             assert!(matches!(result, Ok(None)));
 
@@ -158,7 +158,7 @@ mod tests {
             let user_repo = UserRepository::new(&test.state.db);
 
             let user_id = 1;
-            let result = user_repo.get(user_id).await;
+            let result = user_repo.get_by_id(user_id).await;
             assert!(result.is_err());
 
             Ok(())

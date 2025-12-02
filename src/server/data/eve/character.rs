@@ -63,7 +63,7 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
             .await
     }
 
-    pub async fn get_entry_ids_by_character_ids(
+    pub async fn get_record_ids_by_character_ids(
         &self,
         character_ids: &[i64],
     ) -> Result<Vec<(i32, i64)>, DbErr> {

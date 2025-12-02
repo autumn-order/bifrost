@@ -70,13 +70,13 @@ impl<'a> CharacterOrchestrator<'a> {
     /// - `Ok(Some(i32))` - Database entry ID if character exists
     /// - `Ok(None)` - Character does not exist in database
     /// - `Err(Error::DbErr)` - Database query failed
-    pub async fn get_character_entry_id(
+    pub async fn get_character_record_id(
         &self,
         character_id: i64,
         cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
-            .get_many_character_entry_ids(vec![character_id], cache)
+            .get_many_character_record_ids(vec![character_id], cache)
             .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
@@ -98,7 +98,7 @@ impl<'a> CharacterOrchestrator<'a> {
     /// # Note
     /// - Only returns entries for characters that exist in the database.
     /// - Missing characters are silently omitted.
-    pub async fn get_many_character_entry_ids(
+    pub async fn get_many_character_record_ids(
         &self,
         character_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -125,7 +125,7 @@ impl<'a> CharacterOrchestrator<'a> {
         let character_repo = CharacterRepository::new(self.db);
 
         let retrieved_ids = character_repo
-            .get_entry_ids_by_character_ids(&missing_ids)
+            .get_record_ids_by_character_ids(&missing_ids)
             .await?;
 
         for (db_id, character_id) in retrieved_ids {
@@ -380,11 +380,11 @@ impl<'a> CharacterOrchestrator<'a> {
         let corporation_ids = get_character_corporation_dependency_ids(&characters_ref);
 
         let faction_db_ids = faction_orch
-            .get_many_faction_entry_ids(faction_ids, cache)
+            .get_many_faction_record_ids(faction_ids, cache)
             .await?;
 
         let corporation_db_ids = corporation_orch
-            .get_many_corporation_entry_ids(corporation_ids, cache)
+            .get_many_corporation_record_ids(corporation_ids, cache)
             .await?;
 
         // Create a map of faction/corporation id -> db_id for easy lookup
@@ -509,7 +509,7 @@ impl<'a> CharacterOrchestrator<'a> {
         cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
-            .get_many_character_entry_ids(character_ids.clone(), cache)
+            .get_many_character_record_ids(character_ids.clone(), cache)
             .await?;
 
         let existing_character_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();

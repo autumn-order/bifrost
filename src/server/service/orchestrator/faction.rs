@@ -66,13 +66,13 @@ impl<'a> FactionOrchestrator<'a> {
     /// - `Ok(Some(i32))` - Database entry ID if faction exists
     /// - `Ok(None)` - Faction does not exist in database
     /// - `Err(Error::DbErr)` - Database query failed
-    pub async fn get_faction_entry_id(
+    pub async fn get_faction_record_id(
         &self,
         faction_id: i64,
         cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
-            .get_many_faction_entry_ids(vec![faction_id], cache)
+            .get_many_faction_record_ids(vec![faction_id], cache)
             .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
@@ -93,7 +93,7 @@ impl<'a> FactionOrchestrator<'a> {
     ///
     /// # Note
     /// Only returns entries for factions that exist in the database. Missing factions are silently omitted.
-    pub async fn get_many_faction_entry_ids(
+    pub async fn get_many_faction_record_ids(
         &self,
         faction_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -120,7 +120,7 @@ impl<'a> FactionOrchestrator<'a> {
         let faction_repo = FactionRepository::new(self.db);
 
         let retrieved_ids = faction_repo
-            .get_entry_ids_by_faction_ids(&missing_ids)
+            .get_record_ids_by_faction_ids(&missing_ids)
             .await?;
 
         for (db_id, faction_id) in retrieved_ids {
@@ -287,7 +287,7 @@ impl<'a> FactionOrchestrator<'a> {
         cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
-            .get_many_faction_entry_ids(faction_ids.clone(), cache)
+            .get_many_faction_record_ids(faction_ids.clone(), cache)
             .await?;
 
         let existing_faction_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();

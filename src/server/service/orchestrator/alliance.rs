@@ -65,13 +65,13 @@ impl<'a> AllianceOrchestrator<'a> {
     /// - `Ok(Some(i32))` - Database entry ID if alliance exists
     /// - `Ok(None)` - Alliance does not exist in database
     /// - `Err(Error::DbErr)` - Database query failed
-    pub async fn get_alliance_entry_id(
+    pub async fn get_alliance_record_id(
         &self,
         alliance_id: i64,
         cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
-            .get_many_alliance_entry_ids(vec![alliance_id], cache)
+            .get_many_alliance_record_ids(vec![alliance_id], cache)
             .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
@@ -92,7 +92,7 @@ impl<'a> AllianceOrchestrator<'a> {
     ///
     /// # Note
     /// Only returns entries for alliances that exist in the database. Missing alliances are silently omitted.
-    pub async fn get_many_alliance_entry_ids(
+    pub async fn get_many_alliance_record_ids(
         &self,
         alliance_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -119,7 +119,7 @@ impl<'a> AllianceOrchestrator<'a> {
         let alliance_repo = AllianceRepository::new(self.db);
 
         let retrieved_ids = alliance_repo
-            .get_entry_ids_by_alliance_ids(&missing_ids)
+            .get_record_ids_by_alliance_ids(&missing_ids)
             .await?;
 
         for (db_id, alliance_id) in retrieved_ids {
@@ -355,7 +355,7 @@ impl<'a> AllianceOrchestrator<'a> {
         let faction_ids = get_alliance_faction_dependency_ids(&alliances_ref);
 
         let faction_db_ids = faction_orch
-            .get_many_faction_entry_ids(faction_ids, cache)
+            .get_many_faction_record_ids(faction_ids, cache)
             .await?;
 
         // Create a map of faction_id -> db_id for easy lookup
@@ -456,7 +456,7 @@ impl<'a> AllianceOrchestrator<'a> {
         cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
-            .get_many_alliance_entry_ids(alliance_ids.clone(), cache)
+            .get_many_alliance_record_ids(alliance_ids.clone(), cache)
             .await?;
 
         let existing_alliance_ids: HashSet<i64> = existing_ids.iter().map(|(id, _)| *id).collect();

@@ -64,7 +64,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     /// - `Ok(Some(BifrostUserCharacter))` - Ownership record found for this character
     /// - `Ok(None)` - Character exists but has no ownership record (unowned character)
     /// - `Err(DbErr)` - Database query failed
-    pub async fn get_ownership_by_character_record_id(
+    pub async fn get_ownership_by_character_id(
         &self,
         character_record_id: i32,
     ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
@@ -105,7 +105,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     }
 
     /// Gets all character ownership entries for the provided user ID
-    pub async fn get_many_by_user_id(
+    pub async fn get_ownerships_by_user_id(
         &self,
         user_id: i32,
     ) -> Result<Vec<entity::bifrost_user_character::Model>, DbErr> {
@@ -282,7 +282,7 @@ mod tests {
         }
     }
 
-    mod get_many_by_user_id {
+    mod get_ownerships_by_user_id {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::user_character::UserCharacterRepository;
@@ -301,7 +301,9 @@ mod tests {
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
+            let result = user_character_repo
+                .get_ownerships_by_user_id(user_model.id)
+                .await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
@@ -320,7 +322,9 @@ mod tests {
                 .await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
+            let result = user_character_repo
+                .get_ownerships_by_user_id(user_model.id)
+                .await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
@@ -338,7 +342,9 @@ mod tests {
             let user_model = test.user().insert_user(character_model.id).await?;
 
             let user_character_repo = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repo.get_many_by_user_id(user_model.id).await;
+            let result = user_character_repo
+                .get_ownerships_by_user_id(user_model.id)
+                .await;
 
             assert!(result.is_ok());
             let ownership_entries = result.unwrap();
@@ -355,7 +361,9 @@ mod tests {
 
             let user_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
-            let result = user_character_repository.get_many_by_user_id(user_id).await;
+            let result = user_character_repository
+                .get_ownerships_by_user_id(user_id)
+                .await;
 
             assert!(result.is_err());
 

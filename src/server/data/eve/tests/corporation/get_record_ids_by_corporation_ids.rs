@@ -2,7 +2,7 @@ use super::*;
 
 /// Expect Ok with correct mappings when corporations exist in database
 #[tokio::test]
-async fn returns_entry_ids_for_existing_corporations() -> Result<(), TestError> {
+async fn returns_record_ids_for_existing_corporations() -> Result<(), TestError> {
     let mut test = test_setup_with_tables!(
         entity::prelude::EveFaction,
         entity::prelude::EveAlliance,
@@ -19,25 +19,25 @@ async fn returns_entry_ids_for_existing_corporations() -> Result<(), TestError> 
         corporation_3.corporation_id,
     ];
     let result = corporation_repo
-        .get_entry_ids_by_corporation_ids(&corporation_ids)
+        .get_record_ids_by_corporation_ids(&corporation_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 3);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 3);
 
     // Verify the mappings are correct
     let mut found_ids = std::collections::HashSet::new();
-    for (entry_id, corporation_id) in entry_ids {
+    for (record_id, corporation_id) in record_ids {
         match corporation_id {
             _ if corporation_id == corporation_1.corporation_id => {
-                assert_eq!(entry_id, corporation_1.id);
+                assert_eq!(record_id, corporation_1.id);
             }
             _ if corporation_id == corporation_2.corporation_id => {
-                assert_eq!(entry_id, corporation_2.id);
+                assert_eq!(record_id, corporation_2.id);
             }
             _ if corporation_id == corporation_3.corporation_id => {
-                assert_eq!(entry_id, corporation_3.id);
+                assert_eq!(record_id, corporation_3.id);
             }
             _ => panic!("Unexpected corporation_id: {}", corporation_id),
         }
@@ -60,12 +60,12 @@ async fn returns_empty_for_nonexistent_corporations() -> Result<(), TestError> {
     let corporation_repo = CorporationRepository::new(&test.state.db);
     let corporation_ids = vec![1, 2, 3];
     let result = corporation_repo
-        .get_entry_ids_by_corporation_ids(&corporation_ids)
+        .get_record_ids_by_corporation_ids(&corporation_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 0);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 0);
 
     Ok(())
 }
@@ -82,12 +82,12 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
     let corporation_repo = CorporationRepository::new(&test.state.db);
     let corporation_ids: Vec<i64> = vec![];
     let result = corporation_repo
-        .get_entry_ids_by_corporation_ids(&corporation_ids)
+        .get_record_ids_by_corporation_ids(&corporation_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 0);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 0);
 
     Ok(())
 }
@@ -111,23 +111,23 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
         888, // Non-existent
     ];
     let result = corporation_repo
-        .get_entry_ids_by_corporation_ids(&corporation_ids)
+        .get_record_ids_by_corporation_ids(&corporation_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 2);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 2);
 
     // Verify only existing corporations are returned
-    for (entry_id, corporation_id) in entry_ids {
+    for (record_id, corporation_id) in record_ids {
         assert!(
             corporation_id == corporation_1.corporation_id
                 || corporation_id == corporation_3.corporation_id
         );
         if corporation_id == corporation_1.corporation_id {
-            assert_eq!(entry_id, corporation_1.id);
+            assert_eq!(record_id, corporation_1.id);
         } else if corporation_id == corporation_3.corporation_id {
-            assert_eq!(entry_id, corporation_3.id);
+            assert_eq!(record_id, corporation_3.id);
         }
     }
 
@@ -142,7 +142,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let corporation_repo = CorporationRepository::new(&test.state.db);
     let corporation_ids = vec![1, 2, 3];
     let result = corporation_repo
-        .get_entry_ids_by_corporation_ids(&corporation_ids)
+        .get_record_ids_by_corporation_ids(&corporation_ids)
         .await;
 
     assert!(result.is_err());

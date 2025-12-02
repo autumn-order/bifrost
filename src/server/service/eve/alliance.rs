@@ -21,11 +21,8 @@ impl<'a> AllianceService<'a> {
         Self { db, esi_client }
     }
 
-    /// Updates information for provided alliance ID from ESI
-    pub async fn update_alliance(
-        &self,
-        alliance_id: i64,
-    ) -> Result<entity::eve_alliance::Model, Error> {
+    /// Upserts information for provided alliance ID from ESI
+    pub async fn upsert(&self, alliance_id: i64) -> Result<entity::eve_alliance::Model, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();

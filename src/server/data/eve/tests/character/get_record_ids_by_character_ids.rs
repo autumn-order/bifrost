@@ -2,7 +2,7 @@ use super::*;
 
 /// Expect Ok with correct mappings when characters exist in database
 #[tokio::test]
-async fn returns_entry_ids_for_existing_characters() -> Result<(), TestError> {
+async fn returns_record_ids_for_existing_characters() -> Result<(), TestError> {
     let mut test = test_setup_with_tables!(
         entity::prelude::EveFaction,
         entity::prelude::EveAlliance,
@@ -20,25 +20,25 @@ async fn returns_entry_ids_for_existing_characters() -> Result<(), TestError> {
         character_3.character_id,
     ];
     let result = character_repo
-        .get_entry_ids_by_character_ids(&character_ids)
+        .get_record_ids_by_character_ids(&character_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 3);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 3);
 
     // Verify the mappings are correct
     let mut found_ids = std::collections::HashSet::new();
-    for (entry_id, character_id) in entry_ids {
+    for (record_id, character_id) in record_ids {
         match character_id {
             _ if character_id == character_1.character_id => {
-                assert_eq!(entry_id, character_1.id);
+                assert_eq!(record_id, character_1.id);
             }
             _ if character_id == character_2.character_id => {
-                assert_eq!(entry_id, character_2.id);
+                assert_eq!(record_id, character_2.id);
             }
             _ if character_id == character_3.character_id => {
-                assert_eq!(entry_id, character_3.id);
+                assert_eq!(record_id, character_3.id);
             }
             _ => panic!("Unexpected character_id: {}", character_id),
         }
@@ -62,12 +62,12 @@ async fn returns_empty_for_nonexistent_characters() -> Result<(), TestError> {
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids = vec![1, 2, 3];
     let result = character_repo
-        .get_entry_ids_by_character_ids(&character_ids)
+        .get_record_ids_by_character_ids(&character_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 0);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 0);
 
     Ok(())
 }
@@ -85,12 +85,12 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids: Vec<i64> = vec![];
     let result = character_repo
-        .get_entry_ids_by_character_ids(&character_ids)
+        .get_record_ids_by_character_ids(&character_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 0);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 0);
 
     Ok(())
 }
@@ -115,22 +115,22 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
         888, // Non-existent
     ];
     let result = character_repo
-        .get_entry_ids_by_character_ids(&character_ids)
+        .get_record_ids_by_character_ids(&character_ids)
         .await;
 
     assert!(result.is_ok());
-    let entry_ids = result.unwrap();
-    assert_eq!(entry_ids.len(), 2);
+    let record_ids = result.unwrap();
+    assert_eq!(record_ids.len(), 2);
 
     // Verify only existing characters are returned
-    for (entry_id, character_id) in entry_ids {
+    for (record_id, character_id) in record_ids {
         assert!(
             character_id == character_1.character_id || character_id == character_3.character_id
         );
         if character_id == character_1.character_id {
-            assert_eq!(entry_id, character_1.id);
+            assert_eq!(record_id, character_1.id);
         } else if character_id == character_3.character_id {
-            assert_eq!(entry_id, character_3.id);
+            assert_eq!(record_id, character_3.id);
         }
     }
 
@@ -145,7 +145,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids = vec![1, 2, 3];
     let result = character_repo
-        .get_entry_ids_by_character_ids(&character_ids)
+        .get_record_ids_by_character_ids(&character_ids)
         .await;
 
     assert!(result.is_err());

@@ -1,4 +1,4 @@
-mod get_entry_ids_by_character_ids;
+mod get_record_ids_by_character_ids;
 mod update_affiliations;
 mod upsert_many;
 

@@ -56,7 +56,7 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
             .await
     }
 
-    pub async fn get_entry_ids_by_alliance_ids(
+    pub async fn get_record_ids_by_alliance_ids(
         &self,
         alliance_ids: &[i64],
     ) -> Result<Vec<(i32, i64)>, DbErr> {
@@ -160,12 +160,12 @@ mod tests {
         }
     }
 
-    mod get_entry_ids_by_alliance_ids {
+    mod get_record_ids_by_alliance_ids {
         use super::*;
 
         /// Expect Ok with correct mappings when alliances exist in database
         #[tokio::test]
-        async fn returns_entry_ids_for_existing_alliances() -> Result<(), TestError> {
+        async fn returns_record_ids_for_existing_alliances() -> Result<(), TestError> {
             let mut test =
                 test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
             let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -179,25 +179,25 @@ mod tests {
                 alliance_3.alliance_id,
             ];
             let result = alliance_repo
-                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .get_record_ids_by_alliance_ids(&alliance_ids)
                 .await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 3);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 3);
 
             // Verify the mappings are correct
             let mut found_ids = std::collections::HashSet::new();
-            for (entry_id, alliance_id) in entry_ids {
+            for (record_id, alliance_id) in record_ids {
                 match alliance_id {
                     _ if alliance_id == alliance_1.alliance_id => {
-                        assert_eq!(entry_id, alliance_1.id);
+                        assert_eq!(record_id, alliance_1.id);
                     }
                     _ if alliance_id == alliance_2.alliance_id => {
-                        assert_eq!(entry_id, alliance_2.id);
+                        assert_eq!(record_id, alliance_2.id);
                     }
                     _ if alliance_id == alliance_3.alliance_id => {
-                        assert_eq!(entry_id, alliance_3.id);
+                        assert_eq!(record_id, alliance_3.id);
                     }
                     _ => panic!("Unexpected alliance_id: {}", alliance_id),
                 }
@@ -217,12 +217,12 @@ mod tests {
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];
             let result = alliance_repo
-                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .get_record_ids_by_alliance_ids(&alliance_ids)
                 .await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 0);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 0);
 
             Ok(())
         }
@@ -236,12 +236,12 @@ mod tests {
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids: Vec<i64> = vec![];
             let result = alliance_repo
-                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .get_record_ids_by_alliance_ids(&alliance_ids)
                 .await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 0);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 0);
 
             Ok(())
         }
@@ -262,22 +262,22 @@ mod tests {
                 888, // Non-existent
             ];
             let result = alliance_repo
-                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .get_record_ids_by_alliance_ids(&alliance_ids)
                 .await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 2);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 2);
 
             // Verify only existing alliances are returned
-            for (entry_id, alliance_id) in entry_ids {
+            for (record_id, alliance_id) in record_ids {
                 assert!(
                     alliance_id == alliance_1.alliance_id || alliance_id == alliance_3.alliance_id
                 );
                 if alliance_id == alliance_1.alliance_id {
-                    assert_eq!(entry_id, alliance_1.id);
+                    assert_eq!(record_id, alliance_1.id);
                 } else if alliance_id == alliance_3.alliance_id {
-                    assert_eq!(entry_id, alliance_3.id);
+                    assert_eq!(record_id, alliance_3.id);
                 }
             }
 
@@ -292,7 +292,7 @@ mod tests {
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];
             let result = alliance_repo
-                .get_entry_ids_by_alliance_ids(&alliance_ids)
+                .get_record_ids_by_alliance_ids(&alliance_ids)
                 .await;
 
             assert!(result.is_err());

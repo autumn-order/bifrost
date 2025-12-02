@@ -58,7 +58,7 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
-    pub async fn get_entry_ids_by_faction_ids(
+    pub async fn get_record_ids_by_faction_ids(
         &self,
         faction_ids: &[i64],
     ) -> Result<Vec<(i32, i64)>, DbErr> {
@@ -131,12 +131,12 @@ mod tests {
         }
     }
 
-    mod get_entry_ids_by_faction_ids {
+    mod get_record_ids_by_faction_ids {
         use super::*;
 
         /// Expect Ok with correct mappings when factions exist in database
         #[tokio::test]
-        async fn returns_entry_ids_for_existing_factions() -> Result<(), TestError> {
+        async fn returns_record_ids_for_existing_factions() -> Result<(), TestError> {
             let mut test = test_setup_with_tables!(entity::prelude::EveFaction)?;
             let faction_1 = test.eve().insert_mock_faction(1).await?;
             let faction_2 = test.eve().insert_mock_faction(2).await?;
@@ -148,24 +148,24 @@ mod tests {
                 faction_2.faction_id,
                 faction_3.faction_id,
             ];
-            let result = repo.get_entry_ids_by_faction_ids(&faction_ids).await;
+            let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 3);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 3);
 
             // Verify the mappings are correct
             let mut found_ids = std::collections::HashSet::new();
-            for (entry_id, faction_id) in entry_ids {
+            for (record_id, faction_id) in record_ids {
                 match faction_id {
                     _ if faction_id == faction_1.faction_id => {
-                        assert_eq!(entry_id, faction_1.id);
+                        assert_eq!(record_id, faction_1.id);
                     }
                     _ if faction_id == faction_2.faction_id => {
-                        assert_eq!(entry_id, faction_2.id);
+                        assert_eq!(record_id, faction_2.id);
                     }
                     _ if faction_id == faction_3.faction_id => {
-                        assert_eq!(entry_id, faction_3.id);
+                        assert_eq!(record_id, faction_3.id);
                     }
                     _ => panic!("Unexpected faction_id: {}", faction_id),
                 }
@@ -183,11 +183,11 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
             let faction_ids = vec![1, 2, 3];
-            let result = repo.get_entry_ids_by_faction_ids(&faction_ids).await;
+            let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 0);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 0);
 
             Ok(())
         }
@@ -199,11 +199,11 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
             let faction_ids: Vec<i64> = vec![];
-            let result = repo.get_entry_ids_by_faction_ids(&faction_ids).await;
+            let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 0);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 0);
 
             Ok(())
         }
@@ -222,19 +222,19 @@ mod tests {
                 faction_3.faction_id,
                 888, // Non-existent
             ];
-            let result = repo.get_entry_ids_by_faction_ids(&faction_ids).await;
+            let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
             assert!(result.is_ok());
-            let entry_ids = result.unwrap();
-            assert_eq!(entry_ids.len(), 2);
+            let record_ids = result.unwrap();
+            assert_eq!(record_ids.len(), 2);
 
             // Verify only existing factions are returned
-            for (entry_id, faction_id) in entry_ids {
+            for (record_id, faction_id) in record_ids {
                 assert!(faction_id == faction_1.faction_id || faction_id == faction_3.faction_id);
                 if faction_id == faction_1.faction_id {
-                    assert_eq!(entry_id, faction_1.id);
+                    assert_eq!(record_id, faction_1.id);
                 } else if faction_id == faction_3.faction_id {
-                    assert_eq!(entry_id, faction_3.id);
+                    assert_eq!(record_id, faction_3.id);
                 }
             }
 
@@ -248,7 +248,7 @@ mod tests {
 
             let repo = FactionRepository::new(&test.state.db);
             let faction_ids = vec![1, 2, 3];
-            let result = repo.get_entry_ids_by_faction_ids(&faction_ids).await;
+            let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
             assert!(result.is_err());
 

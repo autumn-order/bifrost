@@ -47,7 +47,7 @@ impl<'a> UserService<'a> {
             Box::pin(async move {
                 let user_repo = UserRepository::new(&db);
 
-                match user_repo.get(user_id).await? {
+                match user_repo.get_by_id(user_id).await? {
                     None => return Ok(None),
                     Some((user, maybe_main_character)) => {
                         let main_character = maybe_main_character.ok_or_else(|| {

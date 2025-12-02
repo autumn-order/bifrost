@@ -21,11 +21,8 @@ impl<'a> CharacterService<'a> {
         Self { db, esi_client }
     }
 
-    /// Updates information for provided character ID from ESI
-    pub async fn update_character(
-        &self,
-        character_id: i64,
-    ) -> Result<entity::eve_character::Model, Error> {
+    /// Upserts information for provided character ID from ESI
+    pub async fn upsert(&self, character_id: i64) -> Result<entity::eve_character::Model, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();
