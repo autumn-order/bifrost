@@ -63,7 +63,7 @@ impl<'a> UserService<'a> {
                 let user_repo = UserRepository::new(&db);
 
                 match user_repo.get_by_id(user_id).await? {
-                    None => return Ok(None),
+                    None => Ok(None),
                     Some((user, maybe_main_character)) => {
                         let main_character = maybe_main_character.ok_or_else(|| {
                             // Would only occur if the foreign key constraint requiring main character to exist in

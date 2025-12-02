@@ -173,7 +173,7 @@ impl<'a> UserCharacterService<'a> {
 
         // Use link_character method to update ownership to provided user ID
         let ownership =
-            Self::link_character(&txn, character_record_id, to_user_id, &owner_hash).await?;
+            Self::link_character(txn, character_record_id, to_user_id, owner_hash).await?;
 
         // Handle main character change if:
         // 1. Character is being transferred to a different user

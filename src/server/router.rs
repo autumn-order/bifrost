@@ -64,7 +64,5 @@ pub fn routes() -> Router<AppState> {
         .routes(routes!(controller::user::get_user_characters))
         .split_for_parts();
 
-    let routes = routes.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api));
-
-    routes
+    routes.merge(SwaggerUi::new("/api/docs").url("/api/docs/openapi.json", api))
 }

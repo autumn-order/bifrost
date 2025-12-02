@@ -82,15 +82,10 @@ impl TrackedTransaction {
     pub async fn commit(self) -> Result<(), sea_orm::DbErr> {
         self.txn.commit().await
     }
+}
 
-    /// Gets a reference to the underlying database transaction.
-    ///
-    /// This allows the tracked transaction to be passed to repository methods
-    /// and other database operations that require a transaction reference.
-    ///
-    /// # Returns
-    /// Reference to the underlying `DatabaseTransaction`
-    pub fn as_ref(&self) -> &DatabaseTransaction {
+impl AsRef<DatabaseTransaction> for TrackedTransaction {
+    fn as_ref(&self) -> &DatabaseTransaction {
         &self.txn
     }
 }

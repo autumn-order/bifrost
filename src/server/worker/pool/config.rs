@@ -55,7 +55,7 @@ impl WorkerPoolConfig {
     pub fn new(max_concurrent_jobs: usize) -> Self {
         // Scale dispatchers: 1 per 40 concurrent jobs, minimum 1
         // Use ceiling division to ensure no more than 40 jobs per dispatcher
-        let dispatcher_count = ((max_concurrent_jobs + 39) / 40).max(1);
+        let dispatcher_count = max_concurrent_jobs.div_ceil(40).max(1);
 
         Self {
             max_concurrent_jobs,

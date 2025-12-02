@@ -51,16 +51,14 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
         user_id: i32,
         owner_hash: String,
     ) -> Result<entity::bifrost_user_character::Model, DbErr> {
-        Ok(entity::prelude::BifrostUserCharacter::insert(
-            entity::bifrost_user_character::ActiveModel {
-                user_id: ActiveValue::Set(user_id),
-                character_id: ActiveValue::Set(character_id),
-                owner_hash: ActiveValue::Set(owner_hash),
-                created_at: ActiveValue::Set(Utc::now().naive_utc()),
-                updated_at: ActiveValue::Set(Utc::now().naive_utc()),
-                ..Default::default()
-            },
-        )
+        entity::prelude::BifrostUserCharacter::insert(entity::bifrost_user_character::ActiveModel {
+            user_id: ActiveValue::Set(user_id),
+            character_id: ActiveValue::Set(character_id),
+            owner_hash: ActiveValue::Set(owner_hash),
+            created_at: ActiveValue::Set(Utc::now().naive_utc()),
+            updated_at: ActiveValue::Set(Utc::now().naive_utc()),
+            ..Default::default()
+        })
         .on_conflict(
             OnConflict::column(entity::bifrost_user_character::Column::CharacterId)
                 .update_columns([
@@ -71,7 +69,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
                 .to_owned(),
         )
         .exec_with_returning(self.db)
-        .await?)
+        .await
     }
 
     /// Retrieves the character ownership record by the character's internal database ID.
@@ -187,7 +185,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 
         let corporation_ids: Vec<i32> = user_characters
             .iter()
-            .filter_map(|(_, eve_char)| eve_char.as_ref().and_then(|c| Some(c.corporation_id)))
+            .filter_map(|(_, eve_char)| eve_char.as_ref().map(|c| c.corporation_id))
             .collect();
 
         let corporations: std::collections::HashMap<

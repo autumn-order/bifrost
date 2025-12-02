@@ -104,7 +104,7 @@ impl WorkerQueue {
         Self {
             inner: Arc::new(WorkerQueueRef {
                 pool,
-                config: config,
+                config,
                 cleanup_task_handle: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
                 shutdown_flag: std::sync::Arc::new(AtomicBool::new(false)),
             }),

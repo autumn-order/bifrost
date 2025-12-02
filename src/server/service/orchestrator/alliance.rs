@@ -195,7 +195,7 @@ impl<'a> AllianceOrchestrator<'a> {
 
         // Ensure the alliance's faction exists in database else fetch it for persistence later
         if let Some(faction_id) = fetched_alliance.faction_id {
-            let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
 
             faction_orch
                 .ensure_factions_exist(vec![faction_id], cache)
@@ -296,7 +296,7 @@ impl<'a> AllianceOrchestrator<'a> {
         // Ensure the faction IDs for the alliances exists in the database, else the faction
         // orchestrator will attempt to fetch updated factions from ESI if the factions
         // we have currently stored are out of date
-        let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+        let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
         faction_orch
             .ensure_factions_exist(faction_ids, cache)
             .await?;
@@ -358,7 +358,7 @@ impl<'a> AllianceOrchestrator<'a> {
         }
 
         // Persist factions if any were fetched
-        let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+        let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
         faction_orch.persist_cached_factions(txn, cache).await?;
 
         // Get the DB IDs for factions to map to alliances

@@ -64,6 +64,19 @@ pub struct RetryContext<T> {
     initial_backoff_secs: u64,
 }
 
+impl<T> Default for RetryContext<T>
+where
+    T: Clone + Default,
+{
+    fn default() -> Self {
+        Self {
+            cache: T::default(),
+            max_attempts: Self::DEFAULT_MAX_ATTEMPTS,
+            initial_backoff_secs: Self::DEFAULT_INITIAL_BACKOFF_SECS,
+        }
+    }
+}
+
 impl<T> RetryContext<T>
 where
     T: Clone + Default,
@@ -79,11 +92,7 @@ where
     /// # Returns
     /// - `RetryContext<T>` - New retry context with default settings
     pub fn new() -> Self {
-        Self {
-            cache: T::default(),
-            max_attempts: Self::DEFAULT_MAX_ATTEMPTS,
-            initial_backoff_secs: Self::DEFAULT_INITIAL_BACKOFF_SECS,
-        }
+        Self::default()
     }
 
     /// Executes an operation with automatic retry logic and exponential backoff.
