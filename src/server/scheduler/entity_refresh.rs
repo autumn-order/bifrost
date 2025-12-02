@@ -179,7 +179,7 @@ impl<'a> EntityRefreshTracker<'a> {
                     }
                 }
                 Err(e) => {
-                    return Err(e.into());
+                    return Err(e);
                 }
             }
         }

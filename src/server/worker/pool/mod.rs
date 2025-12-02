@@ -63,7 +63,7 @@ impl WorkerPool {
             inner: Arc::new(WorkerPoolRef {
                 config,
                 handler: Arc::new(handler),
-                queue: queue,
+                queue,
                 semaphore,
                 shutdown,
                 dispatcher_handles: Arc::new(RwLock::new(Vec::new())),

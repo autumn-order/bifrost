@@ -200,7 +200,7 @@ impl<'a> CorporationOrchestrator<'a> {
 
         // Ensure the corporation's alliance exists in database else fetch it for persistence later
         if let Some(alliance_id) = fetched_corporation.alliance_id {
-            let alliance_orch = AllianceOrchestrator::new(&self.db, &self.esi_client);
+            let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
 
             alliance_orch
                 .ensure_alliances_exist(vec![alliance_id], cache)
@@ -209,7 +209,7 @@ impl<'a> CorporationOrchestrator<'a> {
 
         // Ensure the corporation's faction exists in database else fetch it for persistence later
         if let Some(faction_id) = fetched_corporation.faction_id {
-            let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
 
             faction_orch
                 .ensure_factions_exist(vec![faction_id], cache)
@@ -310,14 +310,14 @@ impl<'a> CorporationOrchestrator<'a> {
         let alliance_ids = get_corporation_alliance_dependency_ids(&corporations_ref);
 
         if !faction_ids.is_empty() {
-            let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
             faction_orch
                 .ensure_factions_exist(faction_ids, cache)
                 .await?;
         }
 
         if !alliance_ids.is_empty() {
-            let alliance_orch = AllianceOrchestrator::new(&self.db, &self.esi_client);
+            let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
             alliance_orch
                 .ensure_alliances_exist(alliance_ids, cache)
                 .await?;
@@ -381,11 +381,11 @@ impl<'a> CorporationOrchestrator<'a> {
         }
 
         // Persist factions if any were fetched
-        let faction_orch = FactionOrchestrator::new(&self.db, &self.esi_client);
+        let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
         faction_orch.persist_cached_factions(txn, cache).await?;
 
         // Persist alliances if any were fetched
-        let alliance_orch = AllianceOrchestrator::new(&self.db, &self.esi_client);
+        let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
         alliance_orch.persist_cached_alliances(txn, cache).await?;
 
         let corporations_ref: Vec<&Corporation> = corporations_to_persist

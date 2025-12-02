@@ -188,7 +188,7 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
     //
     // This avoids a 500 internal error response that occurs when trying
     // to clear sessions which don't exist
-    if let Some(_) = maybe_user_id {
+    if maybe_user_id.is_some() {
         session.clear().await;
     }
 

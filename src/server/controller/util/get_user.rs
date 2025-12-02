@@ -35,7 +35,7 @@ use crate::{
 /// - `Err(Error)` - Database query failure or session retrieval error
 pub async fn get_user_from_session(state: &AppState, session: &Session) -> Result<UserDto, Error> {
     // Get user from session
-    let Some(user_id) = SessionUserId::get(&session).await? else {
+    let Some(user_id) = SessionUserId::get(session).await? else {
         return Err(Error::AuthError(AuthError::UserNotInSession));
     };
 

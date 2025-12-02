@@ -51,10 +51,7 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
     ) -> Result<Vec<entity::eve_corporation::Model>, DbErr> {
         let corporations = corporations.into_iter().map(
             |(corporation_id, corporation, alliance_id, faction_id)| {
-                let date_founded = match corporation.date_founded {
-                    Some(date) => Some(date.naive_utc()),
-                    None => None,
-                };
+                let date_founded = corporation.date_founded.map(|date| date.naive_utc());
 
                 entity::eve_corporation::ActiveModel {
                     corporation_id: ActiveValue::Set(corporation_id),

@@ -56,11 +56,7 @@ impl Scheduler {
     /// - `Err(Error)` - Failed to initialize the underlying job scheduler
     pub async fn new(db: DatabaseConnection, queue: WorkerQueue) -> Result<Self, Error> {
         let sched = JobScheduler::new().await?;
-        Ok(Self {
-            db: db,
-            queue: queue,
-            sched,
-        })
+        Ok(Self { db, queue, sched })
     }
 
     /// Registers all scheduled jobs and starts the scheduler.

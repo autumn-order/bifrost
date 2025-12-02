@@ -116,7 +116,7 @@ impl Config {
         );
 
         Ok(Self {
-            contact_email: contact_email,
+            contact_email,
             esi_client_id: std::env::var("ESI_CLIENT_ID")
                 .map_err(|_| ConfigError::MissingEnvVar("ESI_CLIENT_ID".to_string()))?,
             esi_client_secret: std::env::var("ESI_CLIENT_SECRET")

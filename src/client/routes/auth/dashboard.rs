@@ -11,7 +11,7 @@ use crate::{
 
 #[component]
 pub fn Dashboard() -> Element {
-    let mut characters = use_signal(|| Vec::<CharacterDto>::new());
+    let mut characters = use_signal(Vec::<CharacterDto>::new);
 
     // Retrieve user characters on component load
     #[cfg(feature = "web")]
