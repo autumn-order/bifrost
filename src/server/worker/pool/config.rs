@@ -1,6 +1,16 @@
+//! Worker pool configuration for concurrency and timing control.
+//!
+//! This module provides the `WorkerPoolConfig` struct for configuring worker pool
+//! behavior including concurrency limits, polling intervals, timeouts, and cleanup
+//! settings. The configuration includes automatic dispatcher scaling based on concurrency.
+
 use std::time::Duration;
 
-/// Configuration for the worker pool
+/// Configuration for the worker pool.
+///
+/// Defines all timing and concurrency parameters for the worker pool including job
+/// limits, dispatcher count, polling behavior, timeouts, and cleanup intervals.
+/// Provides sensible defaults optimized for production use.
 #[derive(Debug, Clone)]
 pub struct WorkerPoolConfig {
     /// Maximum concurrent jobs that can be processed simultaneously.
@@ -32,10 +42,16 @@ pub struct WorkerPoolConfig {
 }
 
 impl WorkerPoolConfig {
-    /// Create a new configuration with sensible defaults
+    /// Creates a new configuration with sensible defaults.
+    ///
+    /// Initializes pool configuration with production-ready defaults and automatically
+    /// calculates the optimal dispatcher count (1 per 40 concurrent jobs, minimum 1).
     ///
     /// # Arguments
-    /// * `max_concurrent_jobs` - Maximum concurrent jobs (~80% of DB pool size)
+    /// - `max_concurrent_jobs` - Maximum concurrent jobs (~80% of DB pool size)
+    ///
+    /// # Returns
+    /// - `WorkerPoolConfig` - New configuration with calculated dispatcher count and default timings
     pub fn new(max_concurrent_jobs: usize) -> Self {
         // Scale dispatchers: 1 per 40 concurrent jobs, minimum 1
         // Use ceiling division to ensure no more than 40 jobs per dispatcher
@@ -51,22 +67,42 @@ impl WorkerPoolConfig {
         }
     }
 
-    /// Get job timeout as Duration
+    /// Gets the job timeout as Duration.
+    ///
+    /// Converts the job_timeout_seconds field to a Duration for use with tokio timeout.
+    ///
+    /// # Returns
+    /// - `Duration` - Job timeout duration
     pub fn job_timeout(&self) -> Duration {
         Duration::from_secs(self.job_timeout_seconds)
     }
 
-    /// Get poll interval as Duration
+    /// Gets the poll interval as Duration.
+    ///
+    /// Converts the poll_interval_ms field to a Duration for use with tokio sleep.
+    ///
+    /// # Returns
+    /// - `Duration` - Poll interval duration
     pub fn poll_interval(&self) -> Duration {
         Duration::from_millis(self.poll_interval_ms)
     }
 
-    /// Get shutdown timeout as Duration
+    /// Gets the shutdown timeout as Duration.
+    ///
+    /// Converts the shutdown_timeout_seconds field to a Duration for graceful shutdown.
+    ///
+    /// # Returns
+    /// - `Duration` - Shutdown timeout duration
     pub fn shutdown_timeout(&self) -> Duration {
         Duration::from_secs(self.shutdown_timeout_seconds)
     }
 
-    /// Get cleanup interval as Duration
+    /// Gets the cleanup interval as Duration.
+    ///
+    /// Converts the cleanup_interval_ms field to a Duration for periodic cleanup task.
+    ///
+    /// # Returns
+    /// - `Duration` - Cleanup interval duration
     pub fn cleanup_interval(&self) -> Duration {
         Duration::from_millis(self.cleanup_interval_ms)
     }

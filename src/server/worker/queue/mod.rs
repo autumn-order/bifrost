@@ -67,11 +67,30 @@ pub struct WorkerQueueRef {
 }
 
 impl WorkerQueue {
+    /// Creates a new worker queue with default configuration.
+    ///
+    /// Initializes a queue with default queue name, 1-hour job TTL, and 5-minute cleanup interval.
+    ///
+    /// # Arguments
+    /// - `pool` - Redis connection pool for queue storage
+    ///
+    /// # Returns
+    /// - `WorkerQueue` - New queue instance with default configuration
     pub fn new(pool: Pool) -> Self {
         Self::with_config(pool, WorkerQueueConfig::default())
     }
 
-    /// Create a new WorkerJobQueue with a custom queue name (useful for testing)
+    /// Creates a new worker queue with custom configuration.
+    ///
+    /// Initializes a queue with custom settings for queue name, job TTL, and cleanup interval.
+    /// Useful for testing with custom queue names or different TTL values.
+    ///
+    /// # Arguments
+    /// - `pool` - Redis connection pool for queue storage
+    /// - `config` - Custom queue configuration
+    ///
+    /// # Returns
+    /// - `WorkerQueue` - New queue instance with custom configuration
     pub fn with_config(pool: Pool, config: WorkerQueueConfig) -> Self {
         Self {
             inner: Arc::new(WorkerQueueRef {
@@ -83,13 +102,14 @@ impl WorkerQueue {
         }
     }
 
-    /// Start the background cleanup task for periodic removal of stale jobs
+    /// Starts the background cleanup task for periodic removal of stale jobs.
     ///
-    /// This task runs every CLEANUP_INTERVAL_MS and removes jobs older than JOB_TTL_MS.
-    /// The task will stop when [`Self::stop_cleanup`] is called or the queue is dropped.
+    /// Spawns a tokio task that runs every cleanup_interval to remove jobs older than
+    /// the configured job_ttl. The task respects the shutdown flag and exits cleanly.
+    /// This method is idempotent - calling it when already running has no effect.
     ///
-    /// This method is idempotent - calling it multiple times has no effect if cleanup
-    /// is already running.
+    /// # Note
+    /// The task will stop when `stop_cleanup()` is called or the queue is dropped.
     pub async fn start_cleanup(&self) {
         let mut handle = self.inner.cleanup_task_handle.write().await;
 
@@ -140,10 +160,10 @@ impl WorkerQueue {
         *handle = Some(task_handle);
     }
 
-    /// Stop the background cleanup task gracefully
+    /// Stops the background cleanup task gracefully.
     ///
-    /// This method signals the cleanup task to stop and waits for it to complete.
-    /// It is safe to call even if the cleanup task is not running.
+    /// Signals the cleanup task to stop and waits for it to complete. Resets the shutdown
+    /// flag for potential restart. Safe to call even if the cleanup task is not running.
     pub async fn stop_cleanup(&self) {
         // Signal shutdown
         self.inner.shutdown_flag.store(true, Ordering::Relaxed);
@@ -172,22 +192,29 @@ impl WorkerQueue {
         self.inner.shutdown_flag.store(false, Ordering::Relaxed);
     }
 
-    /// Check if the cleanup task is currently running
+    /// Checks if the cleanup task is currently running.
+    ///
+    /// # Returns
+    /// - `true` - Cleanup task is active
+    /// - `false` - Cleanup task is stopped
     pub async fn is_cleanup_running(&self) -> bool {
         let handle = self.inner.cleanup_task_handle.read().await;
         handle.is_some()
     }
 
-    /// Push a job to be executed as soon as possible
+    /// Pushes a job to be executed as soon as possible.
     ///
-    /// Uses a Lua script to atomically check for duplicates and add the job to the queue.
-    /// Jobs with the same serialized JSON representation will not be added if they already exist in the queue.
+    /// Uses a Lua script to atomically check for duplicates and add the job to the queue
+    /// with current timestamp. Jobs with identical serialized JSON are deduplicated.
+    ///
+    /// # Arguments
+    /// - `job` - Worker job to add to the queue
     ///
     /// # Returns
-    ///
-    /// Returns `Ok(true)` if the job was added to the queue.
-    /// Returns `Ok(false)` if a duplicate already exists in the queue.
-    /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
+    /// - `Ok(true)` - Job was added to the queue
+    /// - `Ok(false)` - Duplicate already exists in the queue
+    /// - `Err(Error::WorkerError)` - Serialization failed
+    /// - `Err(Error)` - Redis communication failed
     pub async fn push(&self, job: WorkerJob) -> Result<bool, Error> {
         let serialized = serde_json::to_string(&job)
             .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
@@ -211,16 +238,20 @@ impl WorkerQueue {
         Ok(was_added)
     }
 
-    /// Schedule job to be executed at provided time
+    /// Schedules a job to be executed at a specific time.
     ///
-    /// Uses a Lua script to atomically check for duplicates and add the job to the queue.
-    /// Jobs with the same serialized JSON representation will not be added if they already exist in the queue.
+    /// Uses a Lua script to atomically check for duplicates and add the job to the queue
+    /// with the specified timestamp. Jobs with identical serialized JSON are deduplicated.
+    ///
+    /// # Arguments
+    /// - `job` - Worker job to add to the queue
+    /// - `time` - UTC timestamp when the job should be executed
     ///
     /// # Returns
-    ///
-    /// Returns `Ok(true)` if the job was added to the queue.
-    /// Returns `Ok(false)` if a duplicate already exists in the queue.
-    /// Returns `Err` on Redis communication errors, serialization errors, or validation errors.
+    /// - `Ok(true)` - Job was added to the queue
+    /// - `Ok(false)` - Duplicate already exists in the queue
+    /// - `Err(Error::WorkerError)` - Serialization failed
+    /// - `Err(Error)` - Redis communication failed
     pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, Error> {
         let serialized = serde_json::to_string(&job)
             .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
@@ -244,16 +275,16 @@ impl WorkerQueue {
         Ok(was_added)
     }
 
-    /// Retrieve earliest job from queue
+    /// Retrieves the earliest due job from the queue.
     ///
     /// Uses a Lua script to atomically retrieve and remove the job with the lowest score
-    /// (earliest timestamp) from the sorted set.
+    /// (earliest timestamp) that is due for execution (score <= current time).
     ///
     /// # Returns
-    ///
-    /// Returns `Ok(Some(WorkerJob))` if a job was popped from the queue.
-    /// Returns `Ok(None)` if the queue is empty.
-    /// Returns `Err` on Redis communication errors or deserialization errors.
+    /// - `Ok(Some(WorkerJob))` - Job was popped from the queue
+    /// - `Ok(None)` - Queue is empty or no jobs are due yet
+    /// - `Err(Error::WorkerError)` - Deserialization failed
+    /// - `Err(Error)` - Redis communication failed
     pub async fn pop(&self) -> Result<Option<WorkerJob>, Error> {
         // Execute Lua script to atomically pop earliest job that is due
         let now = Utc::now().timestamp_millis();
@@ -288,18 +319,30 @@ impl WorkerQueue {
         }
     }
 
-    /// Remove all jobs older than JOB_TTL_MS from the queue
+    /// Removes all jobs older than the configured TTL from the queue.
     ///
-    /// This method is called automatically by the background cleanup task every
-    /// CLEANUP_INTERVAL_MS, but can also be called manually for immediate cleanup.
+    /// This method is called automatically by the background cleanup task at regular
+    /// intervals, but can also be called manually for immediate cleanup.
     ///
     /// # Returns
-    /// Returns the number of stale jobs that were removed from the queue.
+    /// - `Ok(u64)` - Number of stale jobs removed from the queue
+    /// - `Err(Error)` - Redis communication failed
     pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
         Self::cleanup_stale_jobs_internal(&self.inner.config, &self.inner.pool).await
     }
 
-    /// Internal implementation of cleanup that can be called from the background task
+    /// Internal implementation of cleanup that can be called from the background task.
+    ///
+    /// Performs the actual cleanup logic using Redis Lua script to remove stale jobs.
+    /// This is separated from the public method to allow both manual and automatic cleanup.
+    ///
+    /// # Arguments
+    /// - `config` - Queue configuration with TTL settings
+    /// - `pool` - Redis connection pool
+    ///
+    /// # Returns
+    /// - `Ok(u64)` - Number of stale jobs removed
+    /// - `Err(Error)` - Redis operation failed
     async fn cleanup_stale_jobs_internal(
         config: &WorkerQueueConfig,
         pool: &Pool,

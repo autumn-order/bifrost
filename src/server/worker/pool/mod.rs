@@ -1,3 +1,9 @@
+//! Worker pool for processing background jobs with concurrency control.
+//!
+//! This module provides the `WorkerPool` that manages dispatcher tasks, job execution,
+//! and concurrency limits using semaphores. The pool polls Redis for jobs and spawns
+//! tasks to process them with configurable timeout and shutdown behavior.
+
 mod config;
 
 pub use config::WorkerPoolConfig;
@@ -12,10 +18,10 @@ use tokio::task::JoinHandle;
 use crate::server::worker::handler::WorkerJobHandler;
 use crate::server::{error::Error, worker::queue::WorkerQueue};
 
-/// Worker pool for processing jobs from the WorkerJobQueue
+/// Worker pool for processing jobs from the WorkerQueue.
 ///
-/// Simple implementation that spawns dispatcher tasks to poll Redis and
-/// process jobs with semaphore-based concurrency control.
+/// Manages multiple dispatcher tasks that poll Redis for jobs and spawn execution tasks
+/// with semaphore-based concurrency control. Provides graceful shutdown and monitoring.
 #[derive(Clone)]
 pub struct WorkerPool {
     inner: Arc<WorkerPoolRef>,
@@ -32,13 +38,18 @@ pub struct WorkerPoolRef {
 }
 
 impl WorkerPool {
-    /// Create a new worker pool
+    /// Creates a new worker pool.
+    ///
+    /// Initializes a worker pool with the specified configuration, job queue, and handler.
+    /// The pool is created in a stopped state and must be started with `start()`.
     ///
     /// # Arguments
-    /// - `config`: Configuration including max concurrent jobs and dispatcher settings
-    /// - `db`: Database connection pool (shared across all job tasks)
-    /// - `esi_client`: EVE ESI API client (shared across all job tasks)
-    /// - `queue`: Redis-backed job queue
+    /// - `config` - Configuration including max concurrent jobs and dispatcher settings
+    /// - `queue` - Redis-backed job queue for fetching jobs
+    /// - `handler` - Job handler for executing different job types
+    ///
+    /// # Returns
+    /// - `WorkerPool` - New worker pool ready to start
     pub fn new(config: WorkerPoolConfig, queue: WorkerQueue, handler: WorkerJobHandler) -> Self {
         let semaphore = Arc::new(Semaphore::new(config.max_concurrent_jobs));
         let shutdown = Arc::new(Notify::new());
@@ -55,13 +66,18 @@ impl WorkerPool {
         }
     }
 
-    /// Start the worker pool
+    /// Starts the worker pool.
     ///
-    /// Spawns the configured number of dispatcher tasks that poll Redis for jobs
-    /// and spawn tasks to process them, with the semaphore controlling maximum
-    /// concurrency.
+    /// Spawns the configured number of dispatcher tasks that poll Redis for jobs and
+    /// spawn execution tasks. The semaphore controls maximum concurrency. Also starts
+    /// the queue cleanup task for removing stale jobs.
     ///
     /// This method is non-blocking and returns immediately after spawning dispatchers.
+    /// It is idempotent - calling it when already running logs a warning and returns Ok.
+    ///
+    /// # Returns
+    /// - `Ok(())` - Pool started successfully (or already running)
+    /// - `Err(Error)` - Failed to start pool
     pub async fn start(&self) -> Result<(), Error> {
         let mut handles = self.inner.dispatcher_handles.write().await;
 
@@ -93,7 +109,16 @@ impl WorkerPool {
         Ok(())
     }
 
-    /// Spawn a single dispatcher task
+    /// Spawns a single dispatcher task.
+    ///
+    /// Creates a tokio task that continuously polls the queue for jobs and spawns
+    /// execution tasks. The dispatcher respects shutdown signals and exits cleanly.
+    ///
+    /// # Arguments
+    /// - `id` - Dispatcher identifier for logging
+    ///
+    /// # Returns
+    /// - `JoinHandle<()>` - Handle to the spawned dispatcher task
     fn spawn_dispatcher(&self, id: usize) -> JoinHandle<()> {
         let config = self.inner.config.clone();
         let queue = self.inner.queue.clone();
@@ -131,10 +156,18 @@ impl WorkerPool {
         })
     }
 
-    /// Process jobs from the queue
+    /// Processes jobs from the queue.
     ///
-    /// Polls Redis for a job and spawns a task to process it if one is available.
-    /// Sleeps if the queue is empty or on error.
+    /// Polls Redis for a job and spawns a task to process it if available. Blocks on
+    /// semaphore if at capacity. Sleeps if queue is empty or on error. Returns jobs to
+    /// queue if semaphore is closed (shutting down).
+    ///
+    /// # Arguments
+    /// - `dispatcher_id` - Dispatcher identifier for logging
+    /// - `config` - Pool configuration for timing values
+    /// - `queue` - Job queue to poll
+    /// - `handler` - Job handler for execution
+    /// - `semaphore` - Concurrency limit semaphore
     async fn process_jobs(
         dispatcher_id: usize,
         config: &WorkerPoolConfig,
@@ -178,10 +211,16 @@ impl WorkerPool {
         }
     }
 
-    /// Execute a job with timeout
+    /// Executes a job with timeout.
     ///
-    /// Wraps job execution with timeout to prevent hung jobs.
-    /// The semaphore permit is held until this function completes, limiting concurrency.
+    /// Wraps job execution with timeout to prevent hung jobs. The semaphore permit is
+    /// held until completion, limiting concurrency. Logs success, failure, or timeout.
+    ///
+    /// # Arguments
+    /// - `job` - Worker job to execute
+    /// - `handler` - Job handler for execution
+    /// - `timeout` - Maximum execution time
+    /// - `_permit` - Semaphore permit (held until dropped)
     async fn execute_job(
         job: crate::server::model::worker::WorkerJob,
         handler: Arc<WorkerJobHandler>,
@@ -207,18 +246,22 @@ impl WorkerPool {
         // Permit automatically dropped here, releasing semaphore slot
     }
 
-    /// Stop the worker pool gracefully
+    /// Stops the worker pool gracefully.
     ///
-    /// Signals all dispatchers to stop and waits for them to complete.
-    /// In-flight job-processing tasks will continue to completion naturally.
+    /// Signals all dispatchers to stop, closes the semaphore to prevent new jobs,
+    /// and stops the queue cleanup task. Waits for all dispatchers to shut down with
+    /// a configured timeout. In-flight job-processing tasks continue to completion.
     ///
-    /// This method is idempotent and can be safely called multiple times.
-    /// It blocks until all dispatchers have shut down.
+    /// This method is idempotent - calling it when already stopped returns immediately.
+    /// It blocks until all dispatchers have shut down or timeout is reached.
+    ///
+    /// # Returns
+    /// - `Ok(())` - Pool stopped successfully (or already stopped)
+    /// - `Err(Error)` - Failed to stop pool
     ///
     /// # Note
-    ///
-    /// You should call this method before dropping the WorkerPool to ensure
-    /// clean shutdown. Dropping without calling stop() may leave orphaned tasks.
+    /// Call this method before dropping the WorkerPool to ensure clean shutdown.
+    /// Dropping without calling stop() may leave orphaned tasks.
     pub async fn stop(&self) -> Result<(), Error> {
         // Check if already stopped (idempotent)
         if !self.is_running().await {
@@ -267,34 +310,50 @@ impl WorkerPool {
         Ok(())
     }
 
-    /// Check if the worker pool is running
+    /// Checks if the worker pool is running.
+    ///
+    /// # Returns
+    /// - `true` - Pool has active dispatchers
+    /// - `false` - Pool is stopped
     pub async fn is_running(&self) -> bool {
         let handles = self.inner.dispatcher_handles.read().await;
         !handles.is_empty()
     }
 
-    /// Get the number of active dispatchers
+    /// Gets the number of active dispatchers.
+    ///
+    /// # Returns
+    /// - `usize` - Number of dispatcher tasks currently running
     pub async fn dispatcher_count(&self) -> usize {
         let handles = self.inner.dispatcher_handles.read().await;
         handles.len()
     }
 
-    /// Get the number of available semaphore permits
+    /// Gets the number of available semaphore permits.
     ///
     /// This indicates how many more jobs can be spawned before hitting the
     /// concurrency limit. A value of 0 means the system is at capacity.
+    ///
+    /// # Returns
+    /// - `usize` - Number of available permits (max jobs that can start now)
     pub fn available_permits(&self) -> usize {
         self.inner.semaphore.available_permits()
     }
 
-    /// Get the maximum number of concurrent jobs configured
+    /// Gets the maximum number of concurrent jobs configured.
+    ///
+    /// # Returns
+    /// - `usize` - Maximum concurrent jobs from configuration
     pub fn max_concurrent_jobs(&self) -> usize {
         self.inner.config.max_concurrent_jobs
     }
 
-    /// Get the current number of jobs being processed
+    /// Gets the current number of jobs being processed.
     ///
     /// This is calculated as: max_concurrent_jobs - available_permits
+    ///
+    /// # Returns
+    /// - `usize` - Number of jobs currently executing
     pub fn active_job_count(&self) -> usize {
         self.inner.config.max_concurrent_jobs - self.inner.semaphore.available_permits()
     }
