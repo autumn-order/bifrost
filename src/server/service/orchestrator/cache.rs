@@ -1,3 +1,12 @@
+//! Orchestration cache and transaction tracking for EVE data operations.
+//!
+//! This module provides the unified orchestration cache that serves as the single source of truth
+//! for all EVE entity data during complex operations. It includes transaction tracking to automatically
+//! handle cache invalidation during retry attempts, and utility functions for extracting dependency IDs.
+//!
+//! The cache is designed to prevent duplicate fetching from ESI or database, enable idempotent
+//! persistence across retries, and maintain consistency across multiple orchestrator operations.
+
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 

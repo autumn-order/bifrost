@@ -1,3 +1,9 @@
+//! Corporation orchestrator for EVE Online corporation data operations.
+//!
+//! This module provides the `CorporationOrchestrator` for managing the complete lifecycle of
+//! EVE corporation data including fetching from ESI, dependency resolution, and database persistence.
+//! Corporations have optional foreign key dependencies on alliances and factions.
+
 use std::collections::HashSet;
 
 use dioxus_logger::tracing;
@@ -52,7 +58,16 @@ pub struct CorporationOrchestrator<'a> {
 }
 
 impl<'a> CorporationOrchestrator<'a> {
-    /// Creates a new instance of [`CorporationOrchestrator`]
+    /// Creates a new instance of CorporationOrchestrator.
+    ///
+    /// Constructs an orchestrator for managing EVE corporation data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `CorporationOrchestrator` - New orchestrator instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }

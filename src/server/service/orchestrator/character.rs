@@ -1,3 +1,9 @@
+//! Character orchestrator for EVE Online character data operations.
+//!
+//! This module provides the `CharacterOrchestrator` for managing the complete lifecycle of
+//! EVE character data including fetching from ESI, dependency resolution, and database persistence.
+//! Characters have required foreign key dependencies on corporations and optional dependencies on factions.
+
 use std::collections::HashSet;
 
 use dioxus_logger::tracing;
@@ -52,7 +58,16 @@ pub struct CharacterOrchestrator<'a> {
 }
 
 impl<'a> CharacterOrchestrator<'a> {
-    /// Creates a new instance of [`CharacterOrchestrator`]
+    /// Creates a new instance of CharacterOrchestrator.
+    ///
+    /// Constructs an orchestrator for managing EVE character data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `CharacterOrchestrator` - New orchestrator instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
