@@ -1,3 +1,9 @@
+//! User character service layer.
+//!
+//! This module provides business logic for managing user-character relationships including
+//! character ownership linking, transfers between users, and main character management.
+//! All operations use transactions to ensure data consistency.
+
 use dioxus_logger::tracing;
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
@@ -11,31 +17,40 @@ use crate::{
     },
 };
 
-/// Service for managing user character operations.
+/// Service for managing user-character ownership operations.
 ///
-/// Provides methods for retrieving user characters, linking characters to users,
-/// transferring character ownership, and managing main character settings.
+/// Provides methods for retrieving user characters with organizational details,
+/// linking characters to users, transferring ownership between users, and managing
+/// main character assignments. Operations use retry logic and transactions for reliability.
 pub struct UserCharacterService<'a> {
     db: &'a DatabaseConnection,
 }
 
 impl<'a> UserCharacterService<'a> {
-    /// Creates a new instance of [`UserService`]
+    /// Creates a new instance of UserCharacterService.
+    ///
+    /// Constructs a service for managing user-character ownership operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    ///
+    /// # Returns
+    /// - `UserCharacterService` - New service instance
     pub fn new(db: &'a DatabaseConnection) -> Self {
         Self { db }
     }
 
-    /// Gets all characters owned by a user with their corporation and alliance details.
+    /// Retrieves all characters owned by a user with organizational details.
     ///
-    /// This method retrieves complete character information including associated corporation
-    /// and alliance data for all characters owned by the specified user. The operation uses
-    /// automatic retry logic to handle transient database failures.
+    /// Fetches complete character information including associated corporation and alliance
+    /// data for all characters owned by the specified user. Uses automatic retry logic to
+    /// handle transient database failures.
     ///
     /// # Arguments
-    /// - `user_id` - ID of the user whose characters should be retrieved
+    /// - `user_id` - ID of the user whose characters to retrieve
     ///
     /// # Returns
-    /// - `Ok(Vec<CharacterDto>)` - List of characters with their corporation and alliance information
+    /// - `Ok(Vec<CharacterDto>)` - List of characters with corporation and alliance information
     /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, Error> {
         let mut ctx: RetryContext<()> = RetryContext::new();
@@ -85,10 +100,11 @@ impl<'a> UserCharacterService<'a> {
         .await
     }
 
-    /// Links a character to a user or updates ownership if already linked.
+    /// Links a character to a user or updates existing ownership.
     ///
-    /// This function creates or updates the character ownership record, associating
-    /// the character with the specified user and updating the owner hash.
+    /// Creates or updates the character ownership record, associating the character
+    /// with the specified user and updating the owner hash for verification. This operation
+    /// must be executed within a transaction provided by the caller.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to execute the operation within
@@ -114,13 +130,12 @@ impl<'a> UserCharacterService<'a> {
         Ok(ownership)
     }
 
-    /// Transfers a character from one user to another.
+    /// Transfers character ownership from one user to another.
     ///
-    /// This function handles the complete transfer process including:
-    /// - Verifying the previous user exists in the database
-    /// - Updating the main character for the previous user if the transferred character was their main
-    /// - Deleting the previous user if they have no remaining characters
-    /// - Linking the character to the new user with updated ownership
+    /// Handles the complete transfer process including verification, ownership updates, and
+    /// cleanup. The process verifies the previous user exists, updates their main character
+    /// if necessary (or deletes the user if no characters remain), and links the character
+    /// to the new user. This operation must be executed within a transaction.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to execute the operation within
@@ -131,6 +146,7 @@ impl<'a> UserCharacterService<'a> {
     /// # Returns
     /// - `Ok(CharacterOwnershipModel)` - The updated ownership record
     /// - `Err(Error::AuthError(AuthError::UserNotInDatabase))` - Previous user not found in database
+    /// - `Err(Error::AuthError(AuthError::CharacterNotOwned))` - Character has no current ownership
     /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn transfer_character(
         txn: &DatabaseTransaction,
@@ -209,10 +225,11 @@ impl<'a> UserCharacterService<'a> {
         Ok(ownership)
     }
 
-    /// Sets a character as the main character for a user.
+    /// Sets a character as the user's main character.
     ///
-    /// This function updates the user's main character, but first verifies that the
-    /// character is actually owned by the specified user to prevent unauthorized changes.
+    /// Updates the user's main character after verifying that the character is actually
+    /// owned by the specified user. This prevents unauthorized changes to main character
+    /// assignments. This operation must be executed within a transaction.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to execute the operation within
