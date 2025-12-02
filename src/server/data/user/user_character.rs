@@ -3,25 +3,42 @@ use dioxus_logger::tracing;
 use migration::OnConflict;
 use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 
+/// Repository for managing user-character ownership relationships in the database.
+///
+/// Provides operations for linking characters to users, querying ownership status,
+/// and retrieving character information with ownership and corporation/alliance details.
 pub struct UserCharacterRepository<'a, C: ConnectionTrait> {
     db: &'a C,
 }
 
 impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
-    /// Creates a new instance of [`UserCharacterRepository`]
+    /// Creates a new instance of UserCharacterRepository.
+    ///
+    /// Constructs a repository for managing user-character relationships in the database.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    ///
+    /// # Returns
+    /// - `UserCharacterRepository` - New repository instance
     pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
-    /// Upsert a user character entry (insert or update based on character_id)
+    /// Inserts or updates a user-character ownership record.
+    ///
+    /// Creates a new ownership link between a user and character, or updates the existing
+    /// record if one already exists for the given character_id. On conflict, updates the
+    /// user_id, owner_hash, and updated_at fields.
     ///
     /// # Arguments
-    /// - `user_id` (`i32`): ID of the user entry in the database
-    /// - `character_id` (`i32`): ID of the character entry in the database
-    /// - `owner_hash` (`String`): A string representing the ownership of the character
+    /// - `character_id` - Internal database ID of the character record
+    /// - `user_id` - ID of the user who owns this character
+    /// - `owner_hash` - EVE SSO owner hash for ownership verification
     ///
     /// # Returns
-    /// Returns the created or updated user character model
+    /// - `Ok(BifrostUserCharacter)` - The created or updated ownership record
+    /// - `Err(DbErr)` - Database operation failed
     pub async fn upsert(
         &self,
         character_id: i32,
@@ -104,7 +121,17 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
             .await
     }
 
-    /// Gets all character ownership entries for the provided user ID
+    /// Retrieves all character ownership records for a user.
+    ///
+    /// Fetches all user-character ownership links for the specified user ID from
+    /// the bifrost_user_character table. Returns an empty vector if the user has no characters.
+    ///
+    /// # Arguments
+    /// - `user_id` - ID of the user whose character ownerships to retrieve
+    ///
+    /// # Returns
+    /// - `Ok(Vec<BifrostUserCharacter>)` - List of ownership records (empty if user has no characters)
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_ownerships_by_user_id(
         &self,
         user_id: i32,
@@ -115,11 +142,19 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
             .await
     }
 
-    /// Gets character information for all characters owned by the user,
-    /// including their corporation and alliance details.
+    /// Retrieves complete character information for all characters owned by a user.
     ///
-    /// Characters without a corporation (which violates foreign key constraint)
-    /// will be logged as warnings and skipped from the results.
+    /// Fetches all characters owned by the specified user along with their corporation
+    /// and optional alliance details. Characters are joined with their corporations and
+    /// alliances. Characters missing corporation data are logged as warnings and excluded
+    /// from results.
+    ///
+    /// # Arguments
+    /// - `user_id` - ID of the user whose characters to retrieve
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(EveCharacter, EveCorporation, Option<EveAlliance>)>)` - List of characters with corp/alliance info (empty if user has no characters)
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_owned_characters_by_user_id(
         &self,
         user_id: i32,

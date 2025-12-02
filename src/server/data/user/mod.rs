@@ -6,17 +6,39 @@ use sea_orm::{
     IntoActiveModel,
 };
 
+/// Repository for managing user records in the database.
+///
+/// Provides CRUD operations for users including creation, retrieval, updates,
+/// and deletion. Users are linked to their main character via foreign key.
 pub struct UserRepository<'a, C: ConnectionTrait> {
     db: &'a C,
 }
 
 impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
-    /// Creates a new instance of [`UserRepository`]
+    /// Creates a new instance of UserRepository.
+    ///
+    /// Constructs a repository for managing user records in the database.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    ///
+    /// # Returns
+    /// - `UserRepository` - New repository instance
     pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
-    /// Creates a new user
+    /// Creates a new user with the specified main character.
+    ///
+    /// Inserts a new user record into the database with the given character ID set as
+    /// their main character. The main character must exist in the database.
+    ///
+    /// # Arguments
+    /// - `main_character_id` - Record ID of the character to set as main
+    ///
+    /// # Returns
+    /// - `Ok(BifrostUser)` - The newly created user record
+    /// - `Err(DbErr)` - Database operation failed or character ID doesn't exist
     pub async fn create(
         &self,
         main_character_id: i32,
@@ -30,6 +52,19 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
         user.insert(self.db).await
     }
 
+    /// Retrieves a user by ID along with their main character.
+    ///
+    /// Fetches a user record and joins it with their main character from the eve_character
+    /// table. Returns None if the user doesn't exist.
+    ///
+    /// # Arguments
+    /// - `user_id` - ID of the user to retrieve
+    ///
+    /// # Returns
+    /// - `Ok(Some((BifrostUser, Some(EveCharacter))))` - User found with main character
+    /// - `Ok(Some((BifrostUser, None)))` - User found but main character missing (should not happen with FK constraint)
+    /// - `Ok(None)` - User does not exist
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_by_id(
         &self,
         user_id: i32,
@@ -46,6 +81,19 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
             .await
     }
 
+    /// Updates a user's main character.
+    ///
+    /// Changes the main character for an existing user. The new main character must exist
+    /// in the database. Returns None if the user doesn't exist.
+    ///
+    /// # Arguments
+    /// - `user_id` - ID of the user to update
+    /// - `new_main_character_id` - Record ID of the new main character
+    ///
+    /// # Returns
+    /// - `Ok(Some(BifrostUser))` - User successfully updated
+    /// - `Ok(None)` - User does not exist
+    /// - `Err(DbErr)` - Database operation failed or new character ID doesn't exist
     pub async fn update(
         &self,
         user_id: i32,
@@ -67,10 +115,17 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
         Ok(Some(user))
     }
 
-    /// Deletes a user
+    /// Deletes a user by ID.
     ///
-    /// Returns OK regardless of user existing, to confirm the deletion result
-    /// check the [`DeleteResult::rows_affected`] field.
+    /// Removes a user record from the database. Returns success regardless of whether
+    /// the user existed. Check the rows_affected field to confirm deletion occurred.
+    ///
+    /// # Arguments
+    /// - `user_id` - ID of the user to delete
+    ///
+    /// # Returns
+    /// - `Ok(DeleteResult)` - Operation completed (check rows_affected: 1 if deleted, 0 if user didn't exist)
+    /// - `Err(DbErr)` - Database operation failed
     pub async fn delete(&self, user_id: i32) -> Result<DeleteResult, DbErr> {
         entity::prelude::BifrostUser::delete_by_id(user_id)
             .exec(self.db)
