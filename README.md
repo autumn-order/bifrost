@@ -20,33 +20,36 @@ Flexibility should be offered for corporations & alliances to have their own gro
 
 Subject to change, this is a rough draft of goal modules
 
-v0.1.0 Core Functionality
-- Auth Module (Completed, currently under testing)
-- Job scheduler and worker (In progress, needs refinement & testing)
-- Admin (Admin login & controls)
+0.1.0 - Core Functionality (January 2026)
+- OAuth2 with EVE Online (Completed)
+- Job scheduler and worker (In progress, needs metrics dashboard)
 - Groups (Multi-tenant groups owned by auth, other groups, alliances, and corporations)
+- Admin & permissions (Admin login & controls)
 - Communications - Discord (Support for multiple Discord instances)
+
+0.2.0 - Audit & Recruitment (Quarter 1 2026)
 - Character Audit (ESI check assets, mails, wallet etc)
-
-v0.2.0 Bifrost Syncing
 - Corporation Audit (ESI check assets, wallet, structures)
-- Developer API (Provide API endpoints similar to ESI to access Bifrost information for 3rd party apps)
-- Syncing (Link bifrost instances together so members don't need to login to multiple auths)
-
-v0.3.0 Alliance/Coalition Essentials
 - Recruitment (List corporations accepting applications, create applications to corporations)
+
+0.3.0 - Fleet Tools (Quarter 2 2026)
 - Timerboard
 - Doctrines
-- Communications - Mumble
+- SRP
+- Communications - Mumble (Including temp links)
 
-v0.4.0 Economy & Industry
+0.4.0 Economy & Industry (Quarter 2 2026)
 - Buyback
 - Logistics
 - Moon mining
 - Market
 
-3rd party extensions to the auth may or may not be possible as Rust is harder than Python/PHP to dynamically modify the code but it has been done. This will be lowest in development priority
-and we'll aim to provide first-party support for all of the most utilized features for auths.
+0.5.0 - Dev API & Instance Linking (Quarter 3 2026)
+- Developer API (Provide API endpoints similar to ESI to access Bifrost information for 3rd party apps)
+- Syncing (Link bifrost instances together so members don't need to login to multiple auths)
+
+3rd party extensions to the auth may or may not be possible as Rust is harder than Python/PHP to dynamically modify the code but it has been done. This will be lowest in development priority, we'll aim to provide first-party support for all of the most utilized features for auth platforms and
+investigate plugins later as demand necessitates it.
 
 # Deployment
 
