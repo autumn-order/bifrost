@@ -75,7 +75,7 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
             .await
     }
 
-    pub async fn get_entry_ids_by_corporation_ids(
+    pub async fn get_record_ids_by_corporation_ids(
         &self,
         corporation_ids: &[i64],
     ) -> Result<Vec<(i32, i64)>, DbErr> {

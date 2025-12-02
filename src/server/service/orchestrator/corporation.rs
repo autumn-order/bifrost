@@ -70,13 +70,13 @@ impl<'a> CorporationOrchestrator<'a> {
     /// - `Ok(Some(i32))` - Database entry ID if corporation exists
     /// - `Ok(None)` - Corporation does not exist in database
     /// - `Err(Error::DbErr)` - Database query failed
-    pub async fn get_corporation_entry_id(
+    pub async fn get_corporation_record_id(
         &self,
         corporation_id: i64,
         cache: &mut OrchestrationCache,
     ) -> Result<Option<i32>, Error> {
         let ids = self
-            .get_many_corporation_entry_ids(vec![corporation_id], cache)
+            .get_many_corporation_record_ids(vec![corporation_id], cache)
             .await?;
 
         Ok(ids.into_iter().next().map(|(_, db_id)| db_id))
@@ -97,7 +97,7 @@ impl<'a> CorporationOrchestrator<'a> {
     ///
     /// # Note
     /// Only returns entries for corporations that exist in the database. Missing corporations are silently omitted.
-    pub async fn get_many_corporation_entry_ids(
+    pub async fn get_many_corporation_record_ids(
         &self,
         corporation_ids: Vec<i64>,
         cache: &mut OrchestrationCache,
@@ -124,7 +124,7 @@ impl<'a> CorporationOrchestrator<'a> {
         let corporation_repo = CorporationRepository::new(self.db);
 
         let retrieved_ids = corporation_repo
-            .get_entry_ids_by_corporation_ids(&missing_ids)
+            .get_record_ids_by_corporation_ids(&missing_ids)
             .await?;
 
         for (db_id, corporation_id) in retrieved_ids {
@@ -382,11 +382,11 @@ impl<'a> CorporationOrchestrator<'a> {
         let alliance_ids = get_corporation_alliance_dependency_ids(&corporations_ref);
 
         let faction_db_ids = faction_orch
-            .get_many_faction_entry_ids(faction_ids, cache)
+            .get_many_faction_record_ids(faction_ids, cache)
             .await?;
 
         let alliance_db_ids = alliance_orch
-            .get_many_alliance_entry_ids(alliance_ids, cache)
+            .get_many_alliance_record_ids(alliance_ids, cache)
             .await?;
 
         // Create a map of faction/alliance id -> db_id for easy lookup
@@ -511,7 +511,7 @@ impl<'a> CorporationOrchestrator<'a> {
         cache: &mut OrchestrationCache,
     ) -> Result<(), Error> {
         let existing_ids = self
-            .get_many_corporation_entry_ids(corporation_ids.clone(), cache)
+            .get_many_corporation_record_ids(corporation_ids.clone(), cache)
             .await?;
 
         let existing_corporation_ids: HashSet<i64> =

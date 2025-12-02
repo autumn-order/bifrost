@@ -143,14 +143,15 @@ impl<'a> UserCharacterService<'a> {
 
         // Get current ownership to find the actual owner
         let ownership = user_character_repo
-            .get_ownership_by_character_record_id(character_record_id)
+            .get_ownership_by_character_id(character_record_id)
             .await?
             .ok_or_else(|| Error::AuthError(AuthError::CharacterNotOwned))?;
 
         let from_user_id = ownership.user_id;
 
         // Retrieve user information to check if main character change is needed
-        let Some((prev_user, maybe_main_character)) = user_repo.get(from_user_id).await? else {
+        let Some((prev_user, maybe_main_character)) = user_repo.get_by_id(from_user_id).await?
+        else {
             return Err(Error::AuthError(AuthError::UserNotInDatabase(from_user_id)));
         };
 
@@ -163,7 +164,7 @@ impl<'a> UserCharacterService<'a> {
         // 2. The character being transferred was the previous user's main
         if prev_user.id != to_user_id && prev_user.main_character_id == character_record_id {
             let prev_user_character_ids: Vec<i32> = user_character_repo
-                .get_many_by_user_id(prev_user.id)
+                .get_ownerships_by_user_id(prev_user.id)
                 .await?
                 .into_iter()
                 .map(|c| c.id)
