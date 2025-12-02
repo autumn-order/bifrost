@@ -1,10 +1,41 @@
+//! Job scheduling utilities for distributing work across time windows.
+//!
+//! This module provides functions to calculate batch sizes for scheduled updates and to
+//! stagger job execution times evenly across scheduling intervals. These utilities help
+//! distribute API load and worker queue pressure over time rather than executing all
+//! updates at once.
+
 use chrono::{DateTime, Duration, Utc};
 
 use crate::server::model::worker::WorkerJob;
 
+/// Minimum batch size for entity updates per scheduling cycle.
+///
+/// Ensures at least 100 entities are updated per schedule run, even if the cache duration
+/// would allow for smaller batches. This prevents overly granular scheduling that could
+/// lead to excessive overhead.
 static MIN_BATCH_LIMIT: i64 = 100;
 
-/// Determines the limit of table entries to schedule an update for based upon schedule interval
+/// Calculates the maximum number of entities to schedule for update in a single batch.
+///
+/// Determines an appropriate batch size based on the total number of table entries, cache
+/// duration, and scheduling interval. The goal is to spread updates evenly across the cache
+/// period while respecting a minimum batch size to avoid excessive scheduling overhead.
+///
+/// # Arguments
+/// - `table_entries` - Total number of entities in the table that may need updates
+/// - `cache` - Duration that cached data remains valid before needing refresh
+/// - `schedule_interval` - How frequently the scheduler runs to check for expired entities
+///
+/// # Returns
+/// - `0` if `table_entries` is zero
+/// - `table_entries` if the cache duration is less than or equal to the schedule interval
+/// - Otherwise, `(table_entries / batches_per_cache_period)` with a minimum of 100
+///
+/// # Example
+/// With 10,000 entries, 24-hour cache, and 30-minute intervals:
+/// - Batches per cache period: 1440 / 30 = 48
+/// - Batch size: 10,000 / 48 ≈ 208 entries per run
 pub fn calculate_batch_limit(
     table_entries: u64,
     cache: Duration,
@@ -23,7 +54,28 @@ pub fn calculate_batch_limit(
     }
 }
 
-/// Staggers provided jobs across the provided update schedule interval
+/// Creates a schedule that staggers job execution evenly across a time window.
+///
+/// Takes a list of jobs and distributes their execution times evenly across the scheduling
+/// interval, starting from the current time. This prevents all jobs from executing simultaneously
+/// and spreads worker queue and API load over time. Jobs are scheduled with sub-second precision
+/// when many jobs need to fit within a short window.
+///
+/// # Arguments
+/// - `jobs` - Vector of worker jobs to be scheduled
+/// - `schedule_interval` - Time window across which to distribute the jobs
+///
+/// # Returns
+/// - `Ok(Vec<(WorkerJob, DateTime<Utc>)>)` - List of jobs paired with their scheduled execution times
+/// - `Err(Error)` - Currently never returns an error (reserved for future validation)
+///
+/// # Example
+/// ```ignore
+/// // Schedule 120 jobs across a 30-minute window
+/// let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }, /* ... */];
+/// let schedule = create_job_schedule(jobs, Duration::minutes(30)).await?;
+/// // Jobs will be scheduled at: now, now+15s, now+30s, now+45s, etc.
+/// ```
 pub async fn create_job_schedule(
     jobs: Vec<WorkerJob>,
     schedule_interval: Duration,

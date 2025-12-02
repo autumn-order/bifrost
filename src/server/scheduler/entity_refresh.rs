@@ -1,3 +1,10 @@
+//! Entity refresh tracking and scheduling for cached EVE Online data.
+//!
+//! This module provides a generic system for tracking when cached entity data expires and
+//! scheduling refresh jobs via the worker queue. The `SchedulableEntity` trait allows any
+//! EVE entity type (alliances, corporations, characters, etc.) to participate in the
+//! scheduled refresh system by specifying their update timestamp and ID columns.
+
 use chrono::{Duration, Utc};
 use dioxus_logger::tracing;
 use sea_orm::{
@@ -8,19 +15,36 @@ use sea_orm::{
 use super::schedule::{calculate_batch_limit, create_job_schedule};
 use crate::server::{error::Error, model::worker::WorkerJob, worker::queue::WorkerQueue};
 
-/// Trait for entities that support scheduled cache updates
+/// Trait for entities that support scheduled cache updates.
+///
+/// Implementing this trait allows an entity type to participate in the automated refresh
+/// scheduling system. The trait specifies which columns track update timestamps and entity IDs,
+/// enabling the scheduler to query for expired entries and schedule appropriate refresh jobs.
 pub trait SchedulableEntity {
-    /// The actual SeaORM entity type
+    /// The SeaORM entity type this schedulable entity wraps.
+    ///
+    /// Must implement `EntityTrait` to support database queries for finding expired entries.
     type Entity: EntityTrait;
 
-    /// Get the column representing when the entity was last updated
+    /// Returns the column that tracks when this entity was last updated.
+    ///
+    /// The scheduler uses this column to identify entries whose cached data has expired
+    /// by comparing against `(now - cache_duration)`.
     fn updated_at_column() -> impl ColumnTrait + IntoSimpleExpr;
 
-    /// Get the resource ID column for this entity (e.g., alliance_id, character_id)
-    /// This should return the EVE entity ID, not the database primary key
+    /// Returns the column containing the EVE entity ID (not the database primary key).
+    ///
+    /// This ID is used to construct worker jobs for refreshing specific entities.
+    /// For example, `alliance_id` for alliances or `character_id` for characters.
     fn id_column() -> impl ColumnTrait + IntoSimpleExpr;
 }
 
+/// Tracks and schedules refresh jobs for entities with expiring cached data.
+///
+/// `EntityRefreshTracker` queries the database for entities whose cached data has expired
+/// (based on `updated_at` timestamps), calculates appropriate batch sizes to spread updates
+/// over time, and schedules worker jobs with staggered execution times to avoid overwhelming
+/// the API or worker system.
 pub struct EntityRefreshTracker<'a> {
     db: &'a DatabaseConnection,
     cache_duration: Duration,
@@ -28,6 +52,18 @@ pub struct EntityRefreshTracker<'a> {
 }
 
 impl<'a> EntityRefreshTracker<'a> {
+    /// Creates a new refresh tracker with the specified cache and scheduling parameters.
+    ///
+    /// The tracker uses these parameters to determine which entities need updates and how
+    /// many to schedule per run to spread the refresh load evenly across the cache period.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection for querying entities
+    /// - `cache_duration` - How long cached entity data remains valid before expiring
+    /// - `schedule_interval` - How frequently the scheduler checks for expired entities
+    ///
+    /// # Returns
+    /// A new `EntityRefreshTracker` instance configured with the provided parameters.
     pub fn new(
         db: &'a DatabaseConnection,
         cache_duration: Duration,
@@ -40,9 +76,26 @@ impl<'a> EntityRefreshTracker<'a> {
         }
     }
 
-    /// Finds entries that need their information updated
-    /// Returns a vector of resource IDs (e.g., alliance_id, character_id) for entries
-    /// that have expired cache and need to be refreshed
+    /// Finds entity IDs that need their cached information refreshed.
+    ///
+    /// Queries the database for entities whose `updated_at` timestamp is older than the
+    /// cache expiration threshold, orders them by staleness (oldest first), and limits
+    /// the result to an appropriate batch size. The batch size is calculated to spread
+    /// all entity updates evenly across the cache duration.
+    ///
+    /// # Arguments
+    /// - `S` - The `SchedulableEntity` type to query for (e.g., `AllianceInfo`, `CharacterInfo`)
+    ///
+    /// # Returns
+    /// - `Ok(Vec<i64>)` - Vector of EVE entity IDs (e.g., alliance_id, character_id) that need updates
+    /// - `Err(Error)` - Database query failed
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tracker = EntityRefreshTracker::new(&db, Duration::hours(24), Duration::minutes(30));
+    /// let alliance_ids = tracker.find_entries_needing_update::<AllianceInfo>().await?;
+    /// // Returns up to ~208 alliance IDs whose cache has expired
+    /// ```
     pub async fn find_entries_needing_update<S>(
         &self,
     ) -> Result<Vec<i64>, crate::server::error::Error>
@@ -76,6 +129,28 @@ impl<'a> EntityRefreshTracker<'a> {
         Ok(ids)
     }
 
+    /// Schedules worker jobs with staggered execution times across the scheduling interval.
+    ///
+    /// Takes a list of worker jobs and schedules them to execute at evenly distributed times
+    /// across the scheduling window. This spreads API load and worker queue pressure over time
+    /// rather than executing all jobs immediately. Jobs are deduplicated at scheduling time,
+    /// so only jobs that aren't already queued will be scheduled.
+    ///
+    /// # Arguments
+    /// - `S` - The `SchedulableEntity` type (used for logging context)
+    /// - `worker_queue` - Worker queue to schedule jobs on
+    /// - `jobs` - Vector of worker jobs to schedule (e.g., `UpdateAllianceInfo`, `UpdateCharacterInfo`)
+    ///
+    /// # Returns
+    /// - `Ok(usize)` - Number of jobs successfully scheduled (excludes duplicates)
+    /// - `Err(Error)` - Failed to schedule jobs or calculate schedule
+    ///
+    /// # Example
+    /// ```ignore
+    /// let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }, /* ... */];
+    /// let count = tracker.schedule_jobs::<AllianceInfo>(&queue, jobs).await?;
+    /// // Returns number of jobs actually scheduled (may be less than jobs.len() due to deduplication)
+    /// ```
     pub async fn schedule_jobs<S>(
         &self,
         worker_queue: &WorkerQueue,
