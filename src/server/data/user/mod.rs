@@ -1,3 +1,9 @@
+//! User data repositories.
+//!
+//! This module contains repositories for managing user accounts and their relationships
+//! with EVE Online characters. The `UserRepository` handles user account CRUD operations,
+//! while `user_character` manages the ownership links between users and characters.
+
 pub mod user_character;
 
 use chrono::Utc;

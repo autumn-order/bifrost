@@ -1,3 +1,8 @@
+//! Alliance repository for EVE Online alliance data management.
+//!
+//! This module provides the `AllianceRepository` for managing alliance records from
+//! EVE Online's ESI API.
+
 use chrono::Utc;
 use eve_esi::model::alliance::Alliance;
 use migration::OnConflict;
@@ -5,16 +10,40 @@ use sea_orm::{
     ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
 };
 
+/// Repository for managing EVE Online alliance records in the database.
+///
+/// Provides operations for upserting alliance data from ESI, retrieving alliance
+/// record IDs, and mapping between EVE alliance IDs and internal database IDs.
 pub struct AllianceRepository<'a, C: ConnectionTrait> {
     db: &'a C,
 }
 
 impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
+    /// Creates a new instance of AllianceRepository.
+    ///
+    /// Constructs a repository for managing EVE alliance records in the database.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    ///
+    /// # Returns
+    /// - `AllianceRepository` - New repository instance
     pub fn new(db: &'a C) -> Self {
         Self { db }
     }
 
-    /// Create or update many based upon provided alliance ID, ESI alliance model, and optional faction table entry ID
+    /// Inserts or updates multiple alliance records from ESI data.
+    ///
+    /// Creates new alliance records or updates existing ones based on alliance_id.
+    /// On conflict, updates all alliance fields except created_at. Accepts optional
+    /// faction_id for alliances associated with NPC factions.
+    ///
+    /// # Arguments
+    /// - `alliances` - Vector of tuples containing (alliance_id, ESI alliance data, optional faction_id)
+    ///
+    /// # Returns
+    /// - `Ok(Vec<EveAlliance>)` - The created or updated alliance records
+    /// - `Err(DbErr)` - Database operation failed or foreign key constraint violated
     pub async fn upsert_many(
         &self,
         alliances: Vec<(i64, Alliance, Option<i32>)>,
@@ -56,6 +85,17 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
             .await
     }
 
+    /// Retrieves internal database record IDs for EVE alliance IDs.
+    ///
+    /// Maps EVE Online alliance IDs to their corresponding internal database record IDs.
+    /// Returns only entries that exist in the database.
+    ///
+    /// # Arguments
+    /// - `alliance_ids` - Slice of EVE alliance IDs to look up
+    ///
+    /// # Returns
+    /// - `Ok(Vec<(i32, i64)>)` - List of (record_id, alliance_id) tuples for found alliances
+    /// - `Err(DbErr)` - Database query failed
     pub async fn get_record_ids_by_alliance_ids(
         &self,
         alliance_ids: &[i64],

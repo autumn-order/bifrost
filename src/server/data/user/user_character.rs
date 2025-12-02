@@ -1,3 +1,9 @@
+//! User-character ownership repository.
+//!
+//! This module provides the `UserCharacterRepository` for managing the ownership links
+//! between user accounts and EVE Online characters. It handles character ownership tracking,
+//! querying ownership status, and retrieving characters with their affiliations.
+
 use chrono::Utc;
 use dioxus_logger::tracing;
 use migration::OnConflict;
