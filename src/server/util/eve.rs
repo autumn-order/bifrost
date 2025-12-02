@@ -1,21 +1,47 @@
-/// ESI API hard limit for character affiliation requests
+//! EVE Online-specific utility functions and constants.
+//!
+//! This module provides utilities for working with EVE Online data, including character ID
+//! validation against official ID ranges and ESI API limits. These utilities ensure data
+//! integrity and prevent invalid API requests by filtering out invalid character IDs before
+//! they reach ESI endpoints.
+
+/// ESI API hard limit for character affiliation requests.
+///
+/// EVE Online's ESI `/characters/affiliation/` endpoint accepts a maximum of 1000 character
+/// IDs per request. This constant is used to batch affiliation update jobs appropriately,
+/// ensuring we don't exceed ESI's request limits and receive 400 Bad Request errors.
+///
+/// # Related
+/// - Used by affiliation scheduler to batch character IDs
+/// - Used by worker job validation to prevent oversized batches
 pub const ESI_AFFILIATION_REQUEST_LIMIT: usize = 1000;
 
-/// Sanitizes character IDs to acceptable EVE Online character ID ranges.
+/// Filters character IDs to only those within valid EVE Online character ID ranges.
 ///
-/// Valid ranges:
-/// - 90,000,000 - 97,999,999: EVE characters created between 2010-11-03 and 2016-05-30
-/// - 100,000,000 - 2,099,999,999: EVE characters, corporations and alliances created before 2010-11-03
-/// - 2,100,000,000 - 2,111,999,999: EVE / DUST characters created after 2016-05-30
-/// - 2,112,000,000 - 2,129,999,999: EVE characters created after 2016-05-30
+/// Removes any character IDs that fall outside the official EVE Online character ID ranges
+/// documented by CCP. This prevents invalid IDs from being sent to ESI endpoints, which
+/// would result in errors or unexpected behavior. Invalid IDs may come from data corruption,
+/// incorrect manual input, or bugs in upstream systems.
+///
+/// # Valid Character ID Ranges
+/// - `90,000,000 - 97,999,999`: EVE characters created between 2010-11-03 and 2016-05-30
+/// - `100,000,000 - 2,099,999,999`: EVE characters, corporations, and alliances created before 2010-11-03
+/// - `2,100,000,000 - 2,111,999,999`: EVE / DUST characters created after 2016-05-30
+/// - `2,112,000,000 - 2,129,999,999`: EVE characters created after 2016-05-30
 ///
 /// # Arguments
-///
-/// - `character_ids` - A vector of character IDs to sanitize
+/// - `character_ids` - Vector of character IDs to validate and filter
 ///
 /// # Returns
+/// A new vector containing only character IDs that fall within valid ranges. Invalid IDs
+/// are silently filtered out. The order of valid IDs is preserved.
 ///
-/// A new vector containing only valid character IDs
+/// # Example
+/// ```ignore
+/// let ids = vec![95_000_000, 99_000_000, 150_000_000]; // 99M is invalid
+/// let valid = sanitize_character_ids(ids);
+/// assert_eq!(valid, vec![95_000_000, 150_000_000]);
+/// ```
 pub fn sanitize_character_ids(character_ids: Vec<i64>) -> Vec<i64> {
     character_ids
         .into_iter()
@@ -23,15 +49,24 @@ pub fn sanitize_character_ids(character_ids: Vec<i64>) -> Vec<i64> {
         .collect()
 }
 
-/// Checks if a character ID falls within valid EVE Online character ID ranges.
+/// Validates whether a character ID falls within official EVE Online character ID ranges.
+///
+/// Checks if the given ID matches any of the four valid character ID ranges defined by CCP.
+/// This function is used internally by `sanitize_character_ids` and can also be used for
+/// individual ID validation before making ESI requests or storing data.
 ///
 /// # Arguments
-///
-/// * `id` - The character ID to validate
+/// - `id` - The character ID to validate against known ranges
 ///
 /// # Returns
+/// - `true` - ID is within a valid EVE Online character ID range
+/// - `false` - ID is outside all valid ranges (invalid or not a character)
 ///
-/// `true` if the ID is within a valid range, `false` otherwise
+/// # Example
+/// ```ignore
+/// assert!(is_valid_character_id(95_000_000));  // Valid
+/// assert!(!is_valid_character_id(1_000_000));  // Invalid (too low)
+/// ```
 pub fn is_valid_character_id(id: i64) -> bool {
     matches!(
         id,
