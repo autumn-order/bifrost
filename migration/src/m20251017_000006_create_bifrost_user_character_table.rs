@@ -24,8 +24,14 @@ impl MigrationTrait for Migration {
                     .col(integer(BifrostUserCharacter::UserId))
                     .col(integer_uniq(BifrostUserCharacter::CharacterId))
                     .col(string(BifrostUserCharacter::OwnerHash))
-                    .col(timestamp(BifrostUserCharacter::CreatedAt))
-                    .col(timestamp(BifrostUserCharacter::UpdatedAt))
+                    .col(
+                        timestamp(BifrostUserCharacter::CreatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp(BifrostUserCharacter::UpdatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;

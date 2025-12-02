@@ -17,7 +17,7 @@ impl MigrationTrait for Migration {
                     .if_not_exists()
                     .col(pk_auto(BifrostUser::Id))
                     .col(integer(BifrostUser::MainCharacterId))
-                    .col(timestamp(BifrostUser::CreatedAt))
+                    .col(timestamp(BifrostUser::CreatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
             )
             .await?;

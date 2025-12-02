@@ -34,7 +34,6 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
                         race_id: ActiveValue::Set(character.race_id),
                         security_status: ActiveValue::Set(character.security_status),
                         title: ActiveValue::Set(character.title),
-                        created_at: ActiveValue::Set(Utc::now().naive_utc()),
                         info_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                         affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                         ..Default::default()

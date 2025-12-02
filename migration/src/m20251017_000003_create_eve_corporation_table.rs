@@ -40,9 +40,14 @@ impl MigrationTrait for Migration {
                     .col(string(EveCorporation::Ticker))
                     .col(string_null(EveCorporation::Url))
                     .col(boolean_null(EveCorporation::WarEligible))
-                    .col(timestamp(EveCorporation::CreatedAt))
-                    .col(timestamp(EveCorporation::InfoUpdatedAt))
-                    .col(timestamp(EveCorporation::AffiliationUpdatedAt))
+                    .col(timestamp(EveCorporation::CreatedAt).default(Expr::current_timestamp()))
+                    .col(
+                        timestamp(EveCorporation::InfoUpdatedAt).default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp(EveCorporation::AffiliationUpdatedAt)
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;

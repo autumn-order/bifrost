@@ -24,8 +24,8 @@ impl MigrationTrait for Migration {
                     .col(big_integer_null(EveFaction::SolarSystemId))
                     .col(big_integer(EveFaction::StationCount))
                     .col(big_integer(EveFaction::StationSystemCount))
-                    .col(timestamp(EveFaction::CreatedAt))
-                    .col(timestamp(EveFaction::UpdatedAt))
+                    .col(timestamp(EveFaction::CreatedAt).default(Expr::current_timestamp()))
+                    .col(timestamp(EveFaction::UpdatedAt).default(Expr::current_timestamp()))
                     .to_owned(),
             )
             .await?;

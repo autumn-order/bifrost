@@ -1,4 +1,4 @@
-use sea_orm::SqlErr;
+use sea_orm::DbErr;
 
 use super::Error;
 
@@ -40,20 +40,25 @@ impl Error {
             }
 
             Self::DbErr(db_err) => {
-                if let Some(sql_err) = db_err.sql_err() {
-                    match sql_err {
-                        // Foreign key constraint violations are permanent failures
-                        SqlErr::ForeignKeyConstraintViolation(_) => ErrorRetryStrategy::Fail,
-                        // Unique constraint violations are also permanent
-                        SqlErr::UniqueConstraintViolation(_) => ErrorRetryStrategy::Fail,
-                        // Other SQL errors should retry
-                        _ => ErrorRetryStrategy::Retry,
-                    }
-                } else {
-                    // Other database errors (connection issues, etc.) should retry
-                    ErrorRetryStrategy::Retry
+                match db_err {
+                    // Connection acquisition errors - transient, should retry
+                    DbErr::ConnectionAcquire(_) => ErrorRetryStrategy::Retry,
+                    // Connection errors - transient, should retry
+                    DbErr::Conn(_) => ErrorRetryStrategy::Retry,
+
+                    // All other database errors are permanent failures:
+                    // - Query errors (constraint violations, syntax errors, etc.)
+                    // - Type conversion errors
+                    // - Schema/migration errors
+                    // - Record not found/inserted/updated
+                    // These indicate programming bugs or data issues that won't resolve with retry
+                    _ => ErrorRetryStrategy::Fail,
                 }
             }
+
+            // Session errors - transient, could be Redis connection issues
+            Self::SessionError(_) => ErrorRetryStrategy::Retry,
+            Self::SessionRedisError(_) => ErrorRetryStrategy::Retry,
 
             // ESI errors - other errors, OAuth, parsing, etc
             Self::EsiError(_) => ErrorRetryStrategy::Fail,
@@ -78,10 +83,6 @@ impl Error {
 
             // Internal EVE-related errors - might resolve after cache update, but rare
             Self::EveError(_) => ErrorRetryStrategy::Fail,
-
-            // Session errors - transient, could be Redis connection issues
-            Self::SessionError(_) => ErrorRetryStrategy::Retry,
-            Self::SessionRedisError(_) => ErrorRetryStrategy::Retry,
         }
     }
 }
