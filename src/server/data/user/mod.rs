@@ -6,6 +6,7 @@
 
 pub mod user_character;
 
+use crate::server::model::db::{EveCharacterModel, UserModel};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ConnectionTrait, DbErr, DeleteResult, EntityTrait,
@@ -45,10 +46,7 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
     /// # Returns
     /// - `Ok(BifrostUser)` - The newly created user record
     /// - `Err(DbErr)` - Database operation failed or character ID doesn't exist
-    pub async fn create(
-        &self,
-        main_character_id: i32,
-    ) -> Result<entity::bifrost_user::Model, DbErr> {
+    pub async fn create(&self, main_character_id: i32) -> Result<UserModel, DbErr> {
         let user = entity::bifrost_user::ActiveModel {
             main_character_id: ActiveValue::Set(main_character_id),
             created_at: ActiveValue::Set(Utc::now().naive_utc()),
@@ -74,13 +72,7 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
     pub async fn get_by_id(
         &self,
         user_id: i32,
-    ) -> Result<
-        Option<(
-            entity::bifrost_user::Model,
-            Option<entity::eve_character::Model>,
-        )>,
-        DbErr,
-    > {
+    ) -> Result<Option<(UserModel, Option<EveCharacterModel>)>, DbErr> {
         entity::prelude::BifrostUser::find_by_id(user_id)
             .find_also_related(entity::eve_character::Entity)
             .one(self.db)
@@ -104,7 +96,7 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
         &self,
         user_id: i32,
         new_main_character_id: i32,
-    ) -> Result<Option<entity::bifrost_user::Model>, DbErr> {
+    ) -> Result<Option<UserModel>, DbErr> {
         let user = match entity::prelude::BifrostUser::find_by_id(user_id)
             .one(self.db)
             .await?

@@ -3,6 +3,7 @@
 //! This module provides the `FactionRepository` for managing faction records from
 //! EVE Online's ESI API.
 
+use crate::server::model::db::EveFactionModel;
 use chrono::Utc;
 use eve_esi::model::universe::Faction;
 use migration::OnConflict;
@@ -44,10 +45,7 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
     /// # Returns
     /// - `Ok(Vec<EveFaction>)` - The created or updated faction records
     /// - `Err(DbErr)` - Database operation failed
-    pub async fn upsert_many(
-        &self,
-        factions: Vec<Faction>,
-    ) -> Result<Vec<entity::eve_faction::Model>, DbErr> {
+    pub async fn upsert_many(&self, factions: Vec<Faction>) -> Result<Vec<EveFactionModel>, DbErr> {
         let factions = factions
             .into_iter()
             .map(|f| entity::eve_faction::ActiveModel {
@@ -121,7 +119,7 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
     /// - `Ok(Some(EveFaction))` - The most recently updated faction record
     /// - `Ok(None)` - No factions exist in the database
     /// - `Err(DbErr)` - Database query failed
-    pub async fn get_latest(&self) -> Result<Option<entity::eve_faction::Model>, DbErr> {
+    pub async fn get_latest(&self) -> Result<Option<EveFactionModel>, DbErr> {
         entity::prelude::EveFaction::find()
             .order_by(entity::eve_faction::Column::UpdatedAt, Order::Desc)
             .one(self.db)

@@ -3,6 +3,7 @@
 //! This module provides the `CharacterRepository` for managing character records from
 //! EVE Online's ESI API.
 
+use crate::server::model::db::EveCharacterModel;
 use chrono::Utc;
 use eve_esi::model::character::Character;
 use migration::{CaseStatement, Expr, OnConflict};
@@ -48,7 +49,7 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
     pub async fn upsert_many(
         &self,
         characters: Vec<(i64, Character, i32, Option<i32>)>,
-    ) -> Result<Vec<entity::eve_character::Model>, DbErr> {
+    ) -> Result<Vec<EveCharacterModel>, DbErr> {
         let characters =
             characters
                 .into_iter()

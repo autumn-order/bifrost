@@ -4,6 +4,9 @@
 //! between user accounts and EVE Online characters. It handles character ownership tracking,
 //! querying ownership status, and retrieving characters with their affiliations.
 
+use crate::server::model::db::{
+    CharacterOwnershipModel, EveAllianceModel, EveCharacterModel, EveCorporationModel,
+};
 use chrono::Utc;
 use dioxus_logger::tracing;
 use migration::OnConflict;
@@ -50,7 +53,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
         character_id: i32,
         user_id: i32,
         owner_hash: String,
-    ) -> Result<entity::bifrost_user_character::Model, DbErr> {
+    ) -> Result<CharacterOwnershipModel, DbErr> {
         entity::prelude::BifrostUserCharacter::insert(entity::bifrost_user_character::ActiveModel {
             user_id: ActiveValue::Set(user_id),
             character_id: ActiveValue::Set(character_id),
@@ -88,7 +91,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     pub async fn get_ownership_by_character_id(
         &self,
         character_record_id: i32,
-    ) -> Result<Option<entity::bifrost_user_character::Model>, DbErr> {
+    ) -> Result<Option<CharacterOwnershipModel>, DbErr> {
         entity::prelude::BifrostUserCharacter::find_by_id(character_record_id)
             .one(self.db)
             .await
@@ -111,13 +114,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     pub async fn get_character_with_ownership(
         &self,
         eve_character_id: i64,
-    ) -> Result<
-        Option<(
-            entity::eve_character::Model,
-            Option<entity::bifrost_user_character::Model>,
-        )>,
-        DbErr,
-    > {
+    ) -> Result<Option<(EveCharacterModel, Option<CharacterOwnershipModel>)>, DbErr> {
         entity::prelude::EveCharacter::find()
             .filter(entity::eve_character::Column::CharacterId.eq(eve_character_id))
             .find_also_related(entity::bifrost_user_character::Entity)
@@ -139,7 +136,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
     pub async fn get_ownerships_by_user_id(
         &self,
         user_id: i32,
-    ) -> Result<Vec<entity::bifrost_user_character::Model>, DbErr> {
+    ) -> Result<Vec<CharacterOwnershipModel>, DbErr> {
         entity::prelude::BifrostUserCharacter::find()
             .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
             .all(self.db)
@@ -164,20 +161,18 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
         user_id: i32,
     ) -> Result<
         Vec<(
-            entity::eve_character::Model,
-            entity::eve_corporation::Model,
-            Option<entity::eve_alliance::Model>,
+            EveCharacterModel,
+            EveCorporationModel,
+            Option<EveAllianceModel>,
         )>,
-        sea_orm::DbErr,
+        DbErr,
     > {
-        let user_characters: Vec<(
-            entity::bifrost_user_character::Model,
-            Option<entity::eve_character::Model>,
-        )> = entity::prelude::BifrostUserCharacter::find()
-            .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
-            .find_also_related(entity::prelude::EveCharacter)
-            .all(self.db)
-            .await?;
+        let user_characters: Vec<(CharacterOwnershipModel, Option<EveCharacterModel>)> =
+            entity::prelude::BifrostUserCharacter::find()
+                .filter(entity::bifrost_user_character::Column::UserId.eq(user_id))
+                .find_also_related(entity::prelude::EveCharacter)
+                .all(self.db)
+                .await?;
 
         if user_characters.is_empty() {
             return Ok(Vec::new());
@@ -190,10 +185,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 
         let corporations: std::collections::HashMap<
             i32,
-            (
-                entity::eve_corporation::Model,
-                Option<entity::eve_alliance::Model>,
-            ),
+            (EveCorporationModel, Option<EveAllianceModel>),
         > = entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::Id.is_in(corporation_ids))
             .find_also_related(entity::prelude::EveAlliance)

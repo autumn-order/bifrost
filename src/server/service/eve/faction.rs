@@ -8,6 +8,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
+    model::db::EveFactionModel,
     service::{
         orchestrator::{
             cache::TrackedTransaction, faction::FactionOrchestrator, OrchestrationCache,
@@ -50,7 +51,7 @@ impl<'a> FactionService<'a> {
     /// - `Ok(Vec<EveFaction>)` - List of created or updated faction records (empty if cache valid)
     /// - `Err(Error::EsiError)` - Failed to fetch faction data from ESI
     /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn update_factions(&self) -> Result<Vec<entity::eve_faction::Model>, Error> {
+    pub async fn update_factions(&self) -> Result<Vec<EveFactionModel>, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();

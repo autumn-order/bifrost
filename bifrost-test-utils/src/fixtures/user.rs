@@ -1,3 +1,4 @@
+use crate::model::{CharacterOwnershipModel, EveCharacterModel, UserModel};
 use chrono::Utc;
 use sea_orm::{ActiveValue, EntityTrait};
 
@@ -14,10 +15,7 @@ pub struct UserFixtures<'a> {
 }
 
 impl<'a> UserFixtures<'a> {
-    pub async fn insert_user(
-        &self,
-        character_id: i32,
-    ) -> Result<entity::bifrost_user::Model, TestError> {
+    pub async fn insert_user(&self, character_id: i32) -> Result<UserModel, TestError> {
         Ok(
             entity::prelude::BifrostUser::insert(entity::bifrost_user::ActiveModel {
                 main_character_id: ActiveValue::Set(character_id),
@@ -33,7 +31,7 @@ impl<'a> UserFixtures<'a> {
         &self,
         user_id: i32,
         character_id: i32,
-    ) -> Result<entity::bifrost_user_character::Model, TestError> {
+    ) -> Result<CharacterOwnershipModel, TestError> {
         Ok(entity::prelude::BifrostUserCharacter::insert(
             entity::bifrost_user_character::ActiveModel {
                 user_id: ActiveValue::Set(user_id),
@@ -54,14 +52,7 @@ impl<'a> UserFixtures<'a> {
         corporation_id: i64,
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
-    ) -> Result<
-        (
-            entity::bifrost_user::Model,
-            entity::bifrost_user_character::Model,
-            entity::eve_character::Model,
-        ),
-        TestError,
-    > {
+    ) -> Result<(UserModel, CharacterOwnershipModel, EveCharacterModel), TestError> {
         let character_model = self
             .setup
             .eve()
@@ -84,13 +75,7 @@ impl<'a> UserFixtures<'a> {
         corporation_id: i64,
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
-    ) -> Result<
-        (
-            entity::bifrost_user_character::Model,
-            entity::eve_character::Model,
-        ),
-        TestError,
-    > {
+    ) -> Result<(CharacterOwnershipModel, EveCharacterModel), TestError> {
         let character_model = self
             .setup
             .eve()

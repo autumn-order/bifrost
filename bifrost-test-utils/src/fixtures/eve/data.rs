@@ -1,13 +1,11 @@
+use crate::model::{EveAllianceModel, EveCharacterModel, EveCorporationModel, EveFactionModel};
 use chrono::Utc;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::{error::TestError, fixtures::eve::EveFixtures};
 
 impl<'a> EveFixtures<'a> {
-    pub async fn insert_mock_faction(
-        &self,
-        faction_id: i64,
-    ) -> Result<entity::eve_faction::Model, TestError> {
+    pub async fn insert_mock_faction(&self, faction_id: i64) -> Result<EveFactionModel, TestError> {
         if let Some(existing_faction) = entity::prelude::EveFaction::find()
             .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
             .one(&self.setup.state.db)
@@ -43,7 +41,7 @@ impl<'a> EveFixtures<'a> {
         &self,
         alliance_id: i64,
         faction_id: Option<i64>,
-    ) -> Result<entity::eve_alliance::Model, TestError> {
+    ) -> Result<EveAllianceModel, TestError> {
         if let Some(existing_alliance) = entity::prelude::EveAlliance::find()
             .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
             .one(&self.setup.state.db)
@@ -84,7 +82,7 @@ impl<'a> EveFixtures<'a> {
         corporation_id: i64,
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
-    ) -> Result<entity::eve_corporation::Model, TestError> {
+    ) -> Result<EveCorporationModel, TestError> {
         if let Some(existing_corporation) = entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
             .one(&self.setup.state.db)
@@ -146,7 +144,7 @@ impl<'a> EveFixtures<'a> {
         corporation_id: i64,
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
-    ) -> Result<entity::eve_character::Model, TestError> {
+    ) -> Result<EveCharacterModel, TestError> {
         let faction_model_id = if let Some(faction_id) = faction_id {
             Some(self.insert_mock_faction(faction_id).await?.id)
         } else {

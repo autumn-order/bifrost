@@ -14,6 +14,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     data::eve::corporation::CorporationRepository,
     error::Error,
+    model::db::EveCorporationModel,
     service::orchestrator::{
         alliance::AllianceOrchestrator,
         cache::{
@@ -352,7 +353,7 @@ impl<'a> CorporationOrchestrator<'a> {
         txn: &TrackedTransaction,
         corporations: Vec<(i64, Corporation)>,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_corporation::Model>, Error> {
+    ) -> Result<Vec<EveCorporationModel>, Error> {
         // Check if this is a new transaction and clear caches if needed
         cache.check_and_clear_on_new_transaction(txn.created_at);
 
@@ -487,7 +488,7 @@ impl<'a> CorporationOrchestrator<'a> {
         corporation_id: i64,
         corporation: Corporation,
         cache: &mut OrchestrationCache,
-    ) -> Result<entity::eve_corporation::Model, Error> {
+    ) -> Result<EveCorporationModel, Error> {
         // Delegate to persist_many with a single element
         let mut models = self
             .persist_many(txn, vec![(corporation_id, corporation)], cache)
@@ -564,7 +565,7 @@ impl<'a> CorporationOrchestrator<'a> {
         &self,
         txn: &TrackedTransaction,
         cache: &mut OrchestrationCache,
-    ) -> Result<Vec<entity::eve_corporation::Model>, Error> {
+    ) -> Result<Vec<EveCorporationModel>, Error> {
         let corporations: Vec<(i64, Corporation)> = cache
             .corporation_esi
             .iter()

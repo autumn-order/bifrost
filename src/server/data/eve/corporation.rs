@@ -3,6 +3,7 @@
 //! This module provides the `CorporationRepository` for managing corporation records from
 //! EVE Online's ESI API.
 
+use crate::server::model::db::EveCorporationModel;
 use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
 use migration::{CaseStatement, Expr, OnConflict};
@@ -48,7 +49,7 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
     pub async fn upsert_many(
         &self,
         corporations: Vec<(i64, Corporation, Option<i32>, Option<i32>)>,
-    ) -> Result<Vec<entity::eve_corporation::Model>, DbErr> {
+    ) -> Result<Vec<EveCorporationModel>, DbErr> {
         let corporations = corporations.into_iter().map(
             |(corporation_id, corporation, alliance_id, faction_id)| {
                 let date_founded = corporation.date_founded.map(|date| date.naive_utc());
