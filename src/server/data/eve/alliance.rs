@@ -31,6 +31,7 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
                     date_founded: ActiveValue::Set(alliance.date_founded.naive_utc()),
                     name: ActiveValue::Set(alliance.name),
                     ticker: ActiveValue::Set(alliance.ticker),
+                    created_at: ActiveValue::Set(Utc::now().naive_utc()),
                     updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                     ..Default::default()
                 },

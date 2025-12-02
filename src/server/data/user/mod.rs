@@ -1,5 +1,6 @@
 pub mod user_character;
 
+use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ActiveValue, ConnectionTrait, DbErr, DeleteResult, EntityTrait,
     IntoActiveModel,
@@ -22,6 +23,7 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
     ) -> Result<entity::bifrost_user::Model, DbErr> {
         let user = entity::bifrost_user::ActiveModel {
             main_character_id: ActiveValue::Set(main_character_id),
+            created_at: ActiveValue::Set(Utc::now().naive_utc()),
             ..Default::default()
         };
 

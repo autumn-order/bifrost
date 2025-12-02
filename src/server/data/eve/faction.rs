@@ -32,6 +32,7 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
                 solar_system_id: ActiveValue::Set(f.solar_system_id),
                 station_count: ActiveValue::Set(f.faction_id),
                 station_system_count: ActiveValue::Set(f.faction_id),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             });
