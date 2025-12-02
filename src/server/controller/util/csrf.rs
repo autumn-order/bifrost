@@ -40,6 +40,7 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
 }
 
 #[cfg(test)]
+/// Tests for CSRF validation functionality.
 pub mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
     use bifrost_test_utils::prelude::*;

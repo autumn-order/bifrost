@@ -27,6 +27,11 @@ pub struct WorkerPool {
     inner: Arc<WorkerPoolRef>,
 }
 
+/// Internal worker pool reference with configuration and runtime state.
+///
+/// Contains the worker pool configuration, job queue, handler, and runtime state including
+/// semaphores for concurrency control, shutdown notifications, and dispatcher task handles.
+/// This struct is wrapped in an Arc by `WorkerPool` for cheap cloning.
 #[derive(Clone)]
 pub struct WorkerPoolRef {
     config: WorkerPoolConfig,

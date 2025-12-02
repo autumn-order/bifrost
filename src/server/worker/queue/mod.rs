@@ -51,11 +51,20 @@ use crate::server::{
     worker::queue::config::WorkerQueueConfig,
 };
 
+/// Worker job queue with Redis backend.
+///
+/// Provides job enqueueing, scheduling, and deduplication using Redis as the backing store.
+/// Jobs are stored with TTLs for automatic expiration and a background cleanup task removes
+/// expired jobs periodically.
 #[derive(Clone)]
 pub struct WorkerQueue {
     inner: Arc<WorkerQueueRef>,
 }
 
+/// Internal worker queue reference with Redis pool and configuration.
+///
+/// Contains the Redis connection pool, queue configuration, and handles for background
+/// cleanup tasks. This struct is wrapped in an Arc by `WorkerQueue` for cheap cloning.
 #[derive(Clone)]
 pub struct WorkerQueueRef {
     pool: Pool,

@@ -34,7 +34,12 @@ pub enum ConfigError {
     /// - `var` - Name of the environment variable with invalid value
     /// - `reason` - Explanation of why the value is invalid
     #[error("Invalid value for environment variable {var}: {reason}")]
-    InvalidEnvValue { var: String, reason: String },
+    InvalidEnvValue {
+        /// Name of the environment variable with invalid value.
+        var: String,
+        /// Explanation of why the value is invalid.
+        reason: String,
+    },
 }
 
 /// Converts configuration errors into HTTP responses.

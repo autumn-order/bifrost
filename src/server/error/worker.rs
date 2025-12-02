@@ -26,7 +26,12 @@ pub enum WorkerError {
     /// - `size` - The attempted batch size
     /// - `max` - The maximum allowed batch size (ESI_AFFILIATION_REQUEST_LIMIT)
     #[error("Affiliation job batch size {size} exceeds maximum of {max}")]
-    AffiliationBatchTooLarge { size: usize, max: usize },
+    AffiliationBatchTooLarge {
+        /// The attempted batch size.
+        size: usize,
+        /// The maximum allowed batch size (ESI_AFFILIATION_REQUEST_LIMIT).
+        max: usize,
+    },
 
     /// Failed to serialize or deserialize a WorkerJob.
     ///

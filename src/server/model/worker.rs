@@ -38,7 +38,10 @@ pub enum WorkerJob {
     ///
     /// # Fields
     /// - `alliance_id` - EVE Online alliance ID to refresh
-    UpdateAllianceInfo { alliance_id: i64 },
+    UpdateAllianceInfo {
+        /// EVE Online alliance ID to refresh.
+        alliance_id: i64,
+    },
 
     /// Update information for a specific corporation.
     ///
@@ -48,7 +51,10 @@ pub enum WorkerJob {
     ///
     /// # Fields
     /// - `corporation_id` - EVE Online corporation ID to refresh
-    UpdateCorporationInfo { corporation_id: i64 },
+    UpdateCorporationInfo {
+        /// EVE Online corporation ID to refresh.
+        corporation_id: i64,
+    },
 
     /// Update information for a specific character.
     ///
@@ -58,7 +64,10 @@ pub enum WorkerJob {
     ///
     /// # Fields
     /// - `character_id` - EVE Online character ID to refresh
-    UpdateCharacterInfo { character_id: i64 },
+    UpdateCharacterInfo {
+        /// EVE Online character ID to refresh.
+        character_id: i64,
+    },
 
     /// Update affiliations (corporation/alliance/faction) for multiple characters.
     ///
@@ -69,7 +78,10 @@ pub enum WorkerJob {
     ///
     /// # Fields
     /// - `character_ids` - List of EVE Online character IDs to refresh (max 1000 per ESI limit)
-    UpdateAffiliations { character_ids: Vec<i64> },
+    UpdateAffiliations {
+        /// List of EVE Online character IDs to refresh (max 1000 per ESI limit).
+        character_ids: Vec<i64>,
+    },
 }
 
 /// Custom Display implementation for readable job logging.

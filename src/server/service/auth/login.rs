@@ -49,6 +49,7 @@ impl<'a> LoginService<'a> {
 }
 
 #[cfg(test)]
+/// Tests for login service functionality.
 pub mod tests {
     use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
 

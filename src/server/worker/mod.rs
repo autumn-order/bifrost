@@ -21,7 +21,9 @@ use crate::server::worker::{handler::WorkerJobHandler, pool::WorkerPoolConfig};
 /// worker pool (processing tasks) into a single interface for managing background jobs.
 #[derive(Clone)]
 pub struct Worker {
+    /// Worker queue for dispatching and managing background jobs.
     pub queue: WorkerQueue,
+    /// Worker pool for processing jobs with configured concurrency.
     pub pool: WorkerPool,
 }
 
