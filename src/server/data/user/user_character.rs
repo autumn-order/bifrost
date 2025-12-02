@@ -33,6 +33,7 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
                 user_id: ActiveValue::Set(user_id),
                 character_id: ActiveValue::Set(character_id),
                 owner_hash: ActiveValue::Set(owner_hash),
+                created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             },
