@@ -1,30 +1,46 @@
+//! Login service for EVE Online SSO authentication.
+//!
+//! This module provides the `LoginService` for generating OAuth2 login URLs with EVE SSO.
+//! The service initiates the authentication flow by creating URLs with requested scopes
+//! and CSRF protection tokens.
+
 use eve_esi::model::oauth2::AuthenticationData;
 
 use crate::server::error::Error;
 
+/// Service for generating EVE Online SSO login URLs.
+///
+/// Provides methods for initiating the OAuth2 authentication flow by generating
+/// login URLs with requested scopes and CSRF state tokens for validation.
 pub struct LoginService<'a> {
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> LoginService<'a> {
-    /// Creates a new instance of [`LoginService`]
+    /// Creates a new instance of LoginService.
+    ///
+    /// Constructs a service for generating EVE SSO login URLs.
+    ///
+    /// # Arguments
+    /// - `esi_client` - ESI API client reference with OAuth2 configuration
+    ///
+    /// # Returns
+    /// - `LoginService` - New service instance
     pub fn new(esi_client: &'a eve_esi::Client) -> Self {
         Self { esi_client }
     }
 
-    /// Login service to generate URL for login with EVE Online
+    /// Generates an OAuth2 login URL for EVE Online SSO.
     ///
-    /// Generates a login URL requesting the provided scopes to begin the login process with EVE Online for
-    /// the user.
+    /// Creates a login URL with the requested scopes and a CSRF state token for security.
+    /// The user should be redirected to this URL to begin the authentication flow with EVE Online.
     ///
     /// # Arguments
-    /// - `scopes` (`Vec<String>`): Scopes to request during login
+    /// - `scopes` - List of OAuth2 scopes to request from the user
     ///
     /// # Returns
-    /// Returns a result containing either:
-    /// - [`AuthenticationData`]: Login URL to redirect the user to & a CSRF state string for validation in the
-    ///   callback route
-    /// - [`Error`]: An error if the ESI client is not properly configured for OAuth2
+    /// - `Ok(AuthenticationData)` - Login URL and CSRF state token for callback validation
+    /// - `Err(Error::EsiError)` - ESI client OAuth2 not configured properly
     pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, Error> {
         let login = self.esi_client.oauth2().login_url(scopes)?;
 
