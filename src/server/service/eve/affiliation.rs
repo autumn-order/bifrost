@@ -1,3 +1,9 @@
+//! Affiliation service for EVE Online character and corporation affiliation updates.
+//!
+//! This module provides the `AffiliationService` for bulk updating character and corporation
+//! affiliations from ESI. It handles fetching affiliation data, resolving dependencies,
+//! and updating relationships in a single transaction with retry logic.
+
 use std::collections::HashSet;
 
 use dioxus_logger::tracing;
@@ -18,28 +24,48 @@ use crate::server::{
     util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
 
+/// Service for managing EVE Online affiliation updates.
+///
+/// Provides methods for bulk updating character and corporation affiliations from ESI.
+/// Handles dependency resolution for factions, alliances, and corporations, and updates
+/// all relationships in a single transaction with automatic retry logic.
 pub struct AffiliationService<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 }
 
 impl<'a> AffiliationService<'a> {
-    /// Creates a new instance of [`AffiliationService`]
+    /// Creates a new instance of AffiliationService.
+    ///
+    /// Constructs a service for managing EVE affiliation data operations.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `AffiliationService` - New service instance
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self { db, esi_client }
     }
 
-    /// Update character and corporation affiliations based on ESI affiliation data
+    /// Updates character and corporation affiliations from ESI in bulk.
     ///
-    /// This method fetches character affiliation data from ESI and only fetches missing
-    /// FK dependencies from ESI to ensure foreign key constraints are satisfied.
+    /// Fetches character affiliation data from ESI and updates both character-to-corporation
+    /// and corporation-to-alliance relationships. Automatically resolves and fetches any missing
+    /// dependencies (factions, alliances, corporations) to satisfy foreign key constraints.
+    /// All updates are performed in a single transaction. Uses retry logic for transient failures.
+    ///
+    /// The method validates and sanitizes input character IDs, caps the request to ESI limits,
+    /// and skips invalid IDs to prevent request failures.
     ///
     /// # Arguments
-    /// - `character_ids` - List of character IDs to update affiliations for
+    /// - `character_ids` - List of EVE character IDs to update affiliations for (max 1000)
     ///
     /// # Returns
-    /// - `Ok(())` - If all affiliations were successfully updated
-    /// - `Err(Error)` - If any error occurred during the process
+    /// - `Ok(())` - All affiliations successfully updated
+    /// - `Err(Error::EsiError)` - Failed to fetch affiliation or dependency data from ESI
+    /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
         // Cap character_ids to ESI limit to prevent affiliation request from erroring due to exceeding limit
         let character_ids = if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
@@ -174,7 +200,20 @@ impl<'a> AffiliationService<'a> {
         .await
     }
 
-    /// Update the affiliation relationships between characters, corporations, and alliances
+    /// Updates affiliation relationships in the database.
+    ///
+    /// Processes ESI affiliation data and updates the database relationships between characters,
+    /// corporations, and alliances. Uses the orchestration cache to map EVE IDs to internal
+    /// database record IDs. Logs warnings for any missing IDs in the cache.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to execute updates within
+    /// - `affiliations` - ESI affiliation data containing character/corporation/alliance/faction relationships
+    /// - `cache` - Orchestration cache with ID mappings from EVE IDs to database record IDs
+    ///
+    /// # Returns
+    /// - `Ok(())` - All relationship updates completed successfully
+    /// - `Err(Error::DbErr)` - Database update operation failed
     async fn update_affiliation_relationships(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
