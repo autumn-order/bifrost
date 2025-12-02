@@ -5,6 +5,9 @@
 //! EVE Online ESI integration. It provides the complete backend infrastructure for managing
 //! user accounts, EVE character data, and automated data refresh operations.
 
+#![warn(missing_docs)]
+#![warn(rustdoc::missing_crate_level_docs)]
+
 pub mod config;
 pub mod controller;
 pub mod data;
