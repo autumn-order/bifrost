@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use mockito::{Server, ServerGuard};
+use mockito::{Mock, Server, ServerGuard};
 use sea_orm::{sea_query::TableCreateStatement, ConnectionTrait, Database, DatabaseConnection};
 use tower_sessions::{MemoryStore, Session};
 
@@ -18,6 +18,7 @@ pub struct TestSetup {
     pub server: ServerGuard,
     pub state: TestAppState,
     pub session: Session,
+    pub mocks: Vec<Mock>,
 }
 
 impl TestSetup {
@@ -64,6 +65,7 @@ impl TestSetup {
             server: mock_server,
             state: TestAppState { db, esi_client },
             session,
+            mocks: Vec::new(),
         })
     }
 
@@ -73,6 +75,19 @@ impl TestSetup {
         }
 
         Ok(())
+    }
+
+    /// Assert all mock endpoints were called as expected.
+    ///
+    /// Calls `assert()` on all mocks created by the TestBuilder to verify
+    /// they were invoked the expected number of times.
+    ///
+    /// # Panics
+    /// Panics if any mock endpoint was not called the expected number of times
+    pub fn assert_mocks(&self) {
+        for mock in &self.mocks {
+            mock.assert();
+        }
     }
 }
 

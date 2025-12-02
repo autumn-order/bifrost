@@ -1,6 +1,7 @@
 use crate::TestSetup;
 
 pub mod data;
+pub mod factory;
 pub mod mock;
 pub mod mockito;
 
