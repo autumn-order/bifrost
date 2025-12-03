@@ -1,6 +1,17 @@
+//! Tests for CorporationRepository::get_record_ids_by_corporation_ids method.
+//!
+//! This module verifies the corporation record ID lookup behavior, including successful
+//! mappings for existing corporations, handling of nonexistent or mixed inputs, and
+//! error handling for missing database tables.
+
 use super::*;
 
-/// Expect Ok with correct mappings when corporations exist in database
+/// Tests retrieving record IDs for existing corporations.
+///
+/// Verifies that the corporation repository correctly maps corporation IDs to their
+/// corresponding database record IDs when all requested corporations exist.
+///
+/// Expected: Ok with Vec of (record_id, corporation_id) tuples
 #[tokio::test]
 async fn returns_record_ids_for_existing_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -49,7 +60,12 @@ async fn returns_record_ids_for_existing_corporations() -> Result<(), TestError>
     Ok(())
 }
 
-/// Expect Ok with empty Vec when no corporations match
+/// Tests retrieving record IDs for nonexistent corporations.
+///
+/// Verifies that the corporation repository returns an empty list when attempting
+/// to retrieve record IDs for corporation IDs that do not exist in the database.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn returns_empty_for_nonexistent_corporations() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -72,7 +88,12 @@ async fn returns_empty_for_nonexistent_corporations() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with empty Vec when input is empty
+/// Tests retrieving record IDs with empty input.
+///
+/// Verifies that the corporation repository handles empty input lists gracefully
+/// by returning an empty result without errors.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn returns_empty_for_empty_input() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -95,7 +116,12 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with partial results when only some corporations exist
+/// Tests retrieving record IDs with mixed input.
+///
+/// Verifies that the corporation repository returns partial results when only some
+/// of the requested corporation IDs exist, excluding nonexistent IDs from the output.
+///
+/// Expected: Ok with Vec containing only existing corporation mappings
 #[tokio::test]
 async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -138,7 +164,12 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Error when required tables haven't been created
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the corporation repository returns an error when attempting to
+/// retrieve record IDs without the required database tables being created.
+///
+/// Expected: Err
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;

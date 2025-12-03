@@ -1,3 +1,9 @@
+//! Tests for HTTP controller endpoints.
+//!
+//! This module contains integration tests for the application's HTTP controllers,
+//! verifying request handling, response formatting, authentication flows, and error
+//! handling for all API endpoints.
+
 mod auth;
 mod user;
 

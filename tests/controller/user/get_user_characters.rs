@@ -1,10 +1,23 @@
+//! Tests for the get_user_characters endpoint.
+//!
+//! This module verifies the get_user_characters endpoint's behavior, including
+//! successful retrieval of character lists with various character counts and
+//! associations (alliance, faction), proper user data isolation, and error
+//! handling for authentication and database issues.
+
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::user::get_user_characters, model::session::user::SessionUserId};
 
 use super::*;
 
+/// Tests successful response with empty character list.
+///
+/// Verifies that the get_user_characters endpoint returns a 200 OK response with
+/// an empty character list when the user has only their main character and no
+/// additional characters.
+///
+/// Expected: Ok with 200 OK response
 #[tokio::test]
-/// Expect 200 success with empty list for user with no characters
 async fn success_with_empty_list_for_user_with_no_additional_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -25,8 +38,13 @@ async fn success_with_empty_list_for_user_with_no_additional_characters() -> Res
     Ok(())
 }
 
+/// Tests successful response with single character.
+///
+/// Verifies that the get_user_characters endpoint returns a 200 OK response
+/// containing a single character when the user has one character in their account.
+///
+/// Expected: Ok with 200 OK response
 #[tokio::test]
-/// Expect 200 success with single character for user with one character
 async fn success_with_single_character() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -48,8 +66,14 @@ async fn success_with_single_character() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests successful response with multiple characters.
+///
+/// Verifies that the get_user_characters endpoint returns a 200 OK response
+/// containing all characters when the user has multiple characters associated
+/// with their account.
+///
+/// Expected: Ok with 200 OK response
 #[tokio::test]
-/// Expect 200 success with multiple characters for user with multiple characters
 async fn success_with_multiple_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -87,8 +111,13 @@ async fn success_with_multiple_characters() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests successful response with characters having alliance and faction.
+///
+/// Verifies that the get_user_characters endpoint correctly returns character
+/// information including optional alliance and faction associations when present.
+///
+/// Expected: Ok with 200 OK response
 #[tokio::test]
-/// Expect 200 success with characters that have alliance and faction
 async fn success_with_characters_having_alliance_and_faction() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -122,8 +151,14 @@ async fn success_with_characters_having_alliance_and_faction() -> Result<(), Tes
     Ok(())
 }
 
+/// Tests 404 response when no user is logged in.
+///
+/// Verifies that the get_user_characters endpoint returns a 404 NOT FOUND
+/// response when there is no user ID in the session, indicating no authenticated
+/// user.
+///
+/// Expected: Err with 404 NOT_FOUND response
 #[tokio::test]
-/// Expect 404 not found when user is not logged in
 async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -136,8 +171,14 @@ async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests 404 response and session cleanup for non-existent user.
+///
+/// Verifies that the get_user_characters endpoint returns a 404 NOT FOUND
+/// response when the session contains a user ID that doesn't exist in the
+/// database, and properly clears the stale session data.
+///
+/// Expected: Err with 404 NOT_FOUND response and session cleared
 #[tokio::test]
-/// Expect 404 not found when user in session doesn't exist in database
 async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -161,8 +202,14 @@ async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the get_user_characters endpoint returns a 500 INTERNAL SERVER
+/// ERROR response when required database tables don't exist, indicating a critical
+/// infrastructure issue.
+///
+/// Expected: Err with 500 INTERNAL_SERVER_ERROR response
 #[tokio::test]
-/// Expect 500 internal server error when required database tables don't exist
 async fn error_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 
@@ -181,8 +228,14 @@ async fn error_when_tables_missing() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests that only the logged-in user's characters are returned.
+///
+/// Verifies that the get_user_characters endpoint returns only the characters
+/// belonging to the logged-in user, not characters from other users in the
+/// database, ensuring proper user data isolation.
+///
+/// Expected: Ok with 200 OK response containing only logged-in user's characters
 #[tokio::test]
-/// Expect 200 success and verify only characters for specific user are returned
 async fn returns_only_characters_for_logged_in_user() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 

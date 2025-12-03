@@ -117,10 +117,16 @@ mod tests {
     use super::*;
     use bifrost_test_utils::prelude::*;
 
+    /// Tests for AllianceRepository::upsert_many method.
     mod upsert_many {
         use super::*;
 
-        /// Expect Ok when upserting new alliances
+        /// Tests upserting new alliances.
+        ///
+        /// Verifies that the alliance repository successfully inserts new alliance
+        /// records into the database.
+        ///
+        /// Expected: Ok with Vec containing 2 created alliances
         #[tokio::test]
         async fn upserts_new_alliances() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -146,7 +152,13 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok & update when trying to upsert existing alliances
+        /// Tests updating existing alliances.
+        ///
+        /// Verifies that the alliance repository updates existing alliance records when
+        /// upserting with the same alliance IDs, preserving created_at and updating
+        /// updated_at timestamps.
+        ///
+        /// Expected: Ok with updated alliances, preserved created_at, newer updated_at
         #[tokio::test]
         async fn updates_existing_alliances() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -207,10 +219,16 @@ mod tests {
         }
     }
 
+    /// Tests for AllianceRepository::get_record_ids_by_alliance_ids method.
     mod get_record_ids_by_alliance_ids {
         use super::*;
 
-        /// Expect Ok with correct mappings when alliances exist in database
+        /// Tests retrieving record IDs for existing alliances.
+        ///
+        /// Verifies that the alliance repository correctly maps alliance IDs to their
+        /// corresponding database record IDs when all requested alliances exist.
+        ///
+        /// Expected: Ok with Vec of (record_id, alliance_id) tuples
         #[tokio::test]
         async fn returns_record_ids_for_existing_alliances() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -258,7 +276,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec when no alliances match
+        /// Tests retrieving record IDs for nonexistent alliances.
+        ///
+        /// Verifies that the alliance repository returns an empty list when attempting
+        /// to retrieve record IDs for alliance IDs that do not exist in the database.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_nonexistent_alliances() -> Result<(), TestError> {
             let test = TestBuilder::new()
@@ -280,7 +303,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec when input is empty
+        /// Tests retrieving record IDs with empty input.
+        ///
+        /// Verifies that the alliance repository handles empty input lists gracefully
+        /// by returning an empty result without errors.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_empty_input() -> Result<(), TestError> {
             let test = TestBuilder::new()
@@ -302,7 +330,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with partial results when only some alliances exist
+        /// Tests retrieving record IDs with mixed input.
+        ///
+        /// Verifies that the alliance repository returns partial results when only some
+        /// of the requested alliance IDs exist, excluding nonexistent IDs from the output.
+        ///
+        /// Expected: Ok with Vec containing only existing alliance mappings
         #[tokio::test]
         async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -343,7 +376,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when required tables haven't been created
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the alliance repository returns an error when attempting to
+        /// retrieve record IDs without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;

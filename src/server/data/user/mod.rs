@@ -134,12 +134,18 @@ impl<'a, C: ConnectionTrait> UserRepository<'a, C> {
 #[cfg(test)]
 mod tests {
 
+    /// Tests for UserRepository::create method.
     mod create {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;
 
-        /// Expect success when creating a new user
+        /// Tests creating a new user.
+        ///
+        /// Verifies that the user repository successfully creates a new user record
+        /// with the specified main character ID.
+        ///
+        /// Expected: Ok
         #[tokio::test]
         async fn creates_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -153,7 +159,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when setting user main character to character that does not exist in database
+        /// Tests error handling for nonexistent main character.
+        ///
+        /// Verifies that the user repository returns an error when attempting to create
+        /// a user with a main character ID that does not exist in the database.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_for_nonexistent_main_character() -> Result<(), TestError> {
             let test = TestBuilder::new().with_user_tables().build().await?;
@@ -168,12 +179,18 @@ mod tests {
         }
     }
 
+    /// Tests for UserRepository::get_by_id method.
     mod get_by_id {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;
 
-        /// Expect Ok(Some(_)) when existing user is found
+        /// Tests finding an existing user.
+        ///
+        /// Verifies that the user repository successfully retrieves a user record
+        /// when provided with a valid user ID.
+        ///
+        /// Expected: Ok(Some(user))
         #[tokio::test]
         async fn finds_existing_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -190,7 +207,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok(None) when user is not found
+        /// Tests handling of nonexistent user.
+        ///
+        /// Verifies that the user repository returns None when attempting to retrieve
+        /// a user with an ID that does not exist in the database.
+        ///
+        /// Expected: Ok(None)
         #[tokio::test]
         async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
             let test = TestBuilder::new().with_user_tables().build().await?;
@@ -204,7 +226,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when required database tables are not present
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user repository returns an error when attempting to
+        /// retrieve a user without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
@@ -218,12 +245,18 @@ mod tests {
         }
     }
 
+    /// Tests for UserRepository::update method.
     mod update {
         use bifrost_test_utils::prelude::*;
 
         use crate::server::data::user::UserRepository;
 
-        /// Expect Ok when updating user main character with valid character ID
+        /// Tests updating an existing user.
+        ///
+        /// Verifies that the user repository successfully updates a user's main
+        /// character ID when provided with valid user and character IDs.
+        ///
+        /// Expected: Ok(Some(updated_user)) with changed main_character_id
         #[tokio::test]
         async fn updates_existing_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -245,7 +278,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok(None) when attempting to update user ID that does not exist
+        /// Tests handling update for nonexistent user.
+        ///
+        /// Verifies that the user repository returns None when attempting to update
+        /// a user ID that does not exist in the database.
+        ///
+        /// Expected: Ok(None)
         #[tokio::test]
         async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -262,7 +300,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when attempting to update user main character with non existant character ID
+        /// Tests error handling for nonexistent main character.
+        ///
+        /// Verifies that the user repository returns an error when attempting to update
+        /// a user's main character ID to a character that does not exist.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_for_nonexistent_main_character() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -282,13 +325,19 @@ mod tests {
         }
     }
 
+    /// Tests for UserRepository::delete method.
     mod delete {
         use bifrost_test_utils::prelude::*;
         use sea_orm::EntityTrait;
 
         use crate::server::data::user::UserRepository;
 
-        /// Expect success when deleting user
+        /// Tests deleting an existing user.
+        ///
+        /// Verifies that the user repository successfully deletes a user record
+        /// and confirms the user no longer exists in the database.
+        ///
+        /// Expected: Ok with 1 row affected and user not found afterward
         #[tokio::test]
         async fn deletes_existing_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -310,7 +359,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect no rows to be affected when deleting user that does not exist
+        /// Tests deleting a nonexistent user.
+        ///
+        /// Verifies that the user repository returns zero rows affected when attempting
+        /// to delete a user that does not exist in the database.
+        ///
+        /// Expected: Ok with 0 rows affected
         #[tokio::test]
         async fn returns_no_rows_for_nonexistent_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -329,7 +383,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when database tables required don't exist
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user repository returns an error when attempting to
+        /// delete a user without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't create required tables, causing an error

@@ -230,12 +230,18 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 mod tests {
     use super::*;
 
+    /// Tests for UserCharacterRepository::get_ownership_by_character_id method.
     mod get_ownership_by_character_id {
         use bifrost_test_utils::prelude::*;
 
         use super::*;
 
-        /// Expect Some when ownership entry exists for the given character_record_id
+        /// Tests retrieving ownership for an existing character.
+        ///
+        /// Verifies that the user character repository successfully retrieves ownership
+        /// information when an ownership entry exists for the given character record ID.
+        ///
+        /// Expected: Ok(Some(ownership))
         #[tokio::test]
         async fn returns_ownership_when_exists() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -260,7 +266,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect None when no ownership entry exists for the given character_record_id
+        /// Tests handling of nonexistent ownership.
+        ///
+        /// Verifies that the user character repository returns None when attempting to
+        /// retrieve ownership for a character record ID that has no ownership entry.
+        ///
+        /// Expected: Ok(None)
         #[tokio::test]
         async fn returns_none_when_not_found() -> Result<(), TestError> {
             let test = TestBuilder::new().with_user_tables().build().await?;
@@ -278,7 +289,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect None when character exists but has no ownership entry
+        /// Tests character without ownership entry.
+        ///
+        /// Verifies that the user character repository returns None when a character
+        /// exists in the database but has no associated ownership entry.
+        ///
+        /// Expected: Ok(None)
         #[tokio::test]
         async fn returns_none_when_character_exists_without_ownership() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -296,7 +312,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when required database tables are not present
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user character repository returns an error when attempting to
+        /// retrieve ownership without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that does not create required tables, causing a database error
@@ -314,12 +335,18 @@ mod tests {
         }
     }
 
+    /// Tests for UserCharacterRepository::get_character_with_ownership method.
     mod get_by_character_id {
         use bifrost_test_utils::prelude::*;
 
         use super::*;
 
-        // Expect Some when character & character ownership entry is found
+        /// Tests finding character with ownership.
+        ///
+        /// Verifies that the user character repository successfully retrieves both
+        /// character and ownership information when both entries exist.
+        ///
+        /// Expected: Ok(Some((character, Some(ownership))))
         #[tokio::test]
         async fn finds_character_with_ownership() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -342,7 +369,12 @@ mod tests {
             Ok(())
         }
 
-        // Expect Some when character entry is found but no character ownership entry
+        /// Tests finding character without ownership.
+        ///
+        /// Verifies that the user character repository successfully retrieves character
+        /// information without ownership when the ownership entry does not exist.
+        ///
+        /// Expected: Ok(Some((character, None)))
         #[tokio::test]
         async fn finds_character_without_ownership() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -362,7 +394,12 @@ mod tests {
             Ok(())
         }
 
-        // Expect None when character is not found
+        /// Tests handling of nonexistent character.
+        ///
+        /// Verifies that the user character repository returns None when attempting to
+        /// retrieve a character that does not exist in the database.
+        ///
+        /// Expected: Ok(None)
         #[tokio::test]
         async fn returns_none_for_nonexistent_character() -> Result<(), TestError> {
             let test = TestBuilder::new().with_user_tables().build().await?;
@@ -380,7 +417,12 @@ mod tests {
             Ok(())
         }
 
-        // Expect Error when required database tables are not present
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user character repository returns an error when attempting to
+        /// retrieve character information without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that does not create required tables, causing a database error
@@ -398,12 +440,18 @@ mod tests {
         }
     }
 
+    /// Tests for UserCharacterRepository::get_ownerships_by_user_id method.
     mod get_ownerships_by_user_id {
         use bifrost_test_utils::prelude::*;
 
         use super::*;
 
-        /// Expect Ok with 2 owned character entries
+        /// Tests retrieving multiple character ownerships.
+        ///
+        /// Verifies that the user character repository successfully retrieves all
+        /// ownership entries for a user with multiple characters.
+        ///
+        /// Expected: Ok with Vec of length 2
         #[tokio::test]
         async fn returns_multiple_characters() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -428,7 +476,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with only 1 owned character entry
+        /// Tests retrieving a single character ownership.
+        ///
+        /// Verifies that the user character repository successfully retrieves the
+        /// ownership entry for a user with a single character.
+        ///
+        /// Expected: Ok with Vec of length 1
         #[tokio::test]
         async fn returns_single_character() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -449,7 +502,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec due to no owned characters
+        /// Tests handling user with no owned characters.
+        ///
+        /// Verifies that the user character repository returns an empty list when
+        /// querying a user who has no ownership entries for any characters.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_no_characters() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -469,7 +527,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect database error when required tables aren't present
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user character repository returns an error when attempting to
+        /// retrieve ownerships without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't create required tables, causing an error
@@ -487,13 +550,19 @@ mod tests {
         }
     }
 
+    /// Tests for UserCharacterRepository::get_owned_characters_by_user_id method.
     mod get_owned_characters_by_user_id {
         use bifrost_test_utils::prelude::*;
 
         use super::*;
 
-        /// Expect Ok with Vec length of 1 when requesting valid user ID
-        /// Validates that corporation is present and alliance can be None
+        /// Tests retrieving owned characters for a user.
+        ///
+        /// Verifies that the user character repository successfully retrieves character,
+        /// corporation, and alliance data for a user's owned characters. Validates that
+        /// corporation is always present and alliance can be None.
+        ///
+        /// Expected: Ok with Vec of length 1, corporation present, alliance None
         #[tokio::test]
         async fn returns_owned_characters_for_user() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -522,7 +591,13 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with Vec containing character with alliance
+        /// Tests retrieving owned characters with alliance.
+        ///
+        /// Verifies that the user character repository successfully retrieves complete
+        /// character data including alliance information when the character is affiliated
+        /// with an alliance.
+        ///
+        /// Expected: Ok with Vec containing character with alliance data
         #[tokio::test]
         async fn returns_owned_characters_with_alliance() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -567,7 +642,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with multiple characters, validating all have corporations
+        /// Tests retrieving multiple owned characters.
+        ///
+        /// Verifies that the user character repository successfully retrieves all owned
+        /// characters for a user, ensuring each has proper corporation data.
+        ///
+        /// Expected: Ok with Vec of length 2, all with corporation data
         #[tokio::test]
         async fn returns_multiple_owned_characters() -> Result<(), TestError> {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -597,7 +677,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec when requesting a nonexistent user ID
+        /// Tests handling of nonexistent user.
+        ///
+        /// Verifies that the user character repository returns an empty list when
+        /// attempting to retrieve characters for a user ID that does not exist.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
             let test = TestBuilder::new().with_user_tables().build().await?;
@@ -615,7 +700,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when required database tables do not exist
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the user character repository returns an error when attempting to
+        /// retrieve characters without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't setup required tables, causing a database error

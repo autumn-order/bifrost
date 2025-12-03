@@ -1,6 +1,17 @@
+//! Tests for CharacterRepository::upsert_many method.
+//!
+//! This module verifies the character upsert behavior, including inserting new
+//! characters, updating existing characters, handling mixed batches, faction
+//! relationships, and large batch operations.
+
 use super::*;
 
-/// Expect Ok when upserting new characters
+/// Tests upserting new characters.
+///
+/// Verifies that the character repository successfully inserts new character
+/// records into the database.
+///
+/// Expected: Ok with Vec containing 2 created characters
 #[tokio::test]
 async fn upserts_new_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -33,7 +44,13 @@ async fn upserts_new_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok & update when trying to upsert existing characters
+/// Tests updating existing characters.
+///
+/// Verifies that the character repository updates existing character records when
+/// upserting with the same character IDs, preserving created_at and updating
+/// info_updated_at and modified fields.
+///
+/// Expected: Ok with updated characters, preserved created_at, newer info_updated_at
 #[tokio::test]
 async fn updates_existing_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -120,7 +137,13 @@ async fn updates_existing_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok when upserting mix of new and existing characters
+/// Tests upserting mixed new and existing characters.
+///
+/// Verifies that the character repository correctly handles a batch containing
+/// both new characters (to insert) and existing characters (to update) in a
+/// single operation.
+///
+/// Expected: Ok with Vec containing both updated and newly created characters
 #[tokio::test]
 async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -205,7 +228,12 @@ async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with empty result when upserting empty vector
+/// Tests handling empty input.
+///
+/// Verifies that the character repository handles empty upsert lists gracefully
+/// without errors.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -224,7 +252,12 @@ async fn handles_empty_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok when upserting characters with various faction relationships
+/// Tests upserting characters with faction relationships.
+///
+/// Verifies that the character repository correctly handles characters with
+/// various faction relationships (Some faction, different factions, None).
+///
+/// Expected: Ok with characters having correct faction_id assignments
 #[tokio::test]
 async fn upserts_with_faction_relationships() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -289,7 +322,12 @@ async fn upserts_with_faction_relationships() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok when upserting large batch of characters
+/// Tests handling large batch upsert.
+///
+/// Verifies that the character repository efficiently handles upserting large
+/// batches of characters (100 in this test) in a single operation.
+///
+/// Expected: Ok with Vec containing all 100 characters
 #[tokio::test]
 async fn handles_large_batch() -> Result<(), TestError> {
     let mut test = TestBuilder::new()

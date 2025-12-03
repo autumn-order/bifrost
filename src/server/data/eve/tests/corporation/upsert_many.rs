@@ -1,6 +1,17 @@
+//! Tests for CorporationRepository::upsert_many method.
+//!
+//! This module verifies the corporation upsert behavior, including inserting new
+//! corporations, updating existing corporations, handling mixed batches, alliance
+//! and faction relationships, and large batch operations.
+
 use super::*;
 
-/// Expect Ok when upserting new corporations
+/// Tests upserting new corporations.
+///
+/// Verifies that the corporation repository successfully inserts new corporation
+/// records into the database.
+///
+/// Expected: Ok with Vec containing 2 created corporations
 #[tokio::test]
 async fn upserts_new_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -27,7 +38,13 @@ async fn upserts_new_corporations() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok & update when trying to upsert existing corporations
+/// Tests updating existing corporations.
+///
+/// Verifies that the corporation repository updates existing corporation records when
+/// upserting with the same corporation IDs, preserving created_at and updating
+/// info_updated_at and modified fields.
+///
+/// Expected: Ok with updated corporations, preserved created_at, newer info_updated_at
 #[tokio::test]
 async fn updates_existing_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -96,7 +113,13 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok when upserting mix of new and existing corporations
+/// Tests upserting mixed new and existing corporations.
+///
+/// Verifies that the corporation repository correctly handles a batch containing
+/// both new corporations (to insert) and existing corporations (to update) in a
+/// single operation.
+///
+/// Expected: Ok with Vec containing both updated and newly created corporations
 #[tokio::test]
 async fn upserts_mixed_new_and_existing_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -161,7 +184,12 @@ async fn upserts_mixed_new_and_existing_corporations() -> Result<(), TestError> 
     Ok(())
 }
 
-/// Expect Ok with empty result when upserting empty vector
+/// Tests handling empty input.
+///
+/// Verifies that the corporation repository handles empty upsert lists gracefully
+/// without errors.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -179,7 +207,13 @@ async fn handles_empty_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok when upserting corporations with various alliance and faction relationships
+/// Tests upserting corporations with alliance and faction relationships.
+///
+/// Verifies that the corporation repository correctly handles corporations with
+/// various alliance and faction relationships (Some alliance, different alliances,
+/// None, and faction affiliations).
+///
+/// Expected: Ok with corporations having correct alliance_id and faction_id assignments
 #[tokio::test]
 async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -249,7 +283,12 @@ async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestErr
     Ok(())
 }
 
-/// Expect Ok when upserting large batch of corporations
+/// Tests handling large batch upsert.
+///
+/// Verifies that the corporation repository efficiently handles upserting large
+/// batches of corporations (100 in this test) in a single operation.
+///
+/// Expected: Ok with Vec containing all 100 corporations
 #[tokio::test]
 async fn handles_large_batch() -> Result<(), TestError> {
     let mut test = TestBuilder::new()

@@ -1,3 +1,9 @@
+//! Tests for FactionService::update_factions method.
+//!
+//! This module verifies the faction update service behavior during ESI data
+//! synchronization, including cache expiry handling, retry logic for transient
+//! failures, and error handling for missing tables or unavailable ESI endpoints.
+
 use bifrost::server::{
     error::Error,
     service::{eve::faction::FactionService, orchestrator::faction::FactionOrchestrator},
@@ -6,7 +12,12 @@ use bifrost_test_utils::prelude::*;
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, IntoActiveModel};
 
-/// Expect success when updating an empty factions table
+/// Tests updating an empty factions table.
+///
+/// Verifies that the faction service successfully fetches faction data from ESI
+/// and populates an empty database table with the retrieved faction records.
+///
+/// Expected: Ok with one faction inserted</parameter>
 #[tokio::test]
 async fn updates_empty_faction_table() -> Result<(), TestError> {
     let faction_id = 1;
@@ -30,7 +41,13 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with an update performed due to existing factions being past cache expiry
+/// Tests updating factions past cache expiry.
+///
+/// Verifies that the faction service updates faction records when their
+/// updated_at timestamp exceeds the cache duration, triggering a fresh fetch
+/// from ESI and database update.
+///
+/// Expected: Ok with faction updated and new timestamp
 #[tokio::test]
 async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
     let faction_id = 1;
@@ -71,7 +88,13 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with no update performed due to existing factions still being within cache period
+/// Tests skipping update when within cache period.
+///
+/// Verifies that the faction service skips ESI calls and database updates when
+/// existing faction records have recent updated_at timestamps within the cache
+/// expiry window.
+///
+/// Expected: Ok with empty update list and no ESI calls
 #[tokio::test]
 async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
     let faction_id = 1;
@@ -110,7 +133,13 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect success when ESI fails initially but succeeds on retry with cached data reused
+/// Tests retry logic on ESI server error.
+///
+/// Verifies that the faction service successfully retries failed ESI requests
+/// when encountering transient server errors (500), ultimately succeeding and
+/// updating faction data.
+///
+/// Expected: Ok with faction data updated after retry
 #[tokio::test]
 async fn retries_on_esi_server_error() -> Result<(), TestError> {
     let faction_id = 1;
@@ -143,8 +172,13 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect success when ESI succeeds but initial database operation would fail
-/// The retry should reuse cached ESI data without fetching again
+/// Tests reusing cached data on retry.
+///
+/// Verifies that the faction service caches ESI response data and reuses it
+/// during retry attempts, avoiding redundant API calls when only database
+/// operations fail.
+///
+/// Expected: Ok with single ESI call despite retries
 #[tokio::test]
 // TODO: we need a way to make DB fail on first insertion attempt
 #[ignore]
@@ -170,7 +204,12 @@ async fn reuses_cached_data_on_retry() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect error when ESI continuously returns server errors exceeding max retries
+/// Tests error handling after max retries.
+///
+/// Verifies that the faction service returns an error when ESI continuously
+/// returns server errors (503) exceeding the maximum retry attempt limit.
+///
+/// Expected: Err with EsiError after 3 failed attempts
 #[tokio::test]
 async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     // All 3 attempts fail (as per RetryContext::DEFAULT_MAX_ATTEMPTS)
@@ -197,7 +236,12 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect error when ESI endpoint is completely unavailable (connection refused)
+/// Tests error handling when ESI is unavailable.
+///
+/// Verifies that the faction service returns an error when the ESI endpoint
+/// is completely unreachable due to connection failures.
+///
+/// Expected: Err with ReqwestError
 #[tokio::test]
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     // No mock endpoint is created, so connection will be refused
@@ -217,7 +261,12 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect error when attempting to update factions due to required tables not being created
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the faction service returns a database error when attempting
+/// to update factions without the required database tables being created.
+///
+/// Expected: Err with DbErr
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let faction_id = 1;
@@ -236,7 +285,13 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect retry logic respects cache expiry check (early return before ESI call)
+/// Tests retry logic respects cache expiry early return.
+///
+/// Verifies that the faction service's cache expiry check occurs before ESI
+/// calls, preventing unnecessary API requests even during retry scenarios when
+/// cached data is still valid.
+///
+/// Expected: Ok with no ESI calls and empty update list
 #[tokio::test]
 async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestError> {
     let faction_id = 1;

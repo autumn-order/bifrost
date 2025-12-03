@@ -1,7 +1,18 @@
+//! Tests for CharacterRepository::update_affiliations method.
+//!
+//! This module verifies the character affiliation update behavior, including updating
+//! corporation and faction affiliations for single and multiple characters, handling
+//! batch operations, timestamp updates, and edge cases like empty inputs and mixed faction assignments.
+
 use super::*;
 use sea_orm::EntityTrait;
 
-/// Should successfully update a single character's corporation and faction affiliation
+/// Tests updating a single character's affiliation.
+///
+/// Verifies that the character repository successfully updates a character's
+/// corporation and faction affiliations in the database.
+///
+/// Expected: Ok with updated corporation_id and faction_id
 #[tokio::test]
 async fn updates_single_character_affiliation() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -56,7 +67,12 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should successfully update multiple characters in a single call
+/// Tests updating multiple characters in a single call.
+///
+/// Verifies that the character repository successfully updates affiliations for
+/// multiple characters in a single batch operation.
+///
+/// Expected: Ok with all characters updated to their respective affiliations
 #[tokio::test]
 async fn updates_multiple_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -127,7 +143,12 @@ async fn updates_multiple_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should successfully remove faction affiliation by setting to None
+/// Tests removing faction affiliation.
+///
+/// Verifies that the character repository successfully removes a character's
+/// faction affiliation by setting it to None while maintaining corporation affiliation.
+///
+/// Expected: Ok with faction_id set to None
 #[tokio::test]
 async fn removes_faction_affiliation() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -173,7 +194,13 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle batching for large numbers of characters (>100)
+/// Tests handling large batch updates.
+///
+/// Verifies that the character repository correctly handles batching when updating
+/// affiliations for large numbers of characters (>100), ensuring all updates are
+/// processed across multiple batches.
+///
+/// Expected: Ok with all 250 characters updated
 #[tokio::test]
 async fn handles_large_batch_updates() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -231,7 +258,12 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle empty input gracefully
+/// Tests handling empty input.
+///
+/// Verifies that the character repository handles empty affiliation update lists
+/// gracefully without errors.
+///
+/// Expected: Ok with no operations performed
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -250,7 +282,12 @@ async fn handles_empty_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should update affiliation_updated_at timestamp when updating affiliations
+/// Tests updating affiliation timestamp.
+///
+/// Verifies that the character repository updates the affiliation_updated_at
+/// timestamp whenever affiliation data is modified.
+///
+/// Expected: Ok with affiliation_updated_at newer than original
 #[tokio::test]
 async fn updates_timestamp() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -306,7 +343,12 @@ async fn updates_timestamp() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should not affect characters not in the update list
+/// Tests that other characters are not affected.
+///
+/// Verifies that the character repository only updates characters specified in
+/// the update list, leaving other characters' affiliations unchanged.
+///
+/// Expected: Ok with only specified character updated
 #[tokio::test]
 async fn does_not_affect_other_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -367,7 +409,12 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle mix of Some and None faction IDs in same batch
+/// Tests handling mixed faction assignments.
+///
+/// Verifies that the character repository correctly processes a batch containing
+/// both Some and None faction IDs, applying each appropriately.
+///
+/// Expected: Ok with characters having correct faction assignments
 #[tokio::test]
 async fn handles_mixed_faction_assignments() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
