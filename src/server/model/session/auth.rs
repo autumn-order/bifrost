@@ -113,6 +113,70 @@ mod tests {
 
             Ok(())
         }
+
+        #[tokio::test]
+        /// Tests that inserted CSRF token can be retrieved with correct value.
+        ///
+        /// Verifies that the CSRF token stored in the session matches the original value
+        /// when retrieved, ensuring data integrity during storage.
+        ///
+        /// Expected: Ok(()) and retrieved value matches inserted value
+        async fn inserted_csrf_is_retrievable() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let state = "test_csrf_token_12345";
+
+            let insert_result = SessionAuthCsrf::insert(&test.session, state).await;
+            assert!(insert_result.is_ok());
+
+            let get_result = SessionAuthCsrf::get(&test.session).await;
+            assert!(get_result.is_ok());
+            assert_eq!(get_result.unwrap(), state);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that inserting a new CSRF token overwrites the previous one.
+        ///
+        /// Verifies that when a CSRF token is inserted multiple times, the latest value
+        /// overwrites the previous one, ensuring only the most recent token is stored.
+        ///
+        /// Expected: Ok(()) and retrieved value matches the latest inserted value
+        async fn overwrites_existing_csrf() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let first_state = "first_token";
+            let second_state = "second_token";
+
+            let _ = SessionAuthCsrf::insert(&test.session, first_state)
+                .await
+                .unwrap();
+            let _ = SessionAuthCsrf::insert(&test.session, second_state)
+                .await
+                .unwrap();
+
+            let result = SessionAuthCsrf::get(&test.session).await;
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), second_state);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests insertion of empty string as CSRF token.
+        ///
+        /// Verifies that an empty string can be stored as a CSRF token (edge case),
+        /// though this would not be used in production.
+        ///
+        /// Expected: Ok(())
+        async fn inserts_empty_string() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let result = SessionAuthCsrf::insert(&test.session, "").await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
     }
 
     mod get {
@@ -191,6 +255,80 @@ mod tests {
             let result = SessionAuthCsrf::remove(&test.session).await;
 
             assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        /// Tests that removed CSRF token returns the correct value.
+        ///
+        /// Verifies that the value returned by `remove` matches the original value
+        /// that was stored in the session.
+        ///
+        /// Expected: Ok(Some(state)) where state matches the inserted value
+        #[tokio::test]
+        async fn returns_correct_value_on_removal() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let state = "test_state_value";
+            let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
+
+            let result = SessionAuthCsrf::remove(&test.session).await;
+
+            assert!(result.is_ok());
+            let removed_value = result.unwrap();
+            assert!(removed_value.is_some());
+            assert_eq!(removed_value.unwrap(), state);
+
+            Ok(())
+        }
+
+        /// Tests that CSRF token is actually removed after removal.
+        ///
+        /// Verifies that after calling `remove`, the CSRF token is no longer present
+        /// in the session and subsequent attempts to retrieve it fail.
+        ///
+        /// Expected: First removal succeeds, second attempt fails with CsrfMissingValue
+        #[tokio::test]
+        async fn csrf_not_retrievable_after_removal() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let state = "state_to_remove";
+            let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
+
+            let remove_result = SessionAuthCsrf::remove(&test.session).await;
+            assert!(remove_result.is_ok());
+
+            // Attempt to get the removed token should fail
+            let get_result = SessionAuthCsrf::get(&test.session).await;
+            assert!(get_result.is_err());
+            assert!(matches!(
+                get_result,
+                Err(Error::AuthError(AuthError::CsrfMissingValue))
+            ));
+
+            Ok(())
+        }
+
+        /// Tests that remove is idempotent (calling remove twice fails the second time).
+        ///
+        /// Verifies that after successfully removing a CSRF token, a second removal
+        /// attempt fails with CsrfMissingValue error.
+        ///
+        /// Expected: First removal succeeds, second removal fails
+        #[tokio::test]
+        async fn second_removal_fails() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let _ = SessionAuthCsrf::insert(&test.session, "state")
+                .await
+                .unwrap();
+
+            let first_remove = SessionAuthCsrf::remove(&test.session).await;
+            assert!(first_remove.is_ok());
+
+            let second_remove = SessionAuthCsrf::remove(&test.session).await;
+            assert!(second_remove.is_err());
+            assert!(matches!(
+                second_remove,
+                Err(Error::AuthError(AuthError::CsrfMissingValue))
+            ));
 
             Ok(())
         }
