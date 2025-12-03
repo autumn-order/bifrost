@@ -5,7 +5,7 @@ use super::*;
 /// Expect Ok with Some & no additional characters for user with only a main character linked
 #[tokio::test]
 async fn returns_user() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -23,7 +23,7 @@ async fn returns_user() -> Result<(), TestError> {
 /// Expect Ok with None for user ID that does not exist
 #[tokio::test]
 async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let nonexistent_user_id = 1;
     let user_service = UserService::new(&test.state.db);
@@ -39,7 +39,7 @@ async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
 /// Expect Error when required tables are not present
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     let nonexistent_user_id = 1;
     let user_service = UserService::new(&test.state.db);

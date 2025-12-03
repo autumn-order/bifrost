@@ -76,21 +76,36 @@ impl TestBuilder {
         self
     }
 
-    /// Add custom entity tables to the test database.
+    /// Add a custom entity table to the test database.
     ///
-    /// Accepts a slice of SeaORM entities and generates CREATE TABLE statements
-    /// for each one, which will be executed during `build()`.
+    /// Generates a CREATE TABLE statement for the entity, which will be executed during `build()`.
+    /// Chain multiple calls to add multiple tables.
     ///
     /// # Arguments
-    /// - `entities` - Slice of entity types implementing `EntityTrait`
+    /// - `entity` - Entity type implementing `EntityTrait`
     ///
     /// # Returns
     /// - `Self` - The builder instance for method chaining
-    pub fn with_tables<E: EntityTrait>(mut self, entities: &[E]) -> Self {
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use bifrost_test_utils::TestBuilder;
+    /// use entity::prelude::*;
+    ///
+    /// # async fn example() -> Result<(), bifrost_test_utils::TestError> {
+    /// let test = TestBuilder::new()
+    ///     .with_table(EveFaction)
+    ///     .with_table(EveAlliance)
+    ///     .with_table(EveCorporation)
+    ///     .build()
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn with_table<E: EntityTrait>(mut self, entity: E) -> Self {
         let schema = Schema::new(sea_orm::DbBackend::Sqlite);
-        for entity in entities {
-            self.tables.push(schema.create_table_from_entity(*entity));
-        }
+        self.tables.push(schema.create_table_from_entity(entity));
         self
     }
 

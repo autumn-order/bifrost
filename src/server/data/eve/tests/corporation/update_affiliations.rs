@@ -4,11 +4,12 @@ use sea_orm::EntityTrait;
 /// Should successfully update a single corporation's alliance affiliation
 #[tokio::test]
 async fn updates_single_corporation_alliance() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create two alliances and a corporation initially affiliated with the first
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -40,11 +41,12 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
 /// Should successfully update multiple corporations in a single call
 #[tokio::test]
 async fn updates_multiple_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliances
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -95,11 +97,12 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
 /// Should successfully remove alliance affiliation by setting to None
 #[tokio::test]
 async fn removes_alliance_affiliation() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance and corporation
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -130,11 +133,12 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
 /// Should handle batching for large numbers of corporations (>100)
 #[tokio::test]
 async fn handles_large_batch_updates() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create an alliance
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -185,11 +189,12 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
 /// Should handle empty input gracefully
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo.update_affiliations(vec![]).await;
@@ -202,11 +207,12 @@ async fn handles_empty_input() -> Result<(), TestError> {
 /// Should update affiliation_updated_at timestamp when updating affiliations
 #[tokio::test]
 async fn updates_timestamp() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance and corporation
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -244,11 +250,12 @@ async fn updates_timestamp() -> Result<(), TestError> {
 /// Should not affect corporations not in the update list
 #[tokio::test]
 async fn does_not_affect_other_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliances and corporations
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -294,11 +301,12 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
 /// Should handle mix of Some and None alliance IDs in same batch
 #[tokio::test]
 async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance
     let alliance = test.eve().insert_mock_alliance(1, None).await?;

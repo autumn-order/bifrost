@@ -3,11 +3,12 @@ use super::*;
 /// Expect Ok when upserting new corporations
 #[tokio::test]
 async fn upserts_new_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
     let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
     let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
 
@@ -29,16 +30,17 @@ async fn upserts_new_corporations() -> Result<(), TestError> {
 /// Expect Ok & update when trying to upsert existing corporations
 #[tokio::test]
 async fn updates_existing_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
     let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
     let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
-    let (corporation_id_1_update, corporation_1_update) =
+    let (corporation_id_1_update, mut corporation_1_update) =
         test.eve().with_mock_corporation(1, None, None);
-    let (corporation_id_2_update, corporation_2_update) =
+    let (corporation_id_2_update, mut corporation_2_update) =
         test.eve().with_mock_corporation(2, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.state.db);
@@ -63,6 +65,10 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
     let initial_created_at_2 = initial_entry_2.created_at;
     let initial_updated_at_2 = initial_entry_2.info_updated_at;
 
+    // Modify corporation data to verify updates
+    corporation_1_update.name = "Updated Corporation 1".to_string();
+    corporation_2_update.name = "Updated Corporation 2".to_string();
+
     let latest = corporation_repo
         .upsert_many(vec![
             (corporation_id_1_update, corporation_1_update, None, None),
@@ -82,8 +88,10 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
     // created_at should not change and updated_at should increase for both corporations
     assert_eq!(latest_entry_1.created_at, initial_created_at_1);
     assert!(latest_entry_1.info_updated_at > initial_updated_at_1);
+    assert_eq!(latest_entry_1.name, "Updated Corporation 1");
     assert_eq!(latest_entry_2.created_at, initial_created_at_2);
     assert!(latest_entry_2.info_updated_at > initial_updated_at_2);
+    assert_eq!(latest_entry_2.name, "Updated Corporation 2");
 
     Ok(())
 }
@@ -91,11 +99,12 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
 /// Expect Ok when upserting mix of new and existing corporations
 #[tokio::test]
 async fn upserts_mixed_new_and_existing_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
     let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
     let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
     let (corporation_id_3, corporation_3) = test.eve().with_mock_corporation(3, None, None);
@@ -155,11 +164,12 @@ async fn upserts_mixed_new_and_existing_corporations() -> Result<(), TestError> 
 /// Expect Ok with empty result when upserting empty vector
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     let corporation_repo = CorporationRepository::new(&test.state.db);
     let result = corporation_repo.upsert_many(vec![]).await?;
@@ -172,27 +182,20 @@ async fn handles_empty_input() -> Result<(), TestError> {
 /// Expect Ok when upserting corporations with various alliance and faction relationships
 #[tokio::test]
 async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
     let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
     let alliance_2 = test.eve().insert_mock_alliance(2, None).await?;
     let faction_1 = test.eve().insert_mock_faction(1).await?;
     let faction_2 = test.eve().insert_mock_faction(2).await?;
 
-    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(
-        1,
-        Some(alliance_1.alliance_id),
-        Some(faction_1.faction_id),
-    );
-    let (corporation_id_2, corporation_2) =
-        test.eve()
-            .with_mock_corporation(2, Some(alliance_2.alliance_id), None);
-    let (corporation_id_3, corporation_3) =
-        test.eve()
-            .with_mock_corporation(3, None, Some(faction_2.faction_id));
+    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
+    let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
+    let (corporation_id_3, corporation_3) = test.eve().with_mock_corporation(3, None, None);
     let (corporation_id_4, corporation_4) = test.eve().with_mock_corporation(4, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.state.db);
@@ -204,8 +207,13 @@ async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestErr
                 Some(alliance_1.id),
                 Some(faction_1.id),
             ),
-            (corporation_id_2, corporation_2, Some(alliance_2.id), None),
-            (corporation_id_3, corporation_3, None, Some(faction_2.id)),
+            (
+                corporation_id_2,
+                corporation_2,
+                Some(alliance_2.id),
+                Some(faction_2.id),
+            ),
+            (corporation_id_3, corporation_3, Some(alliance_1.id), None),
             (corporation_id_4, corporation_4, None, None),
         ])
         .await?;
@@ -232,9 +240,9 @@ async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestErr
     assert_eq!(corp_1.alliance_id, Some(alliance_1.id));
     assert_eq!(corp_1.faction_id, Some(faction_1.id));
     assert_eq!(corp_2.alliance_id, Some(alliance_2.id));
-    assert_eq!(corp_2.faction_id, None);
-    assert_eq!(corp_3.alliance_id, None);
-    assert_eq!(corp_3.faction_id, Some(faction_2.id));
+    assert_eq!(corp_2.faction_id, Some(faction_2.id));
+    assert_eq!(corp_3.alliance_id, Some(alliance_1.id));
+    assert_eq!(corp_3.faction_id, None);
     assert_eq!(corp_4.alliance_id, None);
     assert_eq!(corp_4.faction_id, None);
 
@@ -244,11 +252,12 @@ async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestErr
 /// Expect Ok when upserting large batch of corporations
 #[tokio::test]
 async fn handles_large_batch() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     let mut corporations = Vec::new();
     for i in 1..=100 {

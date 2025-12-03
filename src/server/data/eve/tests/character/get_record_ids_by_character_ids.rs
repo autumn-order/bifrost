@@ -3,12 +3,13 @@ use super::*;
 /// Expect Ok with correct mappings when characters exist in database
 #[tokio::test]
 async fn returns_record_ids_for_existing_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let character_1 = test.eve().insert_mock_character(1, 1, None, None).await?;
     let character_2 = test.eve().insert_mock_character(2, 1, None, None).await?;
     let character_3 = test.eve().insert_mock_character(3, 1, None, None).await?;
@@ -52,12 +53,13 @@ async fn returns_record_ids_for_existing_characters() -> Result<(), TestError> {
 /// Expect Ok with empty Vec when no characters match
 #[tokio::test]
 async fn returns_empty_for_nonexistent_characters() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids = vec![1, 2, 3];
@@ -75,12 +77,13 @@ async fn returns_empty_for_nonexistent_characters() -> Result<(), TestError> {
 /// Expect Ok with empty Vec when input is empty
 #[tokio::test]
 async fn returns_empty_for_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids: Vec<i64> = vec![];
@@ -98,12 +101,13 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
 /// Expect Ok with partial results when only some characters exist
 #[tokio::test]
 async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let character_1 = test.eve().insert_mock_character(1, 1, None, None).await?;
     let character_3 = test.eve().insert_mock_character(3, 1, None, None).await?;
 
@@ -140,7 +144,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
 /// Expect Error when required tables haven't been created
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     let character_repo = CharacterRepository::new(&test.state.db);
     let character_ids = vec![1, 2, 3];

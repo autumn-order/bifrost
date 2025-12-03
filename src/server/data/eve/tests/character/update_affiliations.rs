@@ -4,12 +4,13 @@ use sea_orm::EntityTrait;
 /// Should successfully update a single character's corporation and faction affiliation
 #[tokio::test]
 async fn updates_single_character_affiliation() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create factions and corporations
     let faction1 = test.eve().insert_mock_faction(1).await?;
@@ -58,12 +59,13 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
 /// Should successfully update multiple characters in a single call
 #[tokio::test]
 async fn updates_multiple_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create factions and corporations
     let faction1 = test.eve().insert_mock_faction(1).await?;
@@ -128,12 +130,13 @@ async fn updates_multiple_characters() -> Result<(), TestError> {
 /// Should successfully remove faction affiliation by setting to None
 #[tokio::test]
 async fn removes_faction_affiliation() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create faction and corporation
     let faction = test.eve().insert_mock_faction(1).await?;
@@ -173,12 +176,13 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
 /// Should handle batching for large numbers of characters (>100)
 #[tokio::test]
 async fn handles_large_batch_updates() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create a corporation and faction
     let corp = test.eve().insert_mock_corporation(100, None, None).await?;
@@ -230,12 +234,13 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
 /// Should handle empty input gracefully
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     let character_repo = CharacterRepository::new(&test.state.db);
     let result = character_repo.update_affiliations(vec![]).await;
@@ -248,12 +253,13 @@ async fn handles_empty_input() -> Result<(), TestError> {
 /// Should update affiliation_updated_at timestamp when updating affiliations
 #[tokio::test]
 async fn updates_timestamp() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create corporation and faction
     let corp = test.eve().insert_mock_corporation(100, None, None).await?;
@@ -303,12 +309,13 @@ async fn updates_timestamp() -> Result<(), TestError> {
 /// Should not affect characters not in the update list
 #[tokio::test]
 async fn does_not_affect_other_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create factions and corporations
     let faction1 = test.eve().insert_mock_faction(1).await?;
@@ -363,12 +370,13 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
 /// Should handle mix of Some and None faction IDs in same batch
 #[tokio::test]
 async fn handles_mixed_faction_assignments() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
     // Create faction and corporation
     let faction = test.eve().insert_mock_faction(1).await?;

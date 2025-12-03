@@ -14,7 +14,7 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
     let faction_id = 1;
 
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .build()
         .await?;
@@ -38,7 +38,7 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
     let faction_id = 1;
 
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_mock_faction(faction_id)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .build()
@@ -79,7 +79,7 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
     let faction_id = 1;
 
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_mock_faction(faction_id)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 0)
         .build()
@@ -120,7 +120,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
     // First request fails with 500, second succeeds
     // Note: Mockito matches mocks in creation order for the same path
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_mock_endpoint(|server| {
             server
                 .mock("GET", "/universe/factions")
@@ -155,7 +155,7 @@ async fn reuses_cached_data_on_retry() -> Result<(), TestError> {
 
     // ESI should only be called once - data is cached for any retries
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .build()
         .await?;
@@ -177,7 +177,7 @@ async fn reuses_cached_data_on_retry() -> Result<(), TestError> {
 async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     // All 3 attempts fail (as per RetryContext::DEFAULT_MAX_ATTEMPTS)
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_mock_endpoint(|server| {
             server
                 .mock("GET", "/universe/factions")
@@ -204,7 +204,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     // No mock endpoint is created, so connection will be refused
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .build()
         .await?;
 
@@ -245,7 +245,7 @@ async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestErro
 
     // Create an endpoint that would fail if called
     let test = TestBuilder::new()
-        .with_tables(&[entity::prelude::EveFaction])
+        .with_table(entity::prelude::EveFaction)
         .with_mock_faction(faction_id)
         .with_mock_endpoint(|server| {
             server
