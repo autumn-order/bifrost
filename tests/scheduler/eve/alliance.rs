@@ -1,11 +1,8 @@
-//! Tests for schedule_alliance_info_update
+//! Tests for schedule_alliance_info_update scheduler.
 //!
-//! These tests verify the alliance info scheduling behavior including:
-//! - Scheduling updates for alliances with expired cache
-//! - Handling empty alliance tables
-//! - Skipping alliances that are up to date
-//! - Correct job creation with alliance IDs
-//! - Batch limiting based on configuration
+//! This module verifies the scheduler correctly identifies alliances with expired
+//! cache, prioritizes oldest entries first, and handles edge cases like empty tables,
+//! duplicate scheduling attempts, and large batch processing.
 
 use bifrost::server::scheduler::eve::alliance::schedule_alliance_info_update;
 use bifrost_test_utils::prelude::*;

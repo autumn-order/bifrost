@@ -1,11 +1,8 @@
-//! Tests for schedule_corporation_info_update
+//! Tests for schedule_corporation_info_update scheduler.
 //!
-//! These tests verify the corporation info scheduling behavior including:
-//! - Scheduling updates for corporations with expired cache
-//! - Handling empty corporation tables
-//! - Skipping corporations that are up to date
-//! - Correct job creation with corporation IDs
-//! - Batch limiting based on configuration
+//! This module verifies the scheduler correctly identifies corporations with expired
+//! cache, prioritizes oldest entries first, and handles edge cases like empty tables,
+//! duplicate scheduling attempts, and large batch processing.
 
 use bifrost::server::scheduler::eve::corporation::schedule_corporation_info_update;
 use bifrost_test_utils::prelude::*;

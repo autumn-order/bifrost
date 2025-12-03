@@ -1,14 +1,9 @@
-//! Tests for schedule_faction_info_update
+//! Tests for schedule_faction_info_update scheduler.
 //!
-//! These tests verify the faction info scheduling behavior including:
-//! - Successfully scheduling faction update jobs
-//! - Job creation without database dependencies
-//! - Handling missing Redis connection
-//! - Duplicate job prevention
-//!
-//! Unlike other entity schedulers (alliance, corporation, character), the faction scheduler
-//! always enqueues exactly one job that checks all factions, since there are only a small,
-//! fixed number of NPC factions in EVE Online.
+//! This module verifies the scheduler enqueues a single job to update all factions,
+//! handles duplicate job prevention, and operates without database dependencies.
+//! Unlike other entity schedulers, the faction scheduler always schedules exactly
+//! one job since there are only a small, fixed number of NPC factions in EVE Online.
 
 use bifrost::server::{
     model::worker::WorkerJob, scheduler::eve::faction::schedule_faction_info_update,

@@ -1,11 +1,8 @@
-//! Tests for schedule_character_affiliation_update
+//! Tests for schedule_character_affiliation_update scheduler.
 //!
-//! These tests verify the character affiliation scheduling behavior including:
-//! - Scheduling updates for characters with expired affiliation cache
-//! - Handling empty character tables
-//! - Skipping characters that are up to date
-//! - Batching character IDs according to ESI limits
-//! - Correct job creation with character ID lists
+//! This module verifies the scheduler correctly identifies characters with expired
+//! affiliation cache, batches character IDs according to ESI limits, and handles
+//! edge cases like empty tables and duplicate scheduling attempts.
 
 use bifrost::server::scheduler::eve::affiliation::schedule_character_affiliation_update;
 use bifrost_test_utils::prelude::*;

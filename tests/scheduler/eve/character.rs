@@ -1,11 +1,8 @@
-//! Tests for schedule_character_info_update
+//! Tests for schedule_character_info_update scheduler.
 //!
-//! These tests verify the character info scheduling behavior including:
-//! - Scheduling updates for characters with expired cache
-//! - Handling empty character tables
-//! - Skipping characters that are up to date
-//! - Correct job creation with character IDs
-//! - Batch limiting based on configuration
+//! This module verifies the scheduler correctly identifies characters with expired
+//! cache, prioritizes oldest entries first, and handles edge cases like empty tables,
+//! duplicate scheduling attempts, and large batch processing.
 
 use bifrost::server::scheduler::eve::character::schedule_character_info_update;
 use bifrost_test_utils::prelude::*;
