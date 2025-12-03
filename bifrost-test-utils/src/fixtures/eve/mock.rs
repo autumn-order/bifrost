@@ -1,4 +1,9 @@
-use chrono::{DateTime, Utc};
+//! EVE entity mock data generation utilities.
+//!
+//! This module provides methods for generating mock EVE Online entity objects
+//! with standard test values. These methods create in-memory data objects without
+//! database side effects, useful for testing ESI endpoint responses.
+
 use eve_esi::model::{
     alliance::Alliance,
     character::{Character, CharacterAffiliation},
@@ -6,42 +11,53 @@ use eve_esi::model::{
     universe::Faction,
 };
 
-use crate::fixtures::eve::EveFixtures;
+use crate::fixtures::eve::{factory, EveFixtures};
 
 impl<'a> EveFixtures<'a> {
-    pub fn with_mock_faction(&self, faction_id: i64) -> Faction {
-        Faction {
-            corporation_id: Some(0),
-            description: "string".to_string(),
-            faction_id: faction_id,
-            is_unique: true,
-            militia_corporation_id: Some(0),
-            name: "string".to_string(),
-            size_factor: 0.0,
-            solar_system_id: Some(0),
-            station_count: 0,
-            station_system_count: 0,
-        }
+    /// Generate a mock faction object with test values.
+    ///
+    /// Creates a Faction struct populated with standard test data. This is a pure
+    /// data generation method with no database or HTTP side effects.
+    ///
+    /// # Arguments
+    /// - `faction_id` - The EVE Online faction ID to use
+    ///
+    /// # Returns
+    /// - `Faction` - A faction object with test data
+    pub fn mock_faction(&self, faction_id: i64) -> Faction {
+        factory::mock_faction(faction_id)
     }
 
-    pub fn with_mock_alliance(&self, alliance_id: i64, faction_id: Option<i64>) -> (i64, Alliance) {
-        (
-            alliance_id,
-            Alliance {
-                creator_corporation_id: 98784257,
-                creator_id: 2114794365,
-                faction_id: faction_id,
-                date_founded: DateTime::parse_from_rfc3339("2024-09-25T06:25:58Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-                executor_corporation_id: Some(98787881),
-                name: "Autumn.".to_string(),
-                ticker: "AUTMN".to_string(),
-            },
-        )
+    /// Generate a mock alliance object with test values.
+    ///
+    /// Creates an Alliance struct populated with standard test data. Returns both
+    /// the alliance ID and the alliance object for convenience. This is a pure
+    /// data generation method with no database or HTTP side effects.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The EVE Online alliance ID to use
+    /// - `faction_id` - Optional faction ID the alliance belongs to
+    ///
+    /// # Returns
+    /// - `(i64, Alliance)` - Tuple of alliance ID and alliance object with test data
+    pub fn mock_alliance(&self, alliance_id: i64, faction_id: Option<i64>) -> (i64, Alliance) {
+        (alliance_id, factory::mock_alliance(faction_id))
     }
 
-    pub fn with_mock_corporation(
+    /// Generate a mock corporation object with test values.
+    ///
+    /// Creates a Corporation struct populated with standard test data. Returns both
+    /// the corporation ID and the corporation object for convenience. This is a pure
+    /// data generation method with no database or HTTP side effects.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The EVE Online corporation ID to use
+    /// - `alliance_id` - Optional alliance ID the corporation belongs to
+    /// - `faction_id` - Optional faction ID the corporation belongs to
+    ///
+    /// # Returns
+    /// - `(i64, Corporation)` - Tuple of corporation ID and corporation object with test data
+    pub fn mock_corporation(
         &self,
         corporation_id: i64,
         alliance_id: Option<i64>,
@@ -49,30 +65,25 @@ impl<'a> EveFixtures<'a> {
     ) -> (i64, Corporation) {
         (
             corporation_id,
-            Corporation {
-                alliance_id: alliance_id,
-                ceo_id: 2114794365,
-                creator_id: 2114794365,
-                date_founded: Some(
-                    DateTime::parse_from_rfc3339("2024-10-07T21:43:09Z")
-                        .unwrap()
-                        .with_timezone(&Utc),
-                ),
-                description: None,
-                home_station_id: Some(60003760),
-                member_count: 21,
-                name: "The Order of Autumn".to_string(),
-                shares: Some(1000),
-                tax_rate: 0.0,
-                ticker: "F4LL.".to_string(),
-                url: Some("https://autumn-order.com".to_string()),
-                war_eligible: Some(true),
-                faction_id: faction_id,
-            },
+            factory::mock_corporation(alliance_id, faction_id),
         )
     }
 
-    pub fn with_mock_character(
+    /// Generate a mock character object with test values.
+    ///
+    /// Creates a Character struct populated with standard test data. Returns both
+    /// the character ID and the character object for convenience. This is a pure
+    /// data generation method with no database or HTTP side effects.
+    ///
+    /// # Arguments
+    /// - `character_id` - The EVE Online character ID to use
+    /// - `corporation_id` - The corporation ID the character belongs to
+    /// - `alliance_id` - Optional alliance ID the character belongs to
+    /// - `faction_id` - Optional faction ID the character belongs to
+    ///
+    /// # Returns
+    /// - `(i64, Character)` - Tuple of character ID and character object with test data
+    pub fn mock_character(
         &self,
         character_id: i64,
         corporation_id: i64,
@@ -81,36 +92,31 @@ impl<'a> EveFixtures<'a> {
     ) -> (i64, Character) {
         (
             character_id,
-            Character {
-                alliance_id: alliance_id,
-                birthday: DateTime::parse_from_rfc3339("2018-12-20T16:11:54Z")
-                    .unwrap()
-                    .with_timezone(&Utc),
-                bloodline_id: 7,
-                corporation_id: corporation_id,
-                description: Some("description".to_string()),
-                faction_id: faction_id,
-                gender: "male".to_string(),
-                name: "Hyziri".to_string(),
-                race_id: 8,
-                security_status: Some(-0.100373643),
-                title: Some("Title".to_string()),
-            },
+            factory::mock_character(corporation_id, alliance_id, faction_id),
         )
     }
 
-    pub fn with_mock_character_affiliation(
+    /// Generate a mock character affiliation object.
+    ///
+    /// Creates a CharacterAffiliation struct with the specified IDs. Used for
+    /// testing character affiliation endpoint responses. This is a pure data
+    /// generation method with no database or HTTP side effects.
+    ///
+    /// # Arguments
+    /// - `character_id` - The EVE Online character ID
+    /// - `corporation_id` - The corporation ID the character belongs to
+    /// - `alliance_id` - Optional alliance ID the character belongs to
+    /// - `faction_id` - Optional faction ID the character belongs to
+    ///
+    /// # Returns
+    /// - `CharacterAffiliation` - A character affiliation object
+    pub fn mock_character_affiliation(
         &self,
         character_id: i64,
         corporation_id: i64,
         alliance_id: Option<i64>,
         faction_id: Option<i64>,
     ) -> CharacterAffiliation {
-        CharacterAffiliation {
-            character_id,
-            corporation_id,
-            alliance_id,
-            faction_id,
-        }
+        factory::mock_character_affiliation(character_id, corporation_id, alliance_id, faction_id)
     }
 }

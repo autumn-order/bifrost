@@ -90,7 +90,7 @@ mod tests {
         ///
         /// Expected: Ok(())
         async fn inserts_user_id_into_session() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let user_id = 1;
             let result = SessionUserId::insert(&test.session, user_id).await;
@@ -114,7 +114,7 @@ mod tests {
         ///
         /// Expected: Ok(Some(1))
         async fn retrieves_user_id_from_session() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
             let user_id = 1;
             let _ = SessionUserId::insert(&test.session, user_id).await.unwrap();
 
@@ -139,7 +139,7 @@ mod tests {
         ///
         /// Expected: Ok(None)
         async fn returns_none_when_user_id_missing() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let result = SessionUserId::get(&test.session).await;
 
@@ -159,7 +159,7 @@ mod tests {
         ///
         /// Expected: Err(Error::ParseError)
         async fn fails_for_invalid_user_id_format() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             // Insert a user ID string which will fail i32 parse
             let user_id = "invalid_id";

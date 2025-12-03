@@ -1,3 +1,9 @@
+//! EVE HTTP mock endpoint creation utilities.
+//!
+//! This module provides methods for creating mock HTTP endpoints that simulate
+//! EVE ESI API responses. These endpoints are registered with the mockito server
+//! and can verify they were called the expected number of times.
+
 use eve_esi::model::{
     alliance::Alliance,
     character::{Character, CharacterAffiliation},
@@ -9,7 +15,18 @@ use mockito::Mock;
 use crate::fixtures::eve::EveFixtures;
 
 impl<'a> EveFixtures<'a> {
-    pub fn with_faction_endpoint(
+    /// Create a mock HTTP endpoint for the factions list.
+    ///
+    /// Sets up a mock GET endpoint at `/universe/factions` that returns the specified
+    /// faction data as JSON. The mock verifies it was called exactly `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `mock_factions` - Vector of Faction objects to return from the endpoint
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_faction_endpoint(
         &mut self,
         mock_factions: Vec<Faction>,
         expected_requests: usize,
@@ -24,7 +41,19 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_alliance_endpoint(
+    /// Create a mock HTTP endpoint for alliance data.
+    ///
+    /// Sets up a mock GET endpoint at `/alliances/{alliance_id}` that returns the specified
+    /// alliance data as JSON. The mock verifies it was called exactly `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `mock_alliance` - Alliance object to return from the endpoint
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_alliance_endpoint(
         &mut self,
         alliance_id: i64,
         mock_alliance: Alliance,
@@ -42,7 +71,20 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_corporation_endpoint(
+    /// Create a mock HTTP endpoint for corporation data.
+    ///
+    /// Sets up a mock GET endpoint at `/corporations/{corporation_id}` that returns the
+    /// specified corporation data as JSON. The mock verifies it was called exactly
+    /// `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The corporation ID for the endpoint path
+    /// - `mock_corporation` - Corporation object to return from the endpoint
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_corporation_endpoint(
         &mut self,
         corporation_id: i64,
         mock_corporation: Corporation,
@@ -60,7 +102,20 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_character_endpoint(
+    /// Create a mock HTTP endpoint for character data.
+    ///
+    /// Sets up a mock GET endpoint at `/characters/{character_id}` that returns the
+    /// specified character data as JSON. The mock verifies it was called exactly
+    /// `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `character_id` - The character ID for the endpoint path
+    /// - `mock_character` - Character object to return from the endpoint
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_character_endpoint(
         &mut self,
         character_id: i64,
         mock_character: Character,
@@ -78,7 +133,19 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_character_affiliation_endpoint(
+    /// Create a mock HTTP endpoint for character affiliation data.
+    ///
+    /// Sets up a mock POST endpoint at `/characters/affiliation` that returns the
+    /// specified affiliation data as JSON. The mock verifies it was called exactly
+    /// `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `mock_affiliations` - Vector of CharacterAffiliation objects to return
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_character_affiliation_endpoint(
         &mut self,
         mock_affiliations: Vec<CharacterAffiliation>,
         expected_requests: usize,

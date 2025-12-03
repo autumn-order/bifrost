@@ -3,21 +3,22 @@ use super::*;
 /// Expect Ok when upserting new characters
 #[tokio::test]
 async fn upserts_new_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .upsert_many(vec![
             (character_id_1, character_1, corporation_model.id, None),
@@ -35,27 +36,28 @@ async fn upserts_new_characters() -> Result<(), TestError> {
 /// Expect Ok & update when trying to upsert existing characters
 #[tokio::test]
 async fn updates_existing_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_1_update, mut character_1_update) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2_update, mut character_2_update) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let initial = character_repo
         .upsert_many(vec![
             (character_id_1, character_1, corporation_model.id, None),
@@ -121,31 +123,32 @@ async fn updates_existing_characters() -> Result<(), TestError> {
 /// Expect Ok when upserting mix of new and existing characters
 #[tokio::test]
 async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_3, character_3) =
         test.eve()
-            .with_mock_character(3, corporation_model.corporation_id, None, None);
+            .mock_character(3, corporation_model.corporation_id, None, None);
     let (character_id_1_update, mut character_1_update) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     character_1_update.name = "Updated Character 1".to_string();
     let (character_id_2_update, character_2_update) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
 
     // First, insert characters 1 and 2
     let initial = character_repo
@@ -205,14 +208,15 @@ async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
 /// Expect Ok with empty result when upserting empty vector
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.upsert_many(vec![]).await?;
 
     assert_eq!(result.len(), 0);
@@ -223,27 +227,28 @@ async fn handles_empty_input() -> Result<(), TestError> {
 /// Expect Ok when upserting characters with various faction relationships
 #[tokio::test]
 async fn upserts_with_faction_relationships() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let faction_1 = test.eve().insert_mock_faction(1).await?;
     let faction_2 = test.eve().insert_mock_faction(2).await?;
 
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_3, character_3) =
         test.eve()
-            .with_mock_character(3, corporation_model.corporation_id, None, None);
+            .mock_character(3, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .upsert_many(vec![
             (
@@ -287,23 +292,24 @@ async fn upserts_with_faction_relationships() -> Result<(), TestError> {
 /// Expect Ok when upserting large batch of characters
 #[tokio::test]
 async fn handles_large_batch() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation,
-        entity::prelude::EveCharacter
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
+        .build()
+        .await?;
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
 
     let mut characters = Vec::new();
     for i in 1..=100 {
         let (character_id, character) =
             test.eve()
-                .with_mock_character(i, corporation_model.corporation_id, None, None);
+                .mock_character(i, corporation_model.corporation_id, None, None);
         characters.push((character_id, character, corporation_model.id, None));
     }
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.upsert_many(characters).await?;
 
     assert_eq!(result.len(), 100);

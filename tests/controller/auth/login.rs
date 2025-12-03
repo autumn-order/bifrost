@@ -11,7 +11,7 @@ use super::*;
 #[tokio::test]
 // Test the return of a 307 temporary redirect response for login
 async fn redirects_to_eve_login() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     let params = LoginParams { change_main: None };
     let result = login(State(test.into_app_state()), test.session, Query(params)).await;
@@ -26,10 +26,10 @@ async fn redirects_to_eve_login() -> Result<(), TestError> {
 #[tokio::test]
 // Test the return of a 500 internal server error response for failed login
 async fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!()?;
+    let mut test = TestBuilder::new().build().await?;
     // Build an ESI client not configured for OAuth2 to trigger internal server error
     let esi_client = eve_esi::Client::new(TEST_USER_AGENT).unwrap();
-    test.state.esi_client = esi_client;
+    test.esi_client = esi_client;
 
     let params = LoginParams { change_main: None };
     let result = login(State(test.into_app_state()), test.session, Query(params)).await;

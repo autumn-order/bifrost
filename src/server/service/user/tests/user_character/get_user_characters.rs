@@ -5,13 +5,13 @@ use super::*;
 /// Expect Ok with Vec containing single character DTO without alliance
 #[tokio::test]
 async fn returns_character_without_alliance() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let (user_model, _, character_model) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -32,7 +32,7 @@ async fn returns_character_without_alliance() -> Result<(), TestError> {
 /// Expect Ok with Vec containing character DTO with alliance
 #[tokio::test]
 async fn returns_character_with_alliance() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
 
     let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
     let corporation_model = test.eve().insert_mock_corporation(1, Some(1), None).await?;
@@ -46,7 +46,7 @@ async fn returns_character_with_alliance() -> Result<(), TestError> {
         )
         .await?;
 
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -70,7 +70,7 @@ async fn returns_character_with_alliance() -> Result<(), TestError> {
 /// Expect Ok with Vec containing multiple character DTOs
 #[tokio::test]
 async fn returns_multiple_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let (user_model, _, character_model_1) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -80,7 +80,7 @@ async fn returns_multiple_characters() -> Result<(), TestError> {
         .insert_mock_character_for_user(user_model.id, 2, 2, Some(1), None)
         .await?;
 
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -106,11 +106,11 @@ async fn returns_multiple_characters() -> Result<(), TestError> {
 /// Expect Ok with empty Vec when user has no characters
 #[tokio::test]
 async fn returns_empty_for_user_without_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
     let user_model = test.user().insert_user(character_model.id).await?;
 
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -125,10 +125,10 @@ async fn returns_empty_for_user_without_characters() -> Result<(), TestError> {
 /// Expect Ok with empty Vec when requesting a nonexistent user ID
 #[tokio::test]
 async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let nonexistent_user_id = 1;
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(nonexistent_user_id)
         .await;
@@ -143,13 +143,13 @@ async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
 /// Expect DTOs to have correct timestamp fields
 #[tokio::test]
 async fn returns_characters_with_timestamps() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(user_model.id)
         .await;
@@ -191,10 +191,10 @@ async fn returns_characters_with_timestamps() -> Result<(), TestError> {
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     // Use test setup that doesn't setup required tables, causing a database error
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     let nonexistent_user_id = 1;
-    let user_character_service = UserCharacterService::new(&test.state.db);
+    let user_character_service = UserCharacterService::new(&test.db);
     let result = user_character_service
         .get_user_characters(nonexistent_user_id)
         .await;

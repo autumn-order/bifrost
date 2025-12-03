@@ -57,7 +57,7 @@ pub mod tests {
     ///
     /// Expected: 200 success
     async fn validates_csrf_successfully() -> Result<(), TestError> {
-        let test = test_setup_with_tables!()?;
+        let test = TestBuilder::new().build().await?;
         let state = "state";
 
         let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
@@ -76,7 +76,7 @@ pub mod tests {
     ///
     /// Expected: 400 bad request
     async fn fails_for_csrf_mismatch() -> Result<(), TestError> {
-        let test = test_setup_with_tables!()?;
+        let test = TestBuilder::new().build().await?;
         let state = "state";
 
         let _ = SessionAuthCsrf::insert(&test.session, "different_state")
@@ -99,7 +99,7 @@ pub mod tests {
     ///
     /// Expected: 500 internal server error
     async fn fails_when_csrf_not_in_session() -> Result<(), TestError> {
-        let test = test_setup_with_tables!()?;
+        let test = TestBuilder::new().build().await?;
         let state = "state";
 
         // Attempt to validate result despite no state being inserted into sesison

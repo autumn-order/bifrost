@@ -32,8 +32,8 @@ fn test_config() -> WorkerPoolConfig {
 }
 
 /// Create a test worker pool with test-optimized config
-async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+async fn create_test_pool(test: &TestContext, redis: &RedisTest) -> WorkerPool {
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(redis);
 
     let config = test_config();
@@ -42,7 +42,10 @@ async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
 
 #[tokio::test]
 async fn test_pool_starts_successfully() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -60,7 +63,10 @@ async fn test_pool_starts_successfully() {
 
 #[tokio::test]
 async fn test_pool_stops_successfully() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -80,7 +86,10 @@ async fn test_pool_stops_successfully() {
 
 #[tokio::test]
 async fn test_pool_not_running_initially() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -99,7 +108,10 @@ async fn test_pool_not_running_initially() {
 
 #[tokio::test]
 async fn test_pool_dispatcher_count_after_start() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -117,7 +129,10 @@ async fn test_pool_dispatcher_count_after_start() {
 
 #[tokio::test]
 async fn test_pool_dispatcher_count_after_stop() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -137,7 +152,10 @@ async fn test_pool_dispatcher_count_after_stop() {
 
 #[tokio::test]
 async fn test_pool_idempotent_start() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -165,7 +183,10 @@ async fn test_pool_idempotent_start() {
 
 #[tokio::test]
 async fn test_pool_idempotent_stop() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -186,7 +207,10 @@ async fn test_pool_idempotent_stop() {
 
 #[tokio::test]
 async fn test_pool_can_restart_after_stop() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -209,7 +233,10 @@ async fn test_pool_can_restart_after_stop() {
 
 #[tokio::test]
 async fn test_pool_with_single_dispatcher() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -222,9 +249,12 @@ async fn test_pool_with_single_dispatcher() {
 
 #[tokio::test]
 async fn test_pool_with_many_dispatchers() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
 
     // 119 jobs = 3 dispatchers (ceiling division ensures max 40 per dispatcher)
@@ -244,9 +274,12 @@ async fn test_pool_with_many_dispatchers() {
 
 #[tokio::test]
 async fn test_pool_cleanup_task_starts_with_pool() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
 
     let config = test_config();
@@ -282,7 +315,10 @@ async fn test_pool_cleanup_task_starts_with_pool() {
 
 #[tokio::test]
 async fn test_pool_stop_without_start() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new()
+        .build()
+        .await
+        .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 

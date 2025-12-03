@@ -105,7 +105,7 @@ mod tests {
         ///
         /// Expected: Ok(())
         async fn inserts_csrf_into_session() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let result = SessionAuthCsrf::insert(&test.session, "string").await;
 
@@ -131,7 +131,7 @@ mod tests {
         /// Expected: Ok(state_string)
         #[tokio::test]
         async fn retrieves_csrf_from_session() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
             let state = "string";
             let _ = SessionAuthCsrf::insert(&test.session, state).await.unwrap();
 
@@ -152,7 +152,7 @@ mod tests {
         /// Expected: Err(Error::AuthError(AuthError::CsrfMissingValue))
         #[tokio::test]
         async fn fails_when_csrf_missing() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let result = SessionAuthCsrf::get(&test.session).await;
 
@@ -183,7 +183,7 @@ mod tests {
         /// Expected: Ok(Some(state))
         #[tokio::test]
         async fn removes_csrf_from_session() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
             let _ = SessionAuthCsrf::insert(&test.session, "state")
                 .await
                 .unwrap();
@@ -203,7 +203,7 @@ mod tests {
         /// Expected: Err(Error::AuthError(AuthError::CsrfMissingValue))
         #[tokio::test]
         async fn fails_when_csrf_missing() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let result = SessionAuthCsrf::remove(&test.session).await;
 

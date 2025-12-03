@@ -3,4 +3,4 @@ pub mod redis;
 
 pub mod test_utils;
 
-pub use test_utils::TestSetupExt;
+pub use test_utils::TestContextExt;

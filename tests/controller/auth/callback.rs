@@ -13,21 +13,19 @@ use super::*;
 #[tokio::test]
 /// Expect 307 temprorary redirect when logging with new character
 async fn redirects_for_new_user() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
-
     let corporation_id = 1;
-    let (_, mock_corporation) = test.eve().with_mock_corporation(corporation_id, None, None);
-    let (character_id, mock_character) =
-        test.eve()
-            .with_mock_character(1, corporation_id, None, None);
+    let character_id = 1;
+    let mock_corporation = factory::mock_corporation(None, None);
+    let mock_character = factory::mock_character(corporation_id, None, None);
 
-    let corporation_endpoint =
-        test.eve()
-            .with_corporation_endpoint(corporation_id, mock_corporation, 1);
-    let character_endpoint = test
-        .eve()
-        .with_character_endpoint(character_id, mock_character, 1);
-    let jwt_endpoints = test.auth().with_jwt_endpoints(character_id, "owner_hash");
+    let test = TestBuilder::new()
+        .with_user_tables()
+        .with_corporation_endpoint(corporation_id, mock_corporation, 1)
+        .with_character_endpoint(character_id, mock_character, 1)
+        .with_jwt_endpoints(character_id, "owner_hash")
+        .build()
+        .await?;
+
     let params = CallbackParams {
         state: "state".to_string(),
         code: "code".to_string(),
@@ -56,14 +54,7 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
     // User ID should be 1 as it would be the first user created in database
     assert_eq!(user_id, 1);
 
-    // Assert JWT keys & token were fetched during callback
-    for endpoint in jwt_endpoints {
-        endpoint.assert();
-    }
-
-    // Assert character endpoints were fetched during callback when creating character entry
-    corporation_endpoint.assert();
-    character_endpoint.assert();
+    test.assert_mocks();
 
     Ok(())
 }
@@ -71,15 +62,18 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 307 temprorary redirect when logging with existing user
 async fn redirects_for_existing_user() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, user_character_model, character_model) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
-    let jwt_endpoints = test.auth().with_jwt_endpoints(
+
+    let jwt_endpoints = test.auth().create_jwt_endpoints(
         character_model.character_id,
         &user_character_model.owner_hash,
     );
+
     SessionUserId::insert(&test.session, user_model.id)
         .await
         .unwrap();
@@ -122,7 +116,8 @@ async fn redirects_for_existing_user() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 400 bad request when CSRF state is modified
 async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
+
     let mut params = CallbackParams {
         state: "state".to_string(),
         code: "code".to_string(),
@@ -144,7 +139,8 @@ async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
 #[tokio::test]
 /// Test the return of a 500 internal server error response for callback
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
+
     let params = CallbackParams {
         state: "state".to_string(),
         code: "code".to_string(),

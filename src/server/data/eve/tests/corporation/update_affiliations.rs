@@ -4,11 +4,12 @@ use sea_orm::EntityTrait;
 /// Should successfully update a single corporation's alliance affiliation
 #[tokio::test]
 async fn updates_single_corporation_alliance() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create two alliances and a corporation initially affiliated with the first
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -19,7 +20,7 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
         .await?;
 
     // Update corporation to be affiliated with the second alliance
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, Some(alliance2.id))])
         .await;
@@ -28,7 +29,7 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
 
     // Verify the update by querying directly
     let updated = entity::prelude::EveCorporation::find_by_id(corp.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation should exist");
 
@@ -40,11 +41,12 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
 /// Should successfully update multiple corporations in a single call
 #[tokio::test]
 async fn updates_multiple_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliances
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -60,7 +62,7 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
     let corp3 = test.eve().insert_mock_corporation(3, None, None).await?;
 
     // Update multiple corporations
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![
             (corp1.id, Some(alliance1.id)),
@@ -73,15 +75,15 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
 
     // Verify all updates by querying directly
     let updated1 = entity::prelude::EveCorporation::find_by_id(corp1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 1 should exist");
     let updated2 = entity::prelude::EveCorporation::find_by_id(corp2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 2 should exist");
     let updated3 = entity::prelude::EveCorporation::find_by_id(corp3.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 3 should exist");
 
@@ -95,11 +97,12 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
 /// Should successfully remove alliance affiliation by setting to None
 #[tokio::test]
 async fn removes_alliance_affiliation() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance and corporation
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -109,7 +112,7 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
         .await?;
 
     // Remove alliance affiliation
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, None)])
         .await;
@@ -118,7 +121,7 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
 
     // Verify the alliance was removed
     let updated = entity::prelude::EveCorporation::find_by_id(corp.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation should exist");
 
@@ -130,11 +133,12 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
 /// Should handle batching for large numbers of corporations (>100)
 #[tokio::test]
 async fn handles_large_batch_updates() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create an alliance
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -151,7 +155,7 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     }
 
     // Update all corporations
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo.update_affiliations(corporations).await;
 
     assert!(result.is_ok(), "Error: {:?}", result);
@@ -161,17 +165,17 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
 
     let updated_first = entity::prelude::EveCorporation::find()
         .filter(entity::eve_corporation::Column::CorporationId.eq(1000))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("First corporation should exist");
     let updated_middle = entity::prelude::EveCorporation::find()
         .filter(entity::eve_corporation::Column::CorporationId.eq(1125))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Middle corporation should exist");
     let updated_last = entity::prelude::EveCorporation::find()
         .filter(entity::eve_corporation::Column::CorporationId.eq(1249))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Last corporation should exist");
 
@@ -185,13 +189,14 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
 /// Should handle empty input gracefully
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo.update_affiliations(vec![]).await;
 
     assert!(result.is_ok(), "Should handle empty input gracefully");
@@ -202,11 +207,12 @@ async fn handles_empty_input() -> Result<(), TestError> {
 /// Should update affiliation_updated_at timestamp when updating affiliations
 #[tokio::test]
 async fn updates_timestamp() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance and corporation
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -218,7 +224,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     // Update the corporation
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp.id, Some(alliance.id))])
         .await;
@@ -227,7 +233,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
 
     // Verify the timestamp was updated
     let updated = entity::prelude::EveCorporation::find_by_id(corp.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation should exist");
 
@@ -244,11 +250,12 @@ async fn updates_timestamp() -> Result<(), TestError> {
 /// Should not affect corporations not in the update list
 #[tokio::test]
 async fn does_not_affect_other_corporations() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliances and corporations
     let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
@@ -263,7 +270,7 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
         .await?;
 
     // Update only corp1
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![(corp1.id, Some(alliance2.id))])
         .await;
@@ -272,14 +279,14 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
 
     // Verify corp1 was updated
     let updated1 = entity::prelude::EveCorporation::find_by_id(corp1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 1 should exist");
     assert_eq!(updated1.alliance_id, Some(alliance2.id));
 
     // Verify corp2 was NOT updated
     let updated2 = entity::prelude::EveCorporation::find_by_id(corp2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 2 should exist");
     assert_eq!(
@@ -294,11 +301,12 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
 /// Should handle mix of Some and None alliance IDs in same batch
 #[tokio::test]
 async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(
-        entity::prelude::EveFaction,
-        entity::prelude::EveAlliance,
-        entity::prelude::EveCorporation
-    )?;
+    let mut test = TestBuilder::new()
+        .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .build()
+        .await?;
 
     // Create alliance
     let alliance = test.eve().insert_mock_alliance(1, None).await?;
@@ -309,7 +317,7 @@ async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
     let corp3 = test.eve().insert_mock_corporation(3, None, None).await?;
 
     // Update with mixed alliance IDs
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
         .update_affiliations(vec![
             (corp1.id, Some(alliance.id)),
@@ -322,15 +330,15 @@ async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
 
     // Verify updates
     let updated1 = entity::prelude::EveCorporation::find_by_id(corp1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 1 should exist");
     let updated2 = entity::prelude::EveCorporation::find_by_id(corp2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 2 should exist");
     let updated3 = entity::prelude::EveCorporation::find_by_id(corp3.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Corporation 3 should exist");
 

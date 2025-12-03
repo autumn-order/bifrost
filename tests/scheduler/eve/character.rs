@@ -19,11 +19,11 @@ use crate::worker::queue::setup_test_queue;
 
 #[tokio::test]
 async fn returns_zero_when_no_characters() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -34,7 +34,7 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -51,7 +51,7 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
         .insert_mock_character(3, corporation.corporation_id, None, None)
         .await?;
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -62,7 +62,7 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
 
 #[tokio::test]
 async fn schedules_single_expired_character() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -80,10 +80,10 @@ async fn schedules_single_expired_character() -> Result<(), TestError> {
             Expr::value(old_timestamp),
         )
         .filter(entity::eve_character::Column::Id.eq(character.id))
-        .exec(&test.state.db)
+        .exec(&test.db)
         .await?;
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -94,7 +94,7 @@ async fn schedules_single_expired_character() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_multiple_expired_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -113,11 +113,11 @@ async fn schedules_multiple_expired_characters() -> Result<(), TestError> {
                 Expr::value(old_timestamp),
             )
             .filter(entity::eve_character::Column::Id.eq(character.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
     }
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 5);
@@ -128,7 +128,7 @@ async fn schedules_multiple_expired_characters() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_only_expired_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -147,7 +147,7 @@ async fn schedules_only_expired_characters() -> Result<(), TestError> {
                 Expr::value(old_timestamp),
             )
             .filter(entity::eve_character::Column::Id.eq(character.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
     }
 
@@ -159,7 +159,7 @@ async fn schedules_only_expired_characters() -> Result<(), TestError> {
         .insert_mock_character(5, corporation.corporation_id, None, None)
         .await?;
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     // Only the 3 expired characters should be scheduled
@@ -171,7 +171,7 @@ async fn schedules_only_expired_characters() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_oldest_characters_first() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -201,7 +201,7 @@ async fn schedules_oldest_characters_first() -> Result<(), TestError> {
             Expr::value(middle),
         )
         .filter(entity::eve_character::Column::Id.eq(character1.id))
-        .exec(&test.state.db)
+        .exec(&test.db)
         .await?;
 
     EveCharacter::update_many()
@@ -210,7 +210,7 @@ async fn schedules_oldest_characters_first() -> Result<(), TestError> {
             Expr::value(oldest),
         )
         .filter(entity::eve_character::Column::Id.eq(character2.id))
-        .exec(&test.state.db)
+        .exec(&test.db)
         .await?;
 
     EveCharacter::update_many()
@@ -219,10 +219,10 @@ async fn schedules_oldest_characters_first() -> Result<(), TestError> {
             Expr::value(newest),
         )
         .filter(entity::eve_character::Column::Id.eq(character3.id))
-        .exec(&test.state.db)
+        .exec(&test.db)
         .await?;
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 3);
@@ -233,7 +233,7 @@ async fn schedules_oldest_characters_first() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -250,17 +250,17 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
             Expr::value(old_timestamp),
         )
         .filter(entity::eve_character::Column::Id.eq(character.id))
-        .exec(&test.state.db)
+        .exec(&test.db)
         .await?;
 
     // Schedule first time
-    let result1 = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result1 = schedule_character_info_update(test.db.clone(), queue.clone()).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
-    let result2 = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result2 = schedule_character_info_update(test.db.clone(), queue.clone()).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
@@ -271,11 +271,11 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_err());
 
@@ -285,7 +285,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_many_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -304,11 +304,11 @@ async fn schedules_many_characters() -> Result<(), TestError> {
                 Expr::value(old_timestamp),
             )
             .filter(entity::eve_character::Column::Id.eq(character.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
     }
 
-    let result = schedule_character_info_update(test.state.db.clone(), queue.clone()).await;
+    let result = schedule_character_info_update(test.db.clone(), queue.clone()).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 50);
