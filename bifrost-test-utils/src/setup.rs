@@ -9,25 +9,65 @@ use crate::{
     error::TestError,
 };
 
+/// Internal application state used in tests
+///
+/// Contains the database connection and ESI client needed for testing.
+/// This is exposed through `TestSetup::state`.
 pub struct TestAppState {
     pub db: DatabaseConnection,
     pub esi_client: eve_esi::Client,
 }
 
+/// Test setup structure returned by `TestBuilder`
+///
+/// This struct is the result of calling `TestBuilder::build()` and provides
+/// access to the test environment including:
+/// - Mock ESI server
+/// - Database connection
+/// - ESI client configured to use the mock server
+/// - Session store
+/// - Collection of mock endpoints for assertion
+///
+/// # Usage
+///
+/// Most users should create this via [`TestBuilder`](crate::TestBuilder) rather
+/// than constructing it directly.
+///
+/// ```ignore
+/// let test = TestBuilder::new().build().await?;
+///
+/// // Access the database
+/// let db = &test.state.db;
+///
+/// // Access the ESI client
+/// let client = &test.state.esi_client;
+///
+/// // Access fixtures helpers
+/// test.eve().insert_mock_faction(1).await?;
+/// test.user().insert_user_with_mock_character(1, 1, None, None).await?;
+///
+/// // Assert all mocks were called
+/// test.assert_mocks();
+/// ```
 pub struct TestSetup {
-    pub server: ServerGuard,
     pub state: TestAppState,
     pub session: Session,
-    pub mocks: Vec<Mock>,
+
+    pub(crate) server: ServerGuard,
+    pub(crate) mocks: Vec<Mock>,
 }
 
 impl TestSetup {
-    /// Convert TestAppState into any type that can be constructed from its fields.
-    /// This allows conversion to AppState without creating a circular dependency.
+    /// Convert TestAppState into any type that can be constructed from its fields
+    ///
+    /// This allows conversion to AppState without creating a circular dependency
+    /// between the test-utils crate and the main bifrost crate.
     ///
     /// # Example
-    /// ```
-    /// let app_state: AppState = test_app_state.into_app_state();
+    ///
+    /// ```ignore
+    /// // In integration tests
+    /// let app_state: AppState = test.state();
     /// ```
     pub fn state<T>(&self) -> T
     where
@@ -38,7 +78,10 @@ impl TestSetup {
 }
 
 impl TestSetup {
-    pub async fn new() -> Result<Self, TestError> {
+    /// Create a new test setup
+    ///
+    /// Creates an in-memory SQLite database, mock ESI server, and session store.
+    pub(crate) async fn new() -> Result<Self, TestError> {
         let mock_server = Server::new_async().await;
         let mock_server_url = mock_server.url();
 
@@ -69,7 +112,11 @@ impl TestSetup {
         })
     }
 
-    pub async fn with_tables(&self, stmts: Vec<TableCreateStatement>) -> Result<(), TestError> {
+    /// Create database tables from schema statements
+    pub(crate) async fn with_tables(
+        &self,
+        stmts: Vec<TableCreateStatement>,
+    ) -> Result<(), TestError> {
         for stmt in stmts {
             self.state.db.execute(&stmt).await?;
         }
@@ -89,71 +136,4 @@ impl TestSetup {
             mock.assert();
         }
     }
-}
-
-#[macro_export]
-macro_rules! test_setup_with_tables {
-    // Pattern 1: No entities provided
-    () => {{
-        TestSetup::new().await
-    }};
-
-    // Pattern 2: Entities provided
-    ($($entity:expr),+ $(,)?) => {{
-        async {
-            let setup = TestSetup::new().await?;
-
-            let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
-            let stmts = vec![
-                $(schema.create_table_from_entity($entity),)+
-            ];
-            setup.with_tables(stmts).await?;
-
-            Ok::<_, $crate::error::TestError>(setup)
-        }.await
-    }};
-}
-
-#[macro_export]
-macro_rules! test_setup_with_user_tables {
-    // Pattern 1: No entities provided
-    () => {{
-        async {
-            let setup = TestSetup::new().await?;
-
-            let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
-            let stmts = vec![
-                schema.create_table_from_entity(entity::prelude::EveFaction),
-                schema.create_table_from_entity(entity::prelude::EveAlliance),
-                schema.create_table_from_entity(entity::prelude::EveCorporation),
-                schema.create_table_from_entity(entity::prelude::EveCharacter),
-                schema.create_table_from_entity(entity::prelude::BifrostUser),
-                schema.create_table_from_entity(entity::prelude::BifrostUserCharacter)
-            ];
-            setup.with_tables(stmts).await?;
-
-            Ok::<_, $crate::error::TestError>(setup)
-        }.await
-    }};
-
-    // Pattern 2: Entities provided
-    ($($entity:expr),+ $(,)?) => {{
-        async {
-            let setup = TestSetup::new().await?;
-
-            let schema = sea_orm::Schema::new(sea_orm::DbBackend::Sqlite);
-            let stmts = vec![
-                schema.create_table_from_entity(entity::prelude::EveFaction),
-                schema.create_table_from_entity(entity::prelude::EveAlliance),
-                schema.create_table_from_entity(entity::prelude::EveCorporation),
-                schema.create_table_from_entity(entity::prelude::EveCharacter),
-                schema.create_table_from_entity(entity::prelude::BifrostUser),
-                schema.create_table_from_entity(entity::prelude::BifrostUserCharacter),
-                $(schema.create_table_from_entity($entity),)+
-            ];
-            setup.with_tables(stmts).await?;
-
-            Ok::<_, $crate::error::TestError>(setup)
-        }.await
-    }};
 }

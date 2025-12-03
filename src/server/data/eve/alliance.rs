@@ -123,8 +123,11 @@ mod tests {
         /// Expect Ok when upserting new alliances
         #[tokio::test]
         async fn upserts_new_alliances() -> Result<(), TestError> {
-            let mut test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
             let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
             let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
 
@@ -146,8 +149,11 @@ mod tests {
         /// Expect Ok & update when trying to upsert existing alliances
         #[tokio::test]
         async fn updates_existing_alliances() -> Result<(), TestError> {
-            let mut test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
             let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
             let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
             let (alliance_id_1_update, alliance_1_update) = test.eve().with_mock_alliance(1, None);
@@ -207,8 +213,11 @@ mod tests {
         /// Expect Ok with correct mappings when alliances exist in database
         #[tokio::test]
         async fn returns_record_ids_for_existing_alliances() -> Result<(), TestError> {
-            let mut test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
             let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
             let alliance_2 = test.eve().insert_mock_alliance(2, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
@@ -252,8 +261,11 @@ mod tests {
         /// Expect Ok with empty Vec when no alliances match
         #[tokio::test]
         async fn returns_empty_for_nonexistent_alliances() -> Result<(), TestError> {
-            let test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];
@@ -271,8 +283,11 @@ mod tests {
         /// Expect Ok with empty Vec when input is empty
         #[tokio::test]
         async fn returns_empty_for_empty_input() -> Result<(), TestError> {
-            let test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids: Vec<i64> = vec![];
@@ -290,8 +305,11 @@ mod tests {
         /// Expect Ok with partial results when only some alliances exist
         #[tokio::test]
         async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
-            let mut test =
-                test_setup_with_tables!(entity::prelude::EveFaction, entity::prelude::EveAlliance)?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .with_table(entity::prelude::EveAlliance)
+                .build()
+                .await?;
             let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
 
@@ -328,7 +346,7 @@ mod tests {
         /// Expect Error when required tables haven't been created
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let alliance_repo = AllianceRepository::new(&test.state.db);
             let alliance_ids = vec![1, 2, 3];

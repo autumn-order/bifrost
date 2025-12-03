@@ -237,7 +237,7 @@ mod tests {
         // Expect Some when character & character ownership entry is found
         #[tokio::test]
         async fn finds_character_with_ownership() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let (_, _, character_model) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
@@ -260,7 +260,7 @@ mod tests {
         // Expect Some when character entry is found but no character ownership entry
         #[tokio::test]
         async fn finds_character_without_ownership() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -280,7 +280,7 @@ mod tests {
         // Expect None when character is not found
         #[tokio::test]
         async fn returns_none_for_nonexistent_character() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_character_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -299,7 +299,7 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that does not create required tables, causing a database error
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let character_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -321,7 +321,7 @@ mod tests {
         /// Expect Ok with 2 owned character entries
         #[tokio::test]
         async fn returns_multiple_characters() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let (user_model, _, _) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
@@ -346,7 +346,7 @@ mod tests {
         /// Expect Ok with only 1 owned character entry
         #[tokio::test]
         async fn returns_single_character() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let (user_model, _, _) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
@@ -367,7 +367,7 @@ mod tests {
         /// Expect Ok with empty Vec due to no owned characters
         #[tokio::test]
         async fn returns_empty_for_no_characters() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             // Character is set as main but it is not actually owned due to no ownership entry
             let user_model = test.user().insert_user(character_model.id).await?;
@@ -388,7 +388,7 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't create required tables, causing an error
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let user_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -411,7 +411,7 @@ mod tests {
         /// Validates that corporation is present and alliance can be None
         #[tokio::test]
         async fn returns_owned_characters_for_user() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let (user_model, _, character_model) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
@@ -440,7 +440,7 @@ mod tests {
         /// Expect Ok with Vec containing character with alliance
         #[tokio::test]
         async fn returns_owned_characters_with_alliance() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
 
             let alliance_model = test.eve().insert_mock_alliance(1, None).await?;
             let corporation_model = test.eve().insert_mock_corporation(1, Some(1), None).await?;
@@ -485,7 +485,7 @@ mod tests {
         /// Expect Ok with multiple characters, validating all have corporations
         #[tokio::test]
         async fn returns_multiple_owned_characters() -> Result<(), TestError> {
-            let mut test = test_setup_with_user_tables!()?;
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
             let (user_model, _, _) = test
                 .user()
                 .insert_user_with_mock_character(1, 1, None, None)
@@ -515,7 +515,7 @@ mod tests {
         /// Expect Ok with empty Vec when requesting a nonexistent user ID
         #[tokio::test]
         async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
-            let test = test_setup_with_user_tables!()?;
+            let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_user_id = 1;
             let user_character_repository = UserCharacterRepository::new(&test.state.db);
@@ -534,7 +534,7 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             // Use test setup that doesn't setup required tables, causing a database error
-            let test = test_setup_with_tables!()?;
+            let test = TestBuilder::new().build().await?;
 
             let nonexistent_user_id = 1;
             let user_character_repo = UserCharacterRepository::new(&test.state.db);

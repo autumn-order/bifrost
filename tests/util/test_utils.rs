@@ -4,7 +4,7 @@ use bifrost::server::{
     model::app::AppState,
     worker::{handler::WorkerJobHandler, Worker},
 };
-use bifrost_test_utils::setup::TestSetup;
+use bifrost_test_utils::TestSetup;
 use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 
