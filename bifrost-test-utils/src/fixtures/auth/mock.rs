@@ -1,3 +1,9 @@
+//! JWT token and key mock data generation utilities.
+//!
+//! This module provides methods for generating mock JWT claims, keys, and complete
+//! OAuth2 token responses for testing EVE SSO authentication flows. It uses real RSA
+//! key pairs (for testing only) to create valid JWT tokens that can be verified.
+
 use std::time::Duration;
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
@@ -10,9 +16,21 @@ use openssl::rsa::Rsa;
 
 use crate::fixtures::auth::AuthFixtures;
 
+/// RSA key ID used in JWT header for signature verification.
+///
+/// This key ID matches the "kid" field in the JWT header and JWKS response,
+/// allowing the JWT validation process to select the correct key for verification.
 static RSA_KEY_ID: &str = "JWT-Signature-Key-1";
 
 impl<'a> AuthFixtures<'a> {
+    /// Generate mock JWT claims matching EVE SSO format.
+    ///
+    /// Creates an EveJwtClaims struct with standard test values that match the structure
+    /// returned by EVE Online's SSO service. The claims include a 15-minute expiration
+    /// time and current timestamp for issued-at time.
+    ///
+    /// # Returns
+    /// - `EveJwtClaims` - JWT claims object with test character and authentication data
     pub fn mock_jwt_claims(&self) -> EveJwtClaims {
         let expires_in_fifteen_minutes = Utc::now() + chrono::Duration::seconds(900);
         let created_now = Utc::now();
@@ -37,7 +55,15 @@ impl<'a> AuthFixtures<'a> {
         }
     }
 
-    /// Creates mock JWT keys used for validating a JWT token during an OAuth2 callback
+    /// Generate mock JWT keys for token validation.
+    ///
+    /// Creates an EveJwtKeys struct containing RSA and ECDSA public keys in JWKS format.
+    /// The RSA key corresponds to the private key used to sign mock JWT tokens, allowing
+    /// proper validation during authentication tests. Includes both RS256 and ES256 keys
+    /// to match EVE's actual JWKS endpoint structure.
+    ///
+    /// # Returns
+    /// - `EveJwtKeys` - JWKS object containing public keys for JWT signature verification
     pub fn mock_jwt_keys(&self) -> EveJwtKeys {
         let public_key = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
@@ -76,7 +102,24 @@ impl<'a> AuthFixtures<'a> {
         }
     }
 
-    /// Creates mock JWT token for callback endpoint after successful login
+    /// Generate a complete OAuth2 token response with signed JWT.
+    ///
+    /// Creates a StandardTokenResponse containing a JWT access token signed with the test
+    /// RSA private key. The JWT includes the specified character ID and owner hash in its
+    /// claims. This simulates a successful EVE SSO authentication response.
+    ///
+    /// The generated token includes:
+    /// - JWT access token with RS256 signature
+    /// - Bearer token type
+    /// - 1-hour expiration time
+    /// - Mock refresh token
+    ///
+    /// # Arguments
+    /// - `character_id` - The EVE Online character ID to include in JWT claims
+    /// - `ownerhash` - The owner hash to include in JWT claims for ownership verification
+    ///
+    /// # Returns
+    /// - `StandardTokenResponse` - Complete OAuth2 token response ready for authentication testing
     pub fn mock_jwt_token(
         &self,
         character_id: i64,

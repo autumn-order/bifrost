@@ -1,3 +1,9 @@
+//! Declarative test builder for Phase 1 setup.
+//!
+//! This module provides the `TestBuilder` API for configuring test environments before execution.
+//! The builder pattern allows chaining multiple configuration methods together, with all operations
+//! queued and executed during the final `build()` call.
+
 use crate::{error::TestError, TestContext};
 use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,

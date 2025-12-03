@@ -1,3 +1,9 @@
+//! Test context structure and utilities.
+//!
+//! This module provides the `TestContext` returned by `TestBuilder` for Phase 2 test execution.
+//! The context includes an in-memory SQLite database, mock ESI server, configured ESI client,
+//! and session store for testing authentication flows.
+
 use std::sync::Arc;
 
 use mockito::{Mock, Server, ServerGuard};
@@ -41,11 +47,16 @@ use crate::{
 /// test.assert_mocks();
 /// ```
 pub struct TestContext {
+    /// Database connection to in-memory SQLite database
     pub db: DatabaseConnection,
+    /// ESI client configured to use mock server
     pub esi_client: eve_esi::Client,
+    /// Session store for test authentication flows
     pub session: Session,
 
+    /// Mock HTTP server for ESI endpoints
     pub(crate) server: ServerGuard,
+    /// Collection of mock HTTP endpoints for assertion
     pub(crate) mocks: Vec<Mock>,
 }
 
@@ -70,9 +81,15 @@ impl TestContext {
 }
 
 impl TestContext {
-    /// Create a new test context
+    /// Create a new test context.
     ///
-    /// Creates an in-memory SQLite database, mock ESI server, and session store.
+    /// Initializes a complete test environment with an in-memory SQLite database,
+    /// mock ESI server, ESI client configured to use the mock server, and session store.
+    ///
+    /// # Returns
+    /// - `Ok(TestContext)` - Fully initialized test context
+    /// - `Err(TestError::EsiError)` - ESI client or config builder failed
+    /// - `Err(TestError::DbErr)` - Database connection failed
     pub(crate) async fn new() -> Result<Self, TestError> {
         let mock_server = Server::new_async().await;
         let mock_server_url = mock_server.url();
@@ -105,7 +122,17 @@ impl TestContext {
         })
     }
 
-    /// Create database tables from schema statements
+    /// Create database tables from schema statements.
+    ///
+    /// Executes CREATE TABLE statements for all provided table schemas. Used internally
+    /// by TestBuilder to set up the database schema during test initialization.
+    ///
+    /// # Arguments
+    /// - `stmts` - Vector of CREATE TABLE statements to execute
+    ///
+    /// # Returns
+    /// - `Ok(())` - All tables created successfully
+    /// - `Err(TestError::DbErr)` - Table creation failed
     pub(crate) async fn with_tables(
         &self,
         stmts: Vec<TableCreateStatement>,

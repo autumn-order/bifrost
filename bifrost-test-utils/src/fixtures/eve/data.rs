@@ -1,3 +1,9 @@
+//! EVE entity database insertion utilities.
+//!
+//! This module provides methods for inserting EVE Online entity records into the test
+//! database with automatic parent entity creation. If a parent entity is specified but
+//! doesn't exist, it will be created automatically to maintain referential integrity.
+
 use crate::model::{EveAllianceModel, EveCharacterModel, EveCorporationModel, EveFactionModel};
 use chrono::Utc;
 use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
@@ -5,6 +11,17 @@ use sea_orm::{ActiveValue, ColumnTrait, EntityTrait, QueryFilter};
 use crate::{error::TestError, fixtures::eve::EveFixtures};
 
 impl<'a> EveFixtures<'a> {
+    /// Insert a mock faction into the database.
+    ///
+    /// Creates an EveFaction record with standard test values. If a faction with the
+    /// specified ID already exists, returns the existing record instead of creating a duplicate.
+    ///
+    /// # Arguments
+    /// - `faction_id` - The EVE Online faction ID to insert
+    ///
+    /// # Returns
+    /// - `Ok(EveFactionModel)` - The created or existing faction record
+    /// - `Err(TestError::DbErr)` - Database query or insert operation failed
     pub async fn insert_mock_faction(&self, faction_id: i64) -> Result<EveFactionModel, TestError> {
         if let Some(existing_faction) = entity::prelude::EveFaction::find()
             .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
@@ -37,6 +54,19 @@ impl<'a> EveFixtures<'a> {
         )
     }
 
+    /// Insert a mock alliance into the database.
+    ///
+    /// Creates an EveAlliance record with standard test values. If a faction_id is provided,
+    /// the faction will be created automatically if it doesn't exist. If an alliance with
+    /// the specified ID already exists, returns the existing record.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The EVE Online alliance ID to insert
+    /// - `faction_id` - Optional faction ID the alliance belongs to
+    ///
+    /// # Returns
+    /// - `Ok(EveAllianceModel)` - The created or existing alliance record
+    /// - `Err(TestError::DbErr)` - Database query or insert operation failed
     pub async fn insert_mock_alliance(
         &self,
         alliance_id: i64,
@@ -77,6 +107,20 @@ impl<'a> EveFixtures<'a> {
         )
     }
 
+    /// Insert a mock corporation into the database.
+    ///
+    /// Creates an EveCorporation record with standard test values. Parent entities
+    /// (alliance, faction) will be created automatically if specified and don't exist.
+    /// If a corporation with the specified ID already exists, returns the existing record.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The EVE Online corporation ID to insert
+    /// - `alliance_id` - Optional alliance ID the corporation belongs to
+    /// - `faction_id` - Optional faction ID the corporation belongs to
+    ///
+    /// # Returns
+    /// - `Ok(EveCorporationModel)` - The created or existing corporation record
+    /// - `Err(TestError::DbErr)` - Database query or insert operation failed
     pub async fn insert_mock_corporation(
         &self,
         corporation_id: i64,
@@ -138,6 +182,21 @@ impl<'a> EveFixtures<'a> {
         )
     }
 
+    /// Insert a mock character into the database with full hierarchy.
+    ///
+    /// Creates an EveCharacter record with standard test values. All parent entities
+    /// (corporation, alliance, faction) will be created automatically if they don't exist,
+    /// ensuring the full organizational hierarchy is present in the database.
+    ///
+    /// # Arguments
+    /// - `character_id` - The EVE Online character ID to insert
+    /// - `corporation_id` - The corporation ID the character belongs to
+    /// - `alliance_id` - Optional alliance ID the character belongs to
+    /// - `faction_id` - Optional faction ID the character belongs to
+    ///
+    /// # Returns
+    /// - `Ok(EveCharacterModel)` - The created character record
+    /// - `Err(TestError::DbErr)` - Database query or insert operation failed
     pub async fn insert_mock_character(
         &self,
         character_id: i64,

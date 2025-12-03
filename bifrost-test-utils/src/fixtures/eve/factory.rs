@@ -1,3 +1,9 @@
+//! Factory functions for generating mock EVE entity objects.
+//!
+//! Provides pure functions for creating EVE Online entity objects (factions, alliances,
+//! corporations, characters) with standard test values. These are re-exported at the
+//! crate root as `factory` for convenient access.
+
 use chrono::{DateTime, Utc};
 use eve_esi::model::{
     alliance::Alliance,

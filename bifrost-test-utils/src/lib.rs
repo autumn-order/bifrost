@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 //! Test utilities for bifrost integration and unit tests
 //!
 //! This crate provides a declarative TestBuilder API for creating test environments
