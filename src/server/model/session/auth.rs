@@ -92,19 +92,18 @@ impl SessionAuthCsrf {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     mod insert {
         use super::*;
         use bifrost_test_utils::prelude::*;
 
-        #[tokio::test]
         /// Tests successful insertion of CSRF token into session.
         ///
         /// Verifies that a CSRF state token can be stored in the session without errors.
         ///
         /// Expected: Ok(())
+        #[tokio::test]
         async fn inserts_csrf_into_session() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -115,13 +114,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that inserted CSRF token can be retrieved with correct value.
         ///
         /// Verifies that the CSRF token stored in the session matches the original value
         /// when retrieved, ensuring data integrity during storage.
         ///
         /// Expected: Ok(()) and retrieved value matches inserted value
+        #[tokio::test]
         async fn inserted_csrf_is_retrievable() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let state = "test_csrf_token_12345";
@@ -136,13 +135,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that inserting a new CSRF token overwrites the previous one.
         ///
         /// Verifies that when a CSRF token is inserted multiple times, the latest value
         /// overwrites the previous one, ensuring only the most recent token is stored.
         ///
         /// Expected: Ok(()) and retrieved value matches the latest inserted value
+        #[tokio::test]
         async fn overwrites_existing_csrf() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let first_state = "first_token";
@@ -162,13 +161,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests insertion of empty string as CSRF token.
         ///
         /// Verifies that an empty string can be stored as a CSRF token (edge case),
         /// though this would not be used in production.
         ///
         /// Expected: Ok(())
+        #[tokio::test]
         async fn inserts_empty_string() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 

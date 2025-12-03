@@ -83,13 +83,13 @@ mod tests {
         use super::*;
         use bifrost_test_utils::prelude::*;
 
-        #[tokio::test]
         /// Tests successful insertion of change_main flag set to true.
         ///
         /// Verifies that a change_main flag with value true can be stored in the session
         /// without errors.
         ///
         /// Expected: Ok(())
+        #[tokio::test]
         async fn inserts_true_flag_into_session() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -100,13 +100,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests successful insertion of change_main flag set to false.
         ///
         /// Verifies that a change_main flag with value false can be stored in the session
         /// without errors.
         ///
         /// Expected: Ok(())
+        #[tokio::test]
         async fn inserts_false_flag_into_session() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -117,13 +117,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that inserted true flag can be retrieved with correct value.
         ///
         /// Verifies that the change_main flag stored in the session matches the original
         /// value when retrieved, ensuring data integrity during storage.
         ///
         /// Expected: Ok(()) and retrieved value is true
+        #[tokio::test]
         async fn inserted_true_flag_is_retrievable() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -137,13 +137,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that inserted false flag can be retrieved with correct value.
         ///
         /// Verifies that a false change_main flag stored in the session matches the
         /// original value when retrieved.
         ///
         /// Expected: Ok(()) and retrieved value is false
+        #[tokio::test]
         async fn inserted_false_flag_is_retrievable() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -157,13 +157,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that inserting a new flag overwrites the previous one.
         ///
         /// Verifies that when a change_main flag is inserted multiple times, the latest
         /// value overwrites the previous one.
         ///
         /// Expected: Ok(()) and retrieved value matches the latest inserted value
+        #[tokio::test]
         async fn overwrites_existing_flag() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -186,13 +186,13 @@ mod tests {
         use super::*;
         use bifrost_test_utils::prelude::*;
 
-        #[tokio::test]
         /// Tests successful removal of change_main flag from session.
         ///
         /// Verifies that a stored change_main flag can be removed from the session
         /// successfully, returning Ok(Some(true)).
         ///
         /// Expected: Ok(Some(true))
+        #[tokio::test]
         async fn removes_true_flag_from_session() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let _ = SessionUserChangeMain::insert(&test.session, true)
@@ -208,13 +208,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests successful removal of false flag from session.
         ///
         /// Verifies that a stored change_main flag with value false can be removed
         /// and returns the correct value.
         ///
         /// Expected: Ok(Some(false))
+        #[tokio::test]
         async fn removes_false_flag_from_session() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let _ = SessionUserChangeMain::insert(&test.session, false)
@@ -230,13 +230,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests removal when flag is not present in session.
         ///
         /// Verifies that `remove` returns Ok(None) when attempting to remove a
         /// change_main flag from an empty session (normal authentication flow).
         ///
         /// Expected: Ok(None)
+        #[tokio::test]
         async fn returns_none_when_flag_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
@@ -249,13 +249,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that flag is actually removed after removal.
         ///
         /// Verifies that after calling `remove`, the change_main flag is no longer
         /// present in the session and subsequent attempts to retrieve it return None.
         ///
         /// Expected: First removal succeeds with Some(true), second attempt returns None
+        #[tokio::test]
         async fn flag_not_retrievable_after_removal() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let _ = SessionUserChangeMain::insert(&test.session, true)
@@ -274,13 +274,13 @@ mod tests {
             Ok(())
         }
 
-        #[tokio::test]
         /// Tests that remove is idempotent (calling remove twice returns None the second time).
         ///
         /// Verifies that after successfully removing a change_main flag, a second removal
         /// attempt returns Ok(None).
         ///
         /// Expected: First removal returns Some(value), second removal returns None
+        #[tokio::test]
         async fn second_removal_returns_none() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
             let _ = SessionUserChangeMain::insert(&test.session, true)
