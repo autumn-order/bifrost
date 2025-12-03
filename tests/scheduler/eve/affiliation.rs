@@ -28,6 +28,9 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
 
+    // Verify queue is empty
+    assert_eq!(queue.len().await.unwrap(), 0);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -55,6 +58,9 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
+
+    // Verify queue is empty
+    assert_eq!(queue.len().await.unwrap(), 0);
 
     redis.cleanup().await?;
     Ok(())
@@ -87,6 +93,9 @@ async fn schedules_single_expired_character_affiliation() -> Result<(), TestErro
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
+
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -122,6 +131,9 @@ async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestE
     assert!(result.is_ok());
     // All 5 characters fit in one batch (under 1000 limit)
     assert_eq!(result.unwrap(), 1);
+
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -165,6 +177,9 @@ async fn schedules_only_expired_character_affiliations() -> Result<(), TestError
     assert!(result.is_ok());
     // Only the 3 expired characters should be scheduled (in 1 batch)
     assert_eq!(result.unwrap(), 1);
+
+    // Verify only 1 job in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -229,6 +244,9 @@ async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
     // All 3 fit in one batch
     assert_eq!(result.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -260,12 +278,18 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
     let result2 = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
+
+    // Verify still only 1 job in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -425,6 +449,9 @@ async fn schedules_many_characters() -> Result<(), TestError> {
     assert!(result.is_ok());
     // All 50 fit in one batch (under 1000 limit)
     assert_eq!(result.unwrap(), 1);
+
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())

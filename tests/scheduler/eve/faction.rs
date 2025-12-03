@@ -10,7 +10,9 @@
 //! always enqueues exactly one job that checks all factions, since there are only a small,
 //! fixed number of NPC factions in EVE Online.
 
-use bifrost::server::scheduler::eve::faction::schedule_faction_info_update;
+use bifrost::server::{
+    model::worker::WorkerJob, scheduler::eve::faction::schedule_faction_info_update,
+};
 use bifrost_test_utils::prelude::*;
 
 use crate::util::redis::RedisTest;
@@ -27,6 +29,14 @@ async fn schedules_faction_update_job() -> Result<(), TestError> {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 
+    // Verify job is actually in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
+    // Pop the job to verify it's the correct type
+    let job = queue.pop().await.unwrap();
+    assert!(job.is_some());
+    assert!(matches!(job.unwrap(), WorkerJob::UpdateFactionInfo));
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -42,6 +52,9 @@ async fn schedules_without_faction_table() -> Result<(), TestError> {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
+
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -68,6 +81,14 @@ async fn schedules_with_existing_factions() -> Result<(), TestError> {
     // Still just 1 job since the worker job handles all factions
     assert_eq!(result.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
+    // Pop the job to verify it's the correct type
+    let job = queue.pop().await.unwrap();
+    assert!(job.is_some());
+    assert!(matches!(job.unwrap(), WorkerJob::UpdateFactionInfo));
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -83,12 +104,18 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
     let result2 = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
+
+    // Verify still only 1 job in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -116,6 +143,9 @@ async fn schedules_multiple_times_after_queue_clear() -> Result<(), TestError> {
     let result2 = schedule_faction_info_update(test.db.clone(), queue2.clone()).await;
     assert!(result2.is_ok());
     assert_eq!(result2.unwrap(), 1);
+
+    // Verify job is in the new queue
+    assert_eq!(queue2.len().await.unwrap(), 1);
 
     redis2.cleanup().await?;
     Ok(())
@@ -148,6 +178,9 @@ async fn schedules_with_multiple_concurrent_calls() -> Result<(), TestError> {
     let scheduled_count = result1.unwrap_or(0) + result2.unwrap_or(0);
     assert_eq!(scheduled_count, 1);
 
+    // Verify only 1 job ended up in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -166,6 +199,9 @@ async fn returns_consistent_result_on_success() -> Result<(), TestError> {
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
 
+        // Verify job is in the queue
+        assert_eq!(queue.len().await.unwrap(), 1);
+
         redis.cleanup().await?;
     }
 
@@ -183,6 +219,9 @@ async fn works_with_minimal_database_setup() -> Result<(), TestError> {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
+
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())

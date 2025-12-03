@@ -28,6 +28,9 @@ async fn returns_zero_when_no_corporations() -> Result<(), TestError> {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
 
+    // Verify queue is empty
+    assert_eq!(queue.len().await.unwrap(), 0);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -47,6 +50,9 @@ async fn returns_zero_when_all_corporations_up_to_date() -> Result<(), TestError
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
+
+    // Verify queue is empty
+    assert_eq!(queue.len().await.unwrap(), 0);
 
     redis.cleanup().await?;
     Ok(())
@@ -76,6 +82,9 @@ async fn schedules_single_expired_corporation() -> Result<(), TestError> {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -104,6 +113,9 @@ async fn schedules_multiple_expired_corporations() -> Result<(), TestError> {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 5);
+
+    // Verify jobs are in the queue
+    assert_eq!(queue.len().await.unwrap(), 5);
 
     redis.cleanup().await?;
     Ok(())
@@ -138,6 +150,9 @@ async fn schedules_only_expired_corporations() -> Result<(), TestError> {
     assert!(result.is_ok());
     // Only the 3 expired corporations should be scheduled
     assert_eq!(result.unwrap(), 3);
+
+    // Verify only 3 jobs are in the queue
+    assert_eq!(queue.len().await.unwrap(), 3);
 
     redis.cleanup().await?;
     Ok(())
@@ -190,6 +205,9 @@ async fn schedules_oldest_corporations_first() -> Result<(), TestError> {
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 3);
 
+    // Verify jobs are in the queue
+    assert_eq!(queue.len().await.unwrap(), 3);
+
     redis.cleanup().await?;
     Ok(())
 }
@@ -217,12 +235,18 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
+    // Verify job is in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
+
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
     let result2 = schedule_corporation_info_update(test.db.clone(), queue.clone()).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
+
+    // Verify still only 1 job in the queue
+    assert_eq!(queue.len().await.unwrap(), 1);
 
     redis.cleanup().await?;
     Ok(())
@@ -266,6 +290,9 @@ async fn schedules_many_corporations() -> Result<(), TestError> {
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 50);
+
+    // Verify jobs are in the queue
+    assert_eq!(queue.len().await.unwrap(), 50);
 
     redis.cleanup().await?;
     Ok(())
