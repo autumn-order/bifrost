@@ -228,11 +228,12 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     mod get_ownership_by_character_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         /// Expect Some when ownership entry exists for the given character_record_id
         #[tokio::test]
@@ -316,7 +317,7 @@ mod tests {
     mod get_by_character_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         // Expect Some when character & character ownership entry is found
         #[tokio::test]
@@ -400,7 +401,7 @@ mod tests {
     mod get_ownerships_by_user_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         /// Expect Ok with 2 owned character entries
         #[tokio::test]
@@ -489,7 +490,7 @@ mod tests {
     mod get_owned_characters_by_user_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         /// Expect Ok with Vec length of 1 when requesting valid user ID
         /// Validates that corporation is present and alliance can be None

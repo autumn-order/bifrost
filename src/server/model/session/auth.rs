@@ -93,10 +93,11 @@ impl SessionAuthCsrf {
 #[cfg(test)]
 mod tests {
 
-    mod insert {
-        use bifrost_test_utils::prelude::*;
+    use super::*;
 
-        use crate::server::model::session::auth::SessionAuthCsrf;
+    mod insert {
+        use super::*;
+        use bifrost_test_utils::prelude::*;
 
         #[tokio::test]
         /// Tests successful insertion of CSRF token into session.
@@ -180,12 +181,9 @@ mod tests {
     }
 
     mod get {
+        use super::*;
+        use crate::server::error::{auth::AuthError, Error};
         use bifrost_test_utils::prelude::*;
-
-        use crate::server::{
-            error::{auth::AuthError, Error},
-            model::session::auth::SessionAuthCsrf,
-        };
 
         /// Tests successful retrieval of CSRF token from session.
         ///
@@ -232,12 +230,9 @@ mod tests {
     }
 
     mod remove {
+        use super::*;
+        use crate::server::error::{auth::AuthError, Error};
         use bifrost_test_utils::prelude::*;
-
-        use crate::server::{
-            error::{auth::AuthError, Error},
-            model::session::auth::SessionAuthCsrf,
-        };
 
         /// Tests successful removal of CSRF token from session.
         ///

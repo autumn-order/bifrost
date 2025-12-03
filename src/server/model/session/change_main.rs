@@ -74,3 +74,228 @@ impl SessionUserChangeMain {
         Ok(session.remove(SESSION_USER_CHANGE_MAIN_KEY).await?)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod insert {
+        use super::*;
+        use bifrost_test_utils::prelude::*;
+
+        #[tokio::test]
+        /// Tests successful insertion of change_main flag set to true.
+        ///
+        /// Verifies that a change_main flag with value true can be stored in the session
+        /// without errors.
+        ///
+        /// Expected: Ok(())
+        async fn inserts_true_flag_into_session() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let result = SessionUserChangeMain::insert(&test.session, true).await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests successful insertion of change_main flag set to false.
+        ///
+        /// Verifies that a change_main flag with value false can be stored in the session
+        /// without errors.
+        ///
+        /// Expected: Ok(())
+        async fn inserts_false_flag_into_session() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let result = SessionUserChangeMain::insert(&test.session, false).await;
+
+            assert!(result.is_ok());
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that inserted true flag can be retrieved with correct value.
+        ///
+        /// Verifies that the change_main flag stored in the session matches the original
+        /// value when retrieved, ensuring data integrity during storage.
+        ///
+        /// Expected: Ok(()) and retrieved value is true
+        async fn inserted_true_flag_is_retrievable() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let insert_result = SessionUserChangeMain::insert(&test.session, true).await;
+            assert!(insert_result.is_ok());
+
+            let remove_result = SessionUserChangeMain::remove(&test.session).await;
+            assert!(remove_result.is_ok());
+            assert_eq!(remove_result.unwrap(), Some(true));
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that inserted false flag can be retrieved with correct value.
+        ///
+        /// Verifies that a false change_main flag stored in the session matches the
+        /// original value when retrieved.
+        ///
+        /// Expected: Ok(()) and retrieved value is false
+        async fn inserted_false_flag_is_retrievable() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let insert_result = SessionUserChangeMain::insert(&test.session, false).await;
+            assert!(insert_result.is_ok());
+
+            let remove_result = SessionUserChangeMain::remove(&test.session).await;
+            assert!(remove_result.is_ok());
+            assert_eq!(remove_result.unwrap(), Some(false));
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that inserting a new flag overwrites the previous one.
+        ///
+        /// Verifies that when a change_main flag is inserted multiple times, the latest
+        /// value overwrites the previous one.
+        ///
+        /// Expected: Ok(()) and retrieved value matches the latest inserted value
+        async fn overwrites_existing_flag() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let _ = SessionUserChangeMain::insert(&test.session, false)
+                .await
+                .unwrap();
+            let _ = SessionUserChangeMain::insert(&test.session, true)
+                .await
+                .unwrap();
+
+            let result = SessionUserChangeMain::remove(&test.session).await;
+            assert!(result.is_ok());
+            assert_eq!(result.unwrap(), Some(true));
+
+            Ok(())
+        }
+    }
+
+    mod remove {
+        use super::*;
+        use bifrost_test_utils::prelude::*;
+
+        #[tokio::test]
+        /// Tests successful removal of change_main flag from session.
+        ///
+        /// Verifies that a stored change_main flag can be removed from the session
+        /// successfully, returning Ok(Some(true)).
+        ///
+        /// Expected: Ok(Some(true))
+        async fn removes_true_flag_from_session() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let _ = SessionUserChangeMain::insert(&test.session, true)
+                .await
+                .unwrap();
+
+            let result = SessionUserChangeMain::remove(&test.session).await;
+
+            assert!(result.is_ok());
+            let removed_value = result.unwrap();
+            assert_eq!(removed_value, Some(true));
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests successful removal of false flag from session.
+        ///
+        /// Verifies that a stored change_main flag with value false can be removed
+        /// and returns the correct value.
+        ///
+        /// Expected: Ok(Some(false))
+        async fn removes_false_flag_from_session() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let _ = SessionUserChangeMain::insert(&test.session, false)
+                .await
+                .unwrap();
+
+            let result = SessionUserChangeMain::remove(&test.session).await;
+
+            assert!(result.is_ok());
+            let removed_value = result.unwrap();
+            assert_eq!(removed_value, Some(false));
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests removal when flag is not present in session.
+        ///
+        /// Verifies that `remove` returns Ok(None) when attempting to remove a
+        /// change_main flag from an empty session (normal authentication flow).
+        ///
+        /// Expected: Ok(None)
+        async fn returns_none_when_flag_missing() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+
+            let result = SessionUserChangeMain::remove(&test.session).await;
+
+            assert!(result.is_ok());
+            let removed_value = result.unwrap();
+            assert_eq!(removed_value, None);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that flag is actually removed after removal.
+        ///
+        /// Verifies that after calling `remove`, the change_main flag is no longer
+        /// present in the session and subsequent attempts to retrieve it return None.
+        ///
+        /// Expected: First removal succeeds with Some(true), second attempt returns None
+        async fn flag_not_retrievable_after_removal() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let _ = SessionUserChangeMain::insert(&test.session, true)
+                .await
+                .unwrap();
+
+            let first_remove = SessionUserChangeMain::remove(&test.session).await;
+            assert!(first_remove.is_ok());
+            assert_eq!(first_remove.unwrap(), Some(true));
+
+            // Second removal should return None
+            let second_remove = SessionUserChangeMain::remove(&test.session).await;
+            assert!(second_remove.is_ok());
+            assert_eq!(second_remove.unwrap(), None);
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        /// Tests that remove is idempotent (calling remove twice returns None the second time).
+        ///
+        /// Verifies that after successfully removing a change_main flag, a second removal
+        /// attempt returns Ok(None).
+        ///
+        /// Expected: First removal returns Some(value), second removal returns None
+        async fn second_removal_returns_none() -> Result<(), TestError> {
+            let test = TestBuilder::new().build().await?;
+            let _ = SessionUserChangeMain::insert(&test.session, true)
+                .await
+                .unwrap();
+
+            let first_remove = SessionUserChangeMain::remove(&test.session).await;
+            assert!(first_remove.is_ok());
+            assert!(first_remove.unwrap().is_some());
+
+            let second_remove = SessionUserChangeMain::remove(&test.session).await;
+            assert!(second_remove.is_ok());
+            assert_eq!(second_remove.unwrap(), None);
+
+            Ok(())
+        }
+    }
+}
