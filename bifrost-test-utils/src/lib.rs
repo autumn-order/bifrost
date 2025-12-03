@@ -114,8 +114,18 @@ pub use builder::TestBuilder;
 pub use context::TestContext;
 pub use error::TestError;
 
-// Re-export factory module for creating mock data objects
+// Re-export factory modules for creating mock data objects
 pub use fixtures::eve::factory;
+
+/// Re-export auth factory module for creating mock authentication data
+pub mod auth_factory {
+    pub use crate::fixtures::auth::factory::*;
+}
+
+/// Re-export user factory module for creating mock user data
+pub mod user_factory {
+    pub use crate::fixtures::user::factory::*;
+}
 
 /// Prelude module containing commonly used imports for tests
 ///
@@ -125,5 +135,8 @@ pub use fixtures::eve::factory;
 /// use bifrost_test_utils::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::{builder::TestBuilder, context::TestContext, error::TestError, factory};
+    pub use crate::{
+        auth_factory, builder::TestBuilder, context::TestContext, error::TestError, factory,
+        user_factory,
+    };
 }

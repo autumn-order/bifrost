@@ -34,7 +34,7 @@ struct CallbackCache {
 }
 
 /// Represents the current user session state during OAuth callback processing.
-enum Session {
+pub(super) enum Session {
     /// No user is currently logged in
     NotLoggedIn,
     /// A user is logged in with the specified user ID
@@ -42,7 +42,7 @@ enum Session {
 }
 
 /// Represents the database lookup result for a character's existence and ownership status.
-enum CharacterRecord {
+pub(super) enum CharacterRecord {
     /// Character record was not found in database
     NotFound,
     /// Character is in database but not owned by any user
@@ -58,7 +58,8 @@ enum CharacterRecord {
 ///
 /// This enum is determined by the `determine_character_action` function and drives
 /// the callback processing logic in `handle_callback`.
-enum CharacterAction {
+#[derive(Debug)]
+pub(super) enum CharacterAction {
     /// Character not in database; fetch from ESI, persist, and link to user
     FetchAndLink {
         /// If None, create a new user; otherwise use existing user ID
@@ -425,7 +426,7 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `CharacterAction` - The appropriate action to take for this character
-    fn determine_character_action(
+    pub(super) fn determine_character_action(
         session: Session,
         record: CharacterRecord,
         claims: &EveJwtClaims,

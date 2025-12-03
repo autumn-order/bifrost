@@ -6,3 +6,6 @@
 
 pub mod callback;
 pub mod login;
+
+#[cfg(test)]
+mod tests;
