@@ -18,7 +18,7 @@ async fn upserts_new_characters() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .upsert_many(vec![
             (character_id_1, character_1, corporation_model.id, None),
@@ -57,7 +57,7 @@ async fn updates_existing_characters() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let initial = character_repo
         .upsert_many(vec![
             (character_id_1, character_1, corporation_model.id, None),
@@ -148,7 +148,7 @@ async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(2, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
 
     // First, insert characters 1 and 2
     let initial = character_repo
@@ -216,7 +216,7 @@ async fn handles_empty_input() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.upsert_many(vec![]).await?;
 
     assert_eq!(result.len(), 0);
@@ -248,7 +248,7 @@ async fn upserts_with_faction_relationships() -> Result<(), TestError> {
         test.eve()
             .with_mock_character(3, corporation_model.corporation_id, None, None);
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .upsert_many(vec![
             (
@@ -309,7 +309,7 @@ async fn handles_large_batch() -> Result<(), TestError> {
         characters.push((character_id, character, corporation_model.id, None));
     }
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.upsert_many(characters).await?;
 
     assert_eq!(result.len(), 100);

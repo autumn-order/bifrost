@@ -243,7 +243,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_character_with_ownership(character_model.character_id)
                 .await;
@@ -263,7 +263,7 @@ mod tests {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_character_with_ownership(character_model.character_id)
                 .await;
@@ -283,7 +283,7 @@ mod tests {
             let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_character_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_character_with_ownership(nonexistent_character_id)
                 .await;
@@ -302,7 +302,7 @@ mod tests {
             let test = TestBuilder::new().build().await?;
 
             let character_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_character_with_ownership(character_id)
                 .await;
@@ -331,7 +331,7 @@ mod tests {
                 .insert_mock_character_for_user(user_model.id, 2, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_ownerships_by_user_id(user_model.id)
                 .await;
@@ -352,7 +352,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_ownerships_by_user_id(user_model.id)
                 .await;
@@ -372,7 +372,7 @@ mod tests {
             // Character is set as main but it is not actually owned due to no ownership entry
             let user_model = test.user().insert_user(character_model.id).await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_ownerships_by_user_id(user_model.id)
                 .await;
@@ -391,7 +391,7 @@ mod tests {
             let test = TestBuilder::new().build().await?;
 
             let user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_ownerships_by_user_id(user_id)
                 .await;
@@ -417,7 +417,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -462,7 +462,7 @@ mod tests {
                 .insert_user_character_ownership(user_model.id, character_model.id)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -494,7 +494,7 @@ mod tests {
                 .insert_mock_character_for_user(user_model.id, 2, 2, Some(1), None)
                 .await?;
 
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_owned_characters_by_user_id(user_model.id)
                 .await;
@@ -518,7 +518,7 @@ mod tests {
             let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_user_id = 1;
-            let user_character_repository = UserCharacterRepository::new(&test.state.db);
+            let user_character_repository = UserCharacterRepository::new(&test.db);
             let result = user_character_repository
                 .get_owned_characters_by_user_id(nonexistent_user_id)
                 .await;
@@ -537,7 +537,7 @@ mod tests {
             let test = TestBuilder::new().build().await?;
 
             let nonexistent_user_id = 1;
-            let user_character_repo = UserCharacterRepository::new(&test.state.db);
+            let user_character_repo = UserCharacterRepository::new(&test.db);
             let result = user_character_repo
                 .get_owned_characters_by_user_id(nonexistent_user_id)
                 .await;

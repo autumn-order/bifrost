@@ -28,7 +28,7 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp1.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp1.id, Some(faction1.id))])
         .await?;
@@ -46,7 +46,7 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
 
     // Verify the update by querying directly
     let updated = entity::prelude::EveCharacter::find_by_id(char.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character should exist");
 
@@ -92,7 +92,7 @@ async fn updates_multiple_characters() -> Result<(), TestError> {
         .await?;
 
     // Update multiple characters
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .update_affiliations(vec![
             (char1.id, corp1.id, Some(faction1.id)),
@@ -105,15 +105,15 @@ async fn updates_multiple_characters() -> Result<(), TestError> {
 
     // Verify all updates by querying directly
     let updated1 = entity::prelude::EveCharacter::find_by_id(char1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 1 should exist");
     let updated2 = entity::prelude::EveCharacter::find_by_id(char2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 2 should exist");
     let updated3 = entity::prelude::EveCharacter::find_by_id(char3.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 3 should exist");
 
@@ -146,7 +146,7 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp.id, Some(faction.id))])
         .await?;
@@ -164,7 +164,7 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
 
     // Verify the faction was removed
     let updated = entity::prelude::EveCharacter::find_by_id(char.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character should exist");
 
@@ -200,7 +200,7 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     }
 
     // Update all characters
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.update_affiliations(characters).await;
 
     assert!(result.is_ok(), "Error: {:?}", result);
@@ -210,17 +210,17 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
 
     let updated_first = entity::prelude::EveCharacter::find()
         .filter(entity::eve_character::Column::CharacterId.eq(1000))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("First character should exist");
     let updated_middle = entity::prelude::EveCharacter::find()
         .filter(entity::eve_character::Column::CharacterId.eq(1125))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Middle character should exist");
     let updated_last = entity::prelude::EveCharacter::find()
         .filter(entity::eve_character::Column::CharacterId.eq(1249))
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Last character should exist");
 
@@ -242,7 +242,7 @@ async fn handles_empty_input() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo.update_affiliations(vec![]).await;
 
     assert!(result.is_ok(), "Should handle empty input gracefully");
@@ -269,7 +269,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
     let (character_id, character) =
         test.eve()
             .with_mock_character(1, corp.corporation_id, None, None);
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp.id, None)])
         .await?;
@@ -292,7 +292,7 @@ async fn updates_timestamp() -> Result<(), TestError> {
 
     // Verify the timestamp was updated
     let updated = entity::prelude::EveCharacter::find_by_id(char.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character should exist");
 
@@ -334,7 +334,7 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
         .await?;
 
     // Update only char1
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .update_affiliations(vec![(char1.id, corp2.id, Some(faction2.id))])
         .await;
@@ -343,7 +343,7 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
 
     // Verify char1 was updated
     let updated1 = entity::prelude::EveCharacter::find_by_id(char1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 1 should exist");
     assert_eq!(updated1.corporation_id, corp2.id);
@@ -351,7 +351,7 @@ async fn does_not_affect_other_characters() -> Result<(), TestError> {
 
     // Verify char2 was NOT updated
     let updated2 = entity::prelude::EveCharacter::find_by_id(char2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 2 should exist");
     assert_eq!(
@@ -397,7 +397,7 @@ async fn handles_mixed_faction_assignments() -> Result<(), TestError> {
         .await?;
 
     // Update with mixed faction IDs
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
         .update_affiliations(vec![
             (char1.id, corp.id, Some(faction.id)),
@@ -410,15 +410,15 @@ async fn handles_mixed_faction_assignments() -> Result<(), TestError> {
 
     // Verify updates
     let updated1 = entity::prelude::EveCharacter::find_by_id(char1.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 1 should exist");
     let updated2 = entity::prelude::EveCharacter::find_by_id(char2.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 2 should exist");
     let updated3 = entity::prelude::EveCharacter::find_by_id(char3.id)
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .expect("Character 3 should exist");
 

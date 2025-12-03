@@ -9,15 +9,6 @@ use crate::{
     error::TestError,
 };
 
-/// Internal application state used in tests
-///
-/// Contains the database connection and ESI client needed for testing.
-/// This is exposed through `TestSetup::state`.
-pub struct TestAppState {
-    pub db: DatabaseConnection,
-    pub esi_client: eve_esi::Client,
-}
-
 /// Test setup structure returned by `TestBuilder`
 ///
 /// This struct is the result of calling `TestBuilder::build()` and provides
@@ -37,10 +28,10 @@ pub struct TestAppState {
 /// let test = TestBuilder::new().build().await?;
 ///
 /// // Access the database
-/// let db = &test.state.db;
+/// let db = &test.db;
 ///
 /// // Access the ESI client
-/// let client = &test.state.esi_client;
+/// let client = &test.esi_client;
 ///
 /// // Access fixtures helpers
 /// test.eve().insert_mock_faction(1).await?;
@@ -50,7 +41,8 @@ pub struct TestAppState {
 /// test.assert_mocks();
 /// ```
 pub struct TestSetup {
-    pub state: TestAppState,
+    pub db: DatabaseConnection,
+    pub esi_client: eve_esi::Client,
     pub session: Session,
 
     pub(crate) server: ServerGuard,
@@ -58,7 +50,7 @@ pub struct TestSetup {
 }
 
 impl TestSetup {
-    /// Convert TestAppState into any type that can be constructed from its fields
+    /// Convert database and ESI client into any type that can be constructed from them
     ///
     /// This allows conversion to AppState without creating a circular dependency
     /// between the test-utils crate and the main bifrost crate.
@@ -67,13 +59,13 @@ impl TestSetup {
     ///
     /// ```ignore
     /// // In integration tests
-    /// let app_state: AppState = test.state();
+    /// let app_state: AppState = test.to_app_state();
     /// ```
-    pub fn state<T>(&self) -> T
+    pub fn to_app_state<T>(&self) -> T
     where
         T: From<(DatabaseConnection, eve_esi::Client)>,
     {
-        T::from((self.state.db.clone(), self.state.esi_client.clone()))
+        T::from((self.db.clone(), self.esi_client.clone()))
     }
 }
 
@@ -106,7 +98,8 @@ impl TestSetup {
 
         Ok(TestSetup {
             server: mock_server,
-            state: TestAppState { db, esi_client },
+            db,
+            esi_client,
             session,
             mocks: Vec::new(),
         })
@@ -118,7 +111,7 @@ impl TestSetup {
         stmts: Vec<TableCreateStatement>,
     ) -> Result<(), TestError> {
         for stmt in stmts {
-            self.state.db.execute(&stmt).await?;
+            self.db.execute(&stmt).await?;
         }
 
         Ok(())

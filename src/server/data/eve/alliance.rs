@@ -131,7 +131,7 @@ mod tests {
             let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
             let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let result = alliance_repo
                 .upsert_many(vec![
                     (alliance_id_1, alliance_1, None),
@@ -159,7 +159,7 @@ mod tests {
             let (alliance_id_1_update, alliance_1_update) = test.eve().with_mock_alliance(1, None);
             let (alliance_id_2_update, alliance_2_update) = test.eve().with_mock_alliance(2, None);
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let initial = alliance_repo
                 .upsert_many(vec![
                     (alliance_id_1, alliance_1, None),
@@ -222,7 +222,7 @@ mod tests {
             let alliance_2 = test.eve().insert_mock_alliance(2, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let alliance_ids = vec![
                 alliance_1.alliance_id,
                 alliance_2.alliance_id,
@@ -267,7 +267,7 @@ mod tests {
                 .build()
                 .await?;
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let alliance_ids = vec![1, 2, 3];
             let result = alliance_repo
                 .get_record_ids_by_alliance_ids(&alliance_ids)
@@ -289,7 +289,7 @@ mod tests {
                 .build()
                 .await?;
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let alliance_ids: Vec<i64> = vec![];
             let result = alliance_repo
                 .get_record_ids_by_alliance_ids(&alliance_ids)
@@ -313,7 +313,7 @@ mod tests {
             let alliance_1 = test.eve().insert_mock_alliance(1, None).await?;
             let alliance_3 = test.eve().insert_mock_alliance(3, None).await?;
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let alliance_ids = vec![
                 alliance_1.alliance_id,
                 999, // Non-existent
@@ -348,7 +348,7 @@ mod tests {
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
-            let alliance_repo = AllianceRepository::new(&test.state.db);
+            let alliance_repo = AllianceRepository::new(&test.db);
             let alliance_ids = vec![1, 2, 3];
             let result = alliance_repo
                 .get_record_ids_by_alliance_ids(&alliance_ids)

@@ -14,7 +14,7 @@ async fn returns_record_ids_for_existing_characters() -> Result<(), TestError> {
     let character_2 = test.eve().insert_mock_character(2, 1, None, None).await?;
     let character_3 = test.eve().insert_mock_character(3, 1, None, None).await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let character_ids = vec![
         character_1.character_id,
         character_2.character_id,
@@ -61,7 +61,7 @@ async fn returns_empty_for_nonexistent_characters() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let character_ids = vec![1, 2, 3];
     let result = character_repo
         .get_record_ids_by_character_ids(&character_ids)
@@ -85,7 +85,7 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let character_ids: Vec<i64> = vec![];
     let result = character_repo
         .get_record_ids_by_character_ids(&character_ids)
@@ -111,7 +111,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
     let character_1 = test.eve().insert_mock_character(1, 1, None, None).await?;
     let character_3 = test.eve().insert_mock_character(3, 1, None, None).await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let character_ids = vec![
         character_1.character_id,
         999, // Non-existent
@@ -146,7 +146,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 
-    let character_repo = CharacterRepository::new(&test.state.db);
+    let character_repo = CharacterRepository::new(&test.db);
     let character_ids = vec![1, 2, 3];
     let result = character_repo
         .get_record_ids_by_character_ids(&character_ids)

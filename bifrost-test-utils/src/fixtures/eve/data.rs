@@ -8,7 +8,7 @@ impl<'a> EveFixtures<'a> {
     pub async fn insert_mock_faction(&self, faction_id: i64) -> Result<EveFactionModel, TestError> {
         if let Some(existing_faction) = entity::prelude::EveFaction::find()
             .filter(entity::eve_faction::Column::FactionId.eq(faction_id))
-            .one(&self.setup.state.db)
+            .one(&self.setup.db)
             .await?
         {
             return Ok(existing_faction);
@@ -32,7 +32,7 @@ impl<'a> EveFixtures<'a> {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.setup.state.db)
+            .exec_with_returning(&self.setup.db)
             .await?,
         )
     }
@@ -44,7 +44,7 @@ impl<'a> EveFixtures<'a> {
     ) -> Result<EveAllianceModel, TestError> {
         if let Some(existing_alliance) = entity::prelude::EveAlliance::find()
             .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
-            .one(&self.setup.state.db)
+            .one(&self.setup.db)
             .await?
         {
             return Ok(existing_alliance);
@@ -72,7 +72,7 @@ impl<'a> EveFixtures<'a> {
                 updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.setup.state.db)
+            .exec_with_returning(&self.setup.db)
             .await?,
         )
     }
@@ -85,7 +85,7 @@ impl<'a> EveFixtures<'a> {
     ) -> Result<EveCorporationModel, TestError> {
         if let Some(existing_corporation) = entity::prelude::EveCorporation::find()
             .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
-            .one(&self.setup.state.db)
+            .one(&self.setup.db)
             .await?
         {
             return Ok(existing_corporation);
@@ -133,7 +133,7 @@ impl<'a> EveFixtures<'a> {
                 affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.setup.state.db)
+            .exec_with_returning(&self.setup.db)
             .await?,
         )
     }
@@ -181,7 +181,7 @@ impl<'a> EveFixtures<'a> {
                 affiliation_updated_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.setup.state.db)
+            .exec_with_returning(&self.setup.db)
             .await?,
         )
     }

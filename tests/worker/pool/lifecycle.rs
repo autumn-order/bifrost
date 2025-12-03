@@ -33,7 +33,7 @@ fn test_config() -> WorkerPoolConfig {
 
 /// Create a test worker pool with test-optimized config
 async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(redis);
 
     let config = test_config();
@@ -224,7 +224,7 @@ async fn test_pool_with_single_dispatcher() {
 async fn test_pool_with_many_dispatchers() {
     let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
 
     // 119 jobs = 3 dispatchers (ceiling division ensures max 40 per dispatcher)
@@ -246,7 +246,7 @@ async fn test_pool_with_many_dispatchers() {
 async fn test_pool_cleanup_task_starts_with_pool() {
     let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
 
     let config = test_config();

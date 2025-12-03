@@ -60,7 +60,7 @@ pub mod tests {
     async fn generates_login_url() -> Result<(), TestError> {
         let test = TestBuilder::new().build().await?;
 
-        let login_service = LoginService::new(&test.state.esi_client);
+        let login_service = LoginService::new(&test.esi_client);
         let scopes = vec![];
         let result = login_service.generate_login_url(scopes);
 

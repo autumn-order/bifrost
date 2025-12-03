@@ -22,7 +22,7 @@ impl<'a> UserFixtures<'a> {
                 created_at: ActiveValue::Set(Utc::now().naive_utc()),
                 ..Default::default()
             })
-            .exec_with_returning(&self.setup.state.db)
+            .exec_with_returning(&self.setup.db)
             .await?,
         )
     }
@@ -42,7 +42,7 @@ impl<'a> UserFixtures<'a> {
                 ..Default::default()
             },
         )
-        .exec_with_returning(&self.setup.state.db)
+        .exec_with_returning(&self.setup.db)
         .await?)
     }
 

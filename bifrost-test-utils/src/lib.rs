@@ -19,7 +19,7 @@
 //! async fn my_test() -> Result<(), TestError> {
 //!     let test = TestBuilder::new().build().await?;
 //!
-//!     // Use test.state.db, test.state.esi_client, test.session
+//!     // Use test.db, test.esi_client, test.session
 //!     Ok(())
 //! }
 //! ```

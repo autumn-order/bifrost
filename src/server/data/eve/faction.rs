@@ -142,7 +142,7 @@ mod tests {
             let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
             let mock_faction = test.eve().with_mock_faction(1);
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let result = repo.upsert_many(vec![mock_faction]).await;
 
             assert!(result.is_ok(), "Error: {:?}", result);
@@ -159,7 +159,7 @@ mod tests {
             let mock_faction = test.eve().with_mock_faction(1);
             let mock_faction_update = test.eve().with_mock_faction(1);
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
             let initial_entry = initial.into_iter().next().expect("no entry returned");
 
@@ -188,7 +188,7 @@ mod tests {
             let faction_2 = test.eve().insert_mock_faction(2).await?;
             let faction_3 = test.eve().insert_mock_faction(3).await?;
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let faction_ids = vec![
                 faction_1.faction_id,
                 faction_2.faction_id,
@@ -227,7 +227,7 @@ mod tests {
         async fn returns_empty_for_nonexistent_factions() -> Result<(), TestError> {
             let test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let faction_ids = vec![1, 2, 3];
             let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
@@ -243,7 +243,7 @@ mod tests {
         async fn returns_empty_for_empty_input() -> Result<(), TestError> {
             let test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let faction_ids: Vec<i64> = vec![];
             let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 
@@ -261,7 +261,7 @@ mod tests {
             let faction_1 = test.eve().insert_mock_faction(1).await?;
             let faction_3 = test.eve().insert_mock_faction(3).await?;
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let faction_ids = vec![
                 faction_1.faction_id,
                 999, // Non-existent
@@ -292,7 +292,7 @@ mod tests {
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
 
-            let repo = FactionRepository::new(&test.state.db);
+            let repo = FactionRepository::new(&test.db);
             let faction_ids = vec![1, 2, 3];
             let result = repo.get_record_ids_by_faction_ids(&faction_ids).await;
 

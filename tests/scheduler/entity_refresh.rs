@@ -49,7 +49,7 @@ mod find_entries_needing_update {
             .await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -73,7 +73,7 @@ mod find_entries_needing_update {
         test.eve().insert_mock_alliance(1, None).await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -104,11 +104,11 @@ mod find_entries_needing_update {
                 Expr::value(old_timestamp),
             )
             .filter(entity::eve_alliance::Column::Id.eq(alliance.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -142,23 +142,23 @@ mod find_entries_needing_update {
         EveAlliance::update_many()
             .col_expr(entity::eve_alliance::Column::UpdatedAt, Expr::value(middle))
             .filter(entity::eve_alliance::Column::Id.eq(alliance1.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
 
         EveAlliance::update_many()
             .col_expr(entity::eve_alliance::Column::UpdatedAt, Expr::value(oldest))
             .filter(entity::eve_alliance::Column::Id.eq(alliance2.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
 
         EveAlliance::update_many()
             .col_expr(entity::eve_alliance::Column::UpdatedAt, Expr::value(newest))
             .filter(entity::eve_alliance::Column::Id.eq(alliance3.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -194,14 +194,14 @@ mod find_entries_needing_update {
                     Expr::value(old_timestamp),
                 )
                 .filter(entity::eve_alliance::Column::Id.eq(alliance.id))
-                .exec(&test.state.db)
+                .exec(&test.db)
                 .await?;
         }
 
         // With 10 entries, cache 24h, interval 30min = 10 / 48 = 0 -> min 100
         // But we only have 10 entries, so we should get all 10
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -232,11 +232,11 @@ mod find_entries_needing_update {
                 Expr::value(old_timestamp),
             )
             .filter(entity::eve_alliance::Column::Id.eq(alliance.id))
-            .exec(&test.state.db)
+            .exec(&test.db)
             .await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -256,7 +256,7 @@ mod find_entries_needing_update {
         let test = TestBuilder::new().build().await?;
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -283,7 +283,7 @@ mod schedule_jobs {
         let queue = setup_test_queue(&redis);
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -312,7 +312,7 @@ mod schedule_jobs {
         let queue = setup_test_queue(&redis);
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -349,7 +349,7 @@ mod schedule_jobs {
         let queue = setup_test_queue(&redis);
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -376,7 +376,7 @@ mod schedule_jobs {
         let queue = setup_test_queue(&redis);
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );
@@ -411,7 +411,7 @@ mod schedule_jobs {
         let queue = setup_test_queue(&redis);
 
         let tracker = EntityRefreshTracker::new(
-            &test.state.db,
+            &test.db,
             alliance_config::CACHE_DURATION,
             alliance_config::SCHEDULE_INTERVAL,
         );

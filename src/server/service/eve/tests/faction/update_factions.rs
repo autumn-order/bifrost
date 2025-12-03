@@ -19,7 +19,7 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let update_result = faction_service.update_factions().await;
 
     assert!(update_result.is_ok());
@@ -45,7 +45,7 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
         .await?;
 
     let faction_model = entity::prelude::EveFaction::find()
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .unwrap();
 
@@ -57,9 +57,9 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
         .unwrap_or(effective_expiry);
     let mut faction_am = faction_model.into_active_model();
     faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.state.db).await?;
+    faction_am.update(&test.db).await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -86,7 +86,7 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
         .await?;
 
     let faction_model = entity::prelude::EveFaction::find()
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .unwrap();
 
@@ -98,9 +98,9 @@ async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
         .unwrap_or(effective_expiry);
     let mut faction_am = faction_model.into_active_model();
     faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.state.db).await?;
+    faction_am.update(&test.db).await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -132,7 +132,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -160,7 +160,7 @@ async fn reuses_cached_data_on_retry() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());
@@ -188,7 +188,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_err());
@@ -208,7 +208,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let update_result = faction_service.update_factions().await;
 
     assert!(matches!(
@@ -230,7 +230,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let update_result = faction_service.update_factions().await;
 
     assert!(matches!(update_result, Err(Error::DbErr(_))));
@@ -258,7 +258,7 @@ async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestErro
         .await?;
 
     let faction_model = entity::prelude::EveFaction::find()
-        .one(&test.state.db)
+        .one(&test.db)
         .await?
         .unwrap();
 
@@ -270,9 +270,9 @@ async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestErro
         .unwrap_or(effective_expiry);
     let mut faction_am = faction_model.into_active_model();
     faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.state.db).await?;
+    faction_am.update(&test.db).await?;
 
-    let faction_service = FactionService::new(&test.state.db, &test.state.esi_client);
+    let faction_service = FactionService::new(&test.db, &test.esi_client);
     let result = faction_service.update_factions().await;
 
     assert!(result.is_ok());

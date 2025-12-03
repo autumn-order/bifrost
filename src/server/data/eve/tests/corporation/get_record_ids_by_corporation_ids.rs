@@ -13,7 +13,7 @@ async fn returns_record_ids_for_existing_corporations() -> Result<(), TestError>
     let corporation_2 = test.eve().insert_mock_corporation(2, None, None).await?;
     let corporation_3 = test.eve().insert_mock_corporation(3, None, None).await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let corporation_ids = vec![
         corporation_1.corporation_id,
         corporation_2.corporation_id,
@@ -59,7 +59,7 @@ async fn returns_empty_for_nonexistent_corporations() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let corporation_ids = vec![1, 2, 3];
     let result = corporation_repo
         .get_record_ids_by_corporation_ids(&corporation_ids)
@@ -82,7 +82,7 @@ async fn returns_empty_for_empty_input() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let corporation_ids: Vec<i64> = vec![];
     let result = corporation_repo
         .get_record_ids_by_corporation_ids(&corporation_ids)
@@ -107,7 +107,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
     let corporation_1 = test.eve().insert_mock_corporation(1, None, None).await?;
     let corporation_3 = test.eve().insert_mock_corporation(3, None, None).await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let corporation_ids = vec![
         corporation_1.corporation_id,
         999, // Non-existent
@@ -143,7 +143,7 @@ async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 
-    let corporation_repo = CorporationRepository::new(&test.state.db);
+    let corporation_repo = CorporationRepository::new(&test.db);
     let corporation_ids = vec![1, 2, 3];
     let result = corporation_repo
         .get_record_ids_by_corporation_ids(&corporation_ids)

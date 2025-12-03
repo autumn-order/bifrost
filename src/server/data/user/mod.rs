@@ -145,7 +145,7 @@ mod tests {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_repository = UserRepository::new(&test.state.db);
+            let user_repository = UserRepository::new(&test.db);
             let result = user_repository.create(character_model.id).await;
 
             assert!(result.is_ok());
@@ -159,7 +159,7 @@ mod tests {
             let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_main_character_id = 2;
-            let user_repository = UserRepository::new(&test.state.db);
+            let user_repository = UserRepository::new(&test.db);
             let result = user_repository.create(nonexistent_main_character_id).await;
 
             assert!(result.is_err());
@@ -182,7 +182,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
             let result = user_repo.get_by_id(user_model.id).await;
 
             assert!(matches!(result, Ok(Some(_))));
@@ -196,7 +196,7 @@ mod tests {
             let test = TestBuilder::new().with_user_tables().build().await?;
 
             let nonexistent_user_id = 1;
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
             let result = user_repo.get_by_id(nonexistent_user_id).await;
 
             assert!(matches!(result, Ok(None)));
@@ -208,7 +208,7 @@ mod tests {
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
 
             let user_id = 1;
             let result = user_repo.get_by_id(user_id).await;
@@ -233,7 +233,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
             let result = user_repo
                 .update(user_model.id, character_model_two.id)
                 .await;
@@ -251,7 +251,7 @@ mod tests {
             let mut test = TestBuilder::new().with_user_tables().build().await?;
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
 
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
             let nonexistent_user_id = 1;
             let result = user_repo
                 .update(nonexistent_user_id, character_model.id)
@@ -271,7 +271,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repo = UserRepository::new(&test.state.db);
+            let user_repo = UserRepository::new(&test.db);
             let result = user_repo
                 .update(user_model.id, character_model.id + 1)
                 .await;
@@ -295,7 +295,7 @@ mod tests {
             let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
             let user_model = test.user().insert_user(character_model.id).await?;
 
-            let user_repository = UserRepository::new(&test.state.db);
+            let user_repository = UserRepository::new(&test.db);
             let result = user_repository.delete(user_model.id).await;
 
             assert!(result.is_ok());
@@ -303,7 +303,7 @@ mod tests {
             assert_eq!(delete_result.rows_affected, 1);
             // Ensure user has actually been deleted
             let user_exists = entity::prelude::BifrostUser::find_by_id(user_model.id)
-                .one(&test.state.db)
+                .one(&test.db)
                 .await?;
             assert!(user_exists.is_none());
 
@@ -319,7 +319,7 @@ mod tests {
                 .insert_user_with_mock_character(1, 1, None, None)
                 .await?;
 
-            let user_repository = UserRepository::new(&test.state.db);
+            let user_repository = UserRepository::new(&test.db);
             let result = user_repository.delete(user_model.id + 1).await;
 
             assert!(result.is_ok());
@@ -336,7 +336,7 @@ mod tests {
             let test = TestBuilder::new().build().await?;
 
             let user_id = 1;
-            let user_repository = UserRepository::new(&test.state.db);
+            let user_repository = UserRepository::new(&test.db);
             let result = user_repository.delete(user_id).await;
 
             assert!(result.is_err());

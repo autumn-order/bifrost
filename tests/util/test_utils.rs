@@ -28,11 +28,11 @@ pub trait TestSetupExt {
 
 impl TestSetupExt for TestSetup {
     fn into_app_state(&self) -> AppState {
-        let worker = create_dummy_worker(self.state.db.clone(), self.state.esi_client.clone());
+        let worker = create_dummy_worker(self.db.clone(), self.esi_client.clone());
 
         AppState {
-            db: self.state.db.clone(),
-            esi_client: self.state.esi_client.clone(),
+            db: self.db.clone(),
+            esi_client: self.esi_client.clone(),
             worker,
         }
     }

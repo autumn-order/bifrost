@@ -29,7 +29,7 @@ async fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
     let mut test = TestBuilder::new().build().await?;
     // Build an ESI client not configured for OAuth2 to trigger internal server error
     let esi_client = eve_esi::Client::new(TEST_USER_AGENT).unwrap();
-    test.state.esi_client = esi_client;
+    test.esi_client = esi_client;
 
     let params = LoginParams { change_main: None };
     let result = login(State(test.into_app_state()), test.session, Query(params)).await;

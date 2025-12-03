@@ -36,7 +36,7 @@ fn test_config() -> WorkerPoolConfig {
 
 /// Create a test worker pool with test-optimized config
 async fn create_test_pool(test: &TestSetup, redis: &RedisTest) -> WorkerPool {
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(redis);
 
     let config = test_config();
@@ -49,7 +49,7 @@ async fn create_test_pool_with_config(
     redis: &RedisTest,
     config: WorkerPoolConfig,
 ) -> WorkerPool {
-    let handler = WorkerJobHandler::new(test.state.db.clone(), test.state.esi_client.clone());
+    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(redis);
 
     WorkerPool::new(config, queue, handler)
