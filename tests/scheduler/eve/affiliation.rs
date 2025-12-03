@@ -19,7 +19,7 @@ use crate::worker::queue::setup_test_queue;
 
 #[tokio::test]
 async fn returns_zero_when_no_characters() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -34,7 +34,7 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -62,7 +62,7 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
 
 #[tokio::test]
 async fn schedules_single_expired_character_affiliation() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -94,7 +94,7 @@ async fn schedules_single_expired_character_affiliation() -> Result<(), TestErro
 
 #[tokio::test]
 async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -129,7 +129,7 @@ async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestE
 
 #[tokio::test]
 async fn schedules_only_expired_character_affiliations() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -172,7 +172,7 @@ async fn schedules_only_expired_character_affiliations() -> Result<(), TestError
 
 #[tokio::test]
 async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -235,7 +235,7 @@ async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -273,7 +273,7 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -287,7 +287,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn batches_characters_when_over_esi_limit() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -325,7 +325,7 @@ async fn batches_characters_when_over_esi_limit() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn batches_exactly_at_esi_limit() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -361,7 +361,7 @@ async fn batches_exactly_at_esi_limit() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn batches_just_over_esi_limit() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -397,7 +397,7 @@ async fn batches_just_over_esi_limit() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_many_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 

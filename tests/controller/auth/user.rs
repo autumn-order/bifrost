@@ -6,7 +6,8 @@ use super::*;
 #[tokio::test]
 /// Expect 200 success with user information for existing user
 async fn found_for_logged_in_user() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -27,7 +28,7 @@ async fn found_for_logged_in_user() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 404 not found for user that isn't in session
 async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let result = get_user(State(test.into_app_state()), test.session).await;
 
@@ -41,7 +42,7 @@ async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 404 not found for user that isn't in database
 async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     // Set a user ID in session but don't put them in database
     let non_existant_user_id = 1;
@@ -61,7 +62,7 @@ async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 500 internal server error when required database tables dont exist
 async fn error_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     // Set user in session so that database is checked for user
     let non_existant_user_id = 1;

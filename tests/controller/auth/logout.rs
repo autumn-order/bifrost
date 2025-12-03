@@ -6,7 +6,7 @@ use super::*;
 #[tokio::test]
 /// Expect 307 temporary redirect after logout with a user ID in session
 async fn logs_out_user_successfully() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let user_id = 1;
     SessionUserId::insert(&test.session, user_id).await.unwrap();
@@ -32,7 +32,7 @@ async fn logs_out_user_successfully() -> Result<(), TestError> {
 /// clear session unless there is actually a user ID in session, it will redirect
 /// to login regardless of clear being called.
 async fn redirects_when_no_session_data() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let result = logout(test.session).await;
 

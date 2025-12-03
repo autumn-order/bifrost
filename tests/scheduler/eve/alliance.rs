@@ -19,7 +19,7 @@ use crate::worker::queue::setup_test_queue;
 
 #[tokio::test]
 async fn returns_zero_when_no_alliances() -> Result<(), TestError> {
-    let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -34,7 +34,7 @@ async fn returns_zero_when_no_alliances() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn returns_zero_when_all_alliances_up_to_date() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -54,7 +54,7 @@ async fn returns_zero_when_all_alliances_up_to_date() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_single_expired_alliance() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -82,7 +82,7 @@ async fn schedules_single_expired_alliance() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_multiple_expired_alliances() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -111,7 +111,7 @@ async fn schedules_multiple_expired_alliances() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_only_expired_alliances() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -145,7 +145,7 @@ async fn schedules_only_expired_alliances() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_oldest_alliances_first() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -187,7 +187,7 @@ async fn schedules_oldest_alliances_first() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -221,7 +221,7 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
@@ -235,7 +235,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
 #[tokio::test]
 async fn schedules_many_alliances() -> Result<(), TestError> {
-    let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+    let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 

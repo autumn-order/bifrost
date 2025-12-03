@@ -57,7 +57,7 @@ async fn create_test_pool_with_config(
 
 #[tokio::test]
 async fn test_pool_initial_permits_available() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -77,7 +77,7 @@ async fn test_pool_initial_permits_available() {
 
 #[tokio::test]
 async fn test_pool_max_concurrent_jobs() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -92,7 +92,7 @@ async fn test_pool_max_concurrent_jobs() {
 
 #[tokio::test]
 async fn test_pool_processes_single_job() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
 
@@ -123,7 +123,7 @@ async fn test_pool_processes_single_job() {
 
 #[tokio::test]
 async fn test_pool_processes_multiple_jobs() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
 
@@ -168,7 +168,7 @@ async fn test_pool_processes_multiple_jobs() {
 
 #[tokio::test]
 async fn test_pool_respects_concurrency_limit() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -188,7 +188,7 @@ async fn test_pool_respects_concurrency_limit() {
 
 #[tokio::test]
 async fn test_pool_active_job_count_calculation() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let pool = create_test_pool(&test, &redis).await;
 
@@ -208,7 +208,7 @@ async fn test_pool_active_job_count_calculation() {
 
 #[tokio::test]
 async fn test_pool_handles_empty_queue() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
 
     let pool = create_test_pool(&test, &redis).await;
@@ -227,7 +227,7 @@ async fn test_pool_handles_empty_queue() {
 
 #[tokio::test]
 async fn test_pool_processes_different_job_types() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
 
@@ -279,7 +279,7 @@ async fn test_pool_processes_different_job_types() {
 
 #[tokio::test]
 async fn test_pool_configuration_preserved() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
 
     // 119 jobs = 3 dispatchers (ceiling division ensures max 40 per dispatcher)
@@ -302,7 +302,7 @@ async fn test_pool_configuration_preserved() {
 
 #[tokio::test]
 async fn test_pool_permits_available_after_processing() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
     let queue = setup_test_queue(&redis);
 
@@ -334,7 +334,7 @@ async fn test_pool_permits_available_after_processing() {
 
 #[tokio::test]
 async fn test_pool_with_minimal_config() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
 
     let config = WorkerPoolConfig::new(1);
@@ -352,7 +352,7 @@ async fn test_pool_with_minimal_config() {
 
 #[tokio::test]
 async fn test_pool_with_large_concurrency() {
-    let test = test_setup_with_tables!().expect("Failed to create test setup");
+    let test = TestBuilder::new().build().await.expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
 
     // 119 jobs = 2 dispatchers (119 / 40 = 2.975 = 2)

@@ -6,7 +6,8 @@ use super::*;
 #[tokio::test]
 /// Expect 200 success with empty list for user with no characters
 async fn success_with_empty_list_for_user_with_no_additional_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -27,7 +28,8 @@ async fn success_with_empty_list_for_user_with_no_additional_characters() -> Res
 #[tokio::test]
 /// Expect 200 success with single character for user with one character
 async fn success_with_single_character() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -49,7 +51,8 @@ async fn success_with_single_character() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 200 success with multiple characters for user with multiple characters
 async fn success_with_multiple_characters() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, None, None)
@@ -87,7 +90,8 @@ async fn success_with_multiple_characters() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 200 success with characters that have alliance and faction
 async fn success_with_characters_having_alliance_and_faction() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
+
     let (user_model, _, _) = test
         .user()
         .insert_user_with_mock_character(1, 1, Some(1), Some(1))
@@ -121,7 +125,7 @@ async fn success_with_characters_having_alliance_and_faction() -> Result<(), Tes
 #[tokio::test]
 /// Expect 404 not found when user is not logged in
 async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     let result = get_user_characters(State(test.into_app_state()), test.session).await;
 
@@ -135,7 +139,7 @@ async fn not_found_when_user_not_logged_in() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 404 not found when user in session doesn't exist in database
 async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
-    let test = test_setup_with_user_tables!()?;
+    let test = TestBuilder::new().with_user_tables().build().await?;
 
     // Set a user ID in session but don't put them in database
     let non_existent_user_id = 999;
@@ -160,7 +164,7 @@ async fn not_found_when_user_not_in_database() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 500 internal server error when required database tables don't exist
 async fn error_when_tables_missing() -> Result<(), TestError> {
-    let test = test_setup_with_tables!()?;
+    let test = TestBuilder::new().build().await?;
 
     // Set user in session so that database is checked for user
     let non_existent_user_id = 1;
@@ -180,7 +184,7 @@ async fn error_when_tables_missing() -> Result<(), TestError> {
 #[tokio::test]
 /// Expect 200 success and verify only characters for specific user are returned
 async fn returns_only_characters_for_logged_in_user() -> Result<(), TestError> {
-    let mut test = test_setup_with_user_tables!()?;
+    let mut test = TestBuilder::new().with_user_tables().build().await?;
 
     // Create first user with characters
     let (user_model_1, _, _) = test

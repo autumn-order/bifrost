@@ -42,7 +42,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn returns_empty_when_no_entries() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
 
         let tracker = EntityRefreshTracker::new(
             &test.state.db,
@@ -61,7 +61,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn returns_empty_when_all_up_to_date() -> Result<(), TestError> {
-        let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         test.eve().insert_mock_alliance(1, None).await?;
 
         let tracker = EntityRefreshTracker::new(
@@ -81,7 +81,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn returns_entries_with_expired_cache() -> Result<(), TestError> {
-        let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
         // Update the alliance to have an old updated_at timestamp
@@ -113,7 +113,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn returns_oldest_updated_first() -> Result<(), TestError> {
-        let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let alliance1 = test.eve().insert_mock_alliance(1, None).await?;
         let alliance2 = test.eve().insert_mock_alliance(2, None).await?;
         let alliance3 = test.eve().insert_mock_alliance(3, None).await?;
@@ -162,7 +162,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn respects_batch_limit() -> Result<(), TestError> {
-        let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
 
         // Create 10 alliances with expired cache
         let old_timestamp = Utc::now().naive_utc() - Duration::hours(25);
@@ -198,7 +198,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn handles_single_entry() -> Result<(), TestError> {
-        let mut test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let alliance = test.eve().insert_mock_alliance(1, None).await?;
 
         let old_timestamp = Utc::now().naive_utc() - Duration::hours(25);
@@ -229,7 +229,7 @@ mod find_entries_needing_update {
 
     #[tokio::test]
     async fn fails_when_tables_missing() -> Result<(), TestError> {
-        let test = test_setup_with_tables!()?;
+        let test = TestBuilder::new().build().await?;
 
         let tracker = EntityRefreshTracker::new(
             &test.state.db,
@@ -250,7 +250,7 @@ mod schedule_jobs {
 
     #[tokio::test]
     async fn schedules_single_job() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
@@ -275,7 +275,7 @@ mod schedule_jobs {
 
     #[tokio::test]
     async fn schedules_multiple_jobs() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
@@ -308,7 +308,7 @@ mod schedule_jobs {
 
     #[tokio::test]
     async fn returns_zero_for_empty_jobs() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
@@ -331,7 +331,7 @@ mod schedule_jobs {
 
     #[tokio::test]
     async fn handles_duplicate_jobs() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
@@ -362,7 +362,7 @@ mod schedule_jobs {
 
     #[tokio::test]
     async fn schedules_many_jobs() -> Result<(), TestError> {
-        let test = test_setup_with_tables!(EveFaction, EveAlliance)?;
+        let test = TestBuilder::new().with_table(entity::prelude::EveFaction).with_table(entity::prelude::EveAlliance).build().await?;
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
