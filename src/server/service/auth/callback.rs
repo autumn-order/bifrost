@@ -42,14 +42,19 @@ pub(super) enum Session {
 }
 
 /// Represents the database lookup result for a character's existence and ownership status.
-pub(super) enum CharacterRecord {
+pub enum CharacterRecord {
     /// Character record was not found in database
     NotFound,
     /// Character is in database but not owned by any user
-    Unowned { character: EveCharacterModel },
+    Unowned {
+        /// The character model from the database
+        character: EveCharacterModel,
+    },
     /// Character is in database and owned by a user
     Owned {
+        /// The character model from the database
         character: EveCharacterModel,
+        /// The ownership record linking character to user
         ownership: CharacterOwnershipModel,
     },
 }
@@ -344,7 +349,7 @@ impl<'a> CallbackService<'a> {
     /// # Returns
     /// - `Ok(EveJwtClaims)` - Validated JWT claims containing character ID and owner hash
     /// - `Err(Error::EsiError)` - Failed to fetch token or validate JWT
-    async fn authenticate_and_get_claims(
+    pub async fn authenticate_and_get_claims(
         esi_client: &eve_esi::Client,
         authorization_code: &str,
     ) -> Result<EveJwtClaims, Error> {
@@ -370,7 +375,7 @@ impl<'a> CallbackService<'a> {
     /// - `Ok(CharacterRecord::Unowned)` - Character exists but has no owner
     /// - `Ok(CharacterRecord::Owned)` - Character exists and is owned by a user
     /// - `Err(Error::DbErr)` - Database query failed
-    async fn get_character_ownership_status(
+    pub async fn get_character_ownership_status(
         db: &DatabaseConnection,
         character_id: i64,
     ) -> Result<CharacterRecord, Error> {
@@ -399,7 +404,7 @@ impl<'a> CallbackService<'a> {
     /// # Returns
     /// - `Ok(i32)` - The user ID (either existing or newly created)
     /// - `Err(Error::DbError)` - Database error when creating a new user
-    async fn get_or_create_user(
+    pub async fn get_or_create_user(
         txn: &TrackedTransaction,
         to_user_id: Option<i32>,
         character_id: i32,
