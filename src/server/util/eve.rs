@@ -81,6 +81,14 @@ pub fn is_valid_character_id(id: i64) -> bool {
 mod tests {
     use super::*;
 
+    /// Tests for sanitize_character_ids and is_valid_character_id functions.
+
+    /// Tests sanitizing character IDs within valid ranges.
+    ///
+    /// Verifies that the sanitize function preserves all character IDs that fall
+    /// within the four official EVE Online character ID ranges.
+    ///
+    /// Expected: All valid IDs preserved in output
     #[test]
     fn test_sanitize_character_ids_valid_ranges() {
         let input = vec![
@@ -98,6 +106,12 @@ mod tests {
         assert_eq!(result, input);
     }
 
+    /// Tests sanitizing character IDs outside valid ranges.
+    ///
+    /// Verifies that the sanitize function filters out all character IDs that fall
+    /// outside the official EVE Online character ID ranges.
+    ///
+    /// Expected: Empty Vec (all IDs filtered out)
     #[test]
     fn test_sanitize_character_ids_invalid_ranges() {
         let input = vec![
@@ -113,6 +127,12 @@ mod tests {
         assert_eq!(result, Vec::<i64>::new());
     }
 
+    /// Tests sanitizing mixed valid and invalid character IDs.
+    ///
+    /// Verifies that the sanitize function correctly filters a mixed list of
+    /// valid and invalid character IDs, preserving only the valid ones in order.
+    ///
+    /// Expected: Vec containing only the 4 valid IDs in original order
     #[test]
     fn test_sanitize_character_ids_mixed() {
         let input = vec![
@@ -129,6 +149,12 @@ mod tests {
         assert_eq!(result, expected);
     }
 
+    /// Tests sanitizing empty input.
+    ///
+    /// Verifies that the sanitize function handles empty input lists gracefully
+    /// without errors.
+    ///
+    /// Expected: Empty Vec
     #[test]
     fn test_sanitize_character_ids_empty() {
         let input = vec![];

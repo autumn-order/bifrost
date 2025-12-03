@@ -106,17 +106,27 @@ pub async fn create_job_schedule(
 mod tests {
     use super::*;
 
+    /// Tests for calculate_batch_limit function.
     mod calculate_batch_limit {
         use super::*;
 
-        /// Expect 0 when table has no entries
+        /// Tests calculating batch limit for empty table.
+        ///
+        /// Verifies that the function returns zero when there are no entries in the table.
+        ///
+        /// Expected: 0
         #[test]
         fn returns_zero_for_empty_table() {
             let result = calculate_batch_limit(0, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 0);
         }
 
-        /// Expect correct batch size for standard case
+        /// Tests calculating standard batch size.
+        ///
+        /// Verifies that the function calculates the correct batch size for a standard
+        /// case with evenly divisible entries across the cache-to-schedule ratio.
+        ///
+        /// Expected: 100 (600 entries / 6 batches)
         #[test]
         fn calculates_standard_batch_size() {
             // 600 entries, 60 min cache, 10 min schedule = 6 batches, 100 per batch
@@ -124,7 +134,12 @@ mod tests {
             assert_eq!(result, 100);
         }
 
-        /// Expect minimum of MIN_BATCH_LIMIT when calculation would result in less
+        /// Tests applying minimum batch limit.
+        ///
+        /// Verifies that the function returns the minimum batch limit (100) when the
+        /// calculated batch size would be less than the minimum.
+        ///
+        /// Expected: 100 (minimum enforced)
         #[test]
         fn returns_minimum_of_one_hundred() {
             // 5 entries, 60 min cache, 10 min schedule = 6 batches, but min MIN_BATCH_LIMIT per batch
@@ -132,7 +147,12 @@ mod tests {
             assert_eq!(result, 100);
         }
 
-        /// Expect all entries when schedule interval equals cache duration
+        /// Tests returning all entries when interval equals cache duration.
+        ///
+        /// Verifies that the function returns all entries in a single batch when the
+        /// schedule interval equals the cache duration.
+        ///
+        /// Expected: 100 (all entries)
         #[test]
         fn returns_all_entries_when_interval_equals_cache() {
             // 100 entries, 60 min cache, 60 min schedule = 1 batch, all entries
@@ -140,7 +160,12 @@ mod tests {
             assert_eq!(result, 100);
         }
 
-        /// Expect all entries when schedule interval exceeds cache duration
+        /// Tests returning all entries when interval exceeds cache duration.
+        ///
+        /// Verifies that the function returns all entries in a single batch when the
+        /// schedule interval is longer than the cache duration.
+        ///
+        /// Expected: 100 (all entries)
         #[test]
         fn returns_all_entries_when_interval_exceeds_cache() {
             // 100 entries, 60 min cache, 120 min schedule = 0 batches per period, return all
@@ -148,14 +173,24 @@ mod tests {
             assert_eq!(result, 100);
         }
 
-        /// Expect minimum batch size with single entry
+        /// Tests handling a single entry.
+        ///
+        /// Verifies that the function returns the minimum batch limit when there is
+        /// only one entry in the table.
+        ///
+        /// Expected: 100 (minimum enforced)
         #[test]
         fn handles_single_entry() {
             let result = calculate_batch_limit(1, Duration::minutes(60), Duration::minutes(10));
             assert_eq!(result, 100);
         }
 
-        /// Expect correct batch size with large number of entries
+        /// Tests handling large number of entries.
+        ///
+        /// Verifies that the function correctly calculates batch size for a large
+        /// number of entries without overflow or performance issues.
+        ///
+        /// Expected: 1666 (10000 entries / 6 batches)
         #[test]
         fn handles_large_number_of_entries() {
             // 10000 entries, 60 min cache, 10 min schedule = 6 batches, 1666 per batch
@@ -163,7 +198,12 @@ mod tests {
             assert_eq!(result, 1666);
         }
 
-        /// Expect correct batch size when entries don't divide evenly
+        /// Tests handling uneven division.
+        ///
+        /// Verifies that the function correctly calculates batch size when entries
+        /// don't divide evenly across batches, using integer division.
+        ///
+        /// Expected: 166 (1000 / 6 = 166.66 rounded down)
         #[test]
         fn handles_uneven_division() {
             // 1000 entries, 60 min cache, 10 min schedule = 6 batches, 166 per batch (1000/6 = 166.66)
@@ -171,7 +211,12 @@ mod tests {
             assert_eq!(result, 166);
         }
 
-        /// Expect minimum batch size to be applied
+        /// Tests applying minimum batch limit with small entries.
+        ///
+        /// Verifies that the function enforces the minimum batch limit even when the
+        /// calculated size would be below the minimum threshold.
+        ///
+        /// Expected: 100 (minimum enforced despite calculation of 8)
         #[test]
         fn applies_minimum_batch_limit() {
             // 50 entries, 60 min cache, 10 min schedule = 6 batches, 8 per batch, but min is MIN_BATCH_LIMIT
@@ -179,7 +224,12 @@ mod tests {
             assert_eq!(result, 100);
         }
 
-        /// Expect correct batch size with different time units
+        /// Tests working with different time units.
+        ///
+        /// Verifies that the function correctly handles different time units for
+        /// cache duration and schedule interval.
+        ///
+        /// Expected: 250 (1000 entries / 4 batches)
         #[test]
         fn works_with_different_time_units() {
             // 1000 entries, 120 min cache, 30 min schedule = 4 batches, 250 per batch
@@ -187,7 +237,12 @@ mod tests {
             assert_eq!(result, 250);
         }
 
-        /// Expect correct batch size when cache is slightly longer than schedule
+        /// Tests handling small cache-to-schedule ratio.
+        ///
+        /// Verifies that the function correctly calculates batch size when cache
+        /// duration is only slightly longer than the schedule interval.
+        ///
+        /// Expected: 100 (all entries in 1 batch)
         #[test]
         fn handles_small_cache_to_schedule_ratio() {
             // 100 entries, 15 min cache, 10 min schedule = 1 batch, 100 per batch
@@ -196,10 +251,16 @@ mod tests {
         }
     }
 
+    /// Tests for create_job_schedule function.
     mod create_job_schedule {
         use super::*;
 
-        /// Expect empty vec when no jobs provided
+        /// Tests returning empty schedule for no jobs.
+        ///
+        /// Verifies that the function returns an empty schedule when provided with
+        /// an empty job list.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_no_jobs() {
             let result = create_job_schedule(vec![], Duration::minutes(10)).await;
@@ -209,7 +270,12 @@ mod tests {
             assert!(scheduled_jobs.is_empty());
         }
 
-        /// Expect single job scheduled at current time or shortly after
+        /// Tests scheduling a single job.
+        ///
+        /// Verifies that the function schedules a single job at or near the current
+        /// time and preserves the job data correctly.
+        ///
+        /// Expected: Ok with 1 job scheduled at current time
         #[tokio::test]
         async fn schedules_single_job() {
             let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }];
@@ -231,7 +297,12 @@ mod tests {
             assert!(scheduled_at.timestamp() <= after + 1); // Allow 1 second for execution time
         }
 
-        /// Expect jobs staggered evenly across schedule interval
+        /// Tests staggering job execution times.
+        ///
+        /// Verifies that the function distributes multiple jobs evenly across the
+        /// schedule interval with consistent time spacing between jobs.
+        ///
+        /// Expected: Ok with jobs spaced 200 seconds apart (600s / 3 jobs)
         #[tokio::test]
         async fn staggers_job_execution_times() {
             let jobs = vec![
@@ -264,7 +335,12 @@ mod tests {
             );
         }
 
-        /// Expect jobs distributed evenly when more jobs than seconds exist
+        /// Tests handling more jobs than seconds in interval.
+        ///
+        /// Verifies that the function correctly distributes jobs when there are more
+        /// jobs than seconds in the schedule interval, ensuring all fit within the window.
+        ///
+        /// Expected: Ok with 700 jobs distributed across 600 seconds
         #[tokio::test]
         async fn handles_more_jobs_than_seconds() {
             // Create more jobs than seconds in the schedule interval
@@ -302,7 +378,12 @@ mod tests {
             assert!(scheduled_jobs[699].1.timestamp() >= after - 2); // Within last 2 seconds of window
         }
 
-        /// Expect correct job structure with WorkerJob and timestamp
+        /// Tests returning correct job structure.
+        ///
+        /// Verifies that the function returns jobs with the correct structure containing
+        /// WorkerJob data and properly ordered timestamps.
+        ///
+        /// Expected: Ok with Vec of (WorkerJob, DateTime) tuples
         #[tokio::test]
         async fn returns_correct_job_structure() {
             let jobs = vec![
@@ -340,7 +421,12 @@ mod tests {
             assert!(scheduled_at2.timestamp() > scheduled_at1.timestamp());
         }
 
-        /// Expect all jobs scheduled within the schedule interval window
+        /// Tests scheduling within interval window.
+        ///
+        /// Verifies that the function schedules all jobs within the specified schedule
+        /// interval window without exceeding the time boundaries.
+        ///
+        /// Expected: Ok with all jobs scheduled between start and end of interval
         #[tokio::test]
         async fn schedules_within_interval_window() {
             let jobs = vec![
@@ -371,7 +457,12 @@ mod tests {
             }
         }
 
-        /// Expect jobs maintain order from input
+        /// Tests maintaining job order.
+        ///
+        /// Verifies that the function preserves the order of jobs from the input list
+        /// in the scheduled output.
+        ///
+        /// Expected: Ok with jobs in same order as input
         #[tokio::test]
         async fn maintains_job_order() {
             let jobs = vec![
@@ -406,7 +497,12 @@ mod tests {
             ));
         }
 
-        /// Expect timestamps are monotonically increasing
+        /// Tests producing monotonic timestamps.
+        ///
+        /// Verifies that the function generates timestamps that are monotonically
+        /// increasing, ensuring proper temporal ordering of jobs.
+        ///
+        /// Expected: Ok with each timestamp >= previous timestamp
         #[tokio::test]
         async fn produces_monotonic_timestamps() {
             let mut jobs = Vec::new();
@@ -431,7 +527,12 @@ mod tests {
             }
         }
 
-        /// Expect correct interval calculation for various job counts
+        /// Tests calculating correct intervals for different job counts.
+        ///
+        /// Verifies that the function correctly calculates time intervals between jobs
+        /// for various combinations of job counts and schedule intervals.
+        ///
+        /// Expected: Ok with correct intervals for each test case
         #[tokio::test]
         async fn calculates_correct_intervals_for_different_counts() {
             let test_cases = vec![

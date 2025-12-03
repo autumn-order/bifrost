@@ -1,11 +1,8 @@
-//! Tests for EntityRefreshTracker
+//! Tests for EntityRefreshTracker.
 //!
-//! These tests verify the entity refresh scheduling behavior including:
-//! - Finding entries that need updating based on cache expiration
-//! - Scheduling jobs for expired entries
-//! - Handling empty tables
-//! - Batch limiting
-//! - Job scheduling with staggered execution times
+//! This module verifies the entity refresh tracker behavior, including finding
+//! entries that need updating based on cache expiration, scheduling jobs with
+//! staggered execution times, batch limiting, and handling empty tables.
 
 use bifrost::server::scheduler::{
     config::eve::alliance as alliance_config,
