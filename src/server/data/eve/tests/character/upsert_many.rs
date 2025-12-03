@@ -13,10 +13,10 @@ async fn upserts_new_characters() -> Result<(), TestError> {
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
     let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
@@ -46,16 +46,16 @@ async fn updates_existing_characters() -> Result<(), TestError> {
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_1_update, mut character_1_update) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2_update, mut character_2_update) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
     let character_repo = CharacterRepository::new(&test.db);
     let initial = character_repo
@@ -133,20 +133,20 @@ async fn upserts_mixed_new_and_existing_characters() -> Result<(), TestError> {
     let corporation_model = test.eve().insert_mock_corporation(1, None, None).await?;
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_3, character_3) =
         test.eve()
-            .with_mock_character(3, corporation_model.corporation_id, None, None);
+            .mock_character(3, corporation_model.corporation_id, None, None);
     let (character_id_1_update, mut character_1_update) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     character_1_update.name = "Updated Character 1".to_string();
     let (character_id_2_update, character_2_update) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
 
     let character_repo = CharacterRepository::new(&test.db);
 
@@ -240,13 +240,13 @@ async fn upserts_with_faction_relationships() -> Result<(), TestError> {
 
     let (character_id_1, character_1) =
         test.eve()
-            .with_mock_character(1, corporation_model.corporation_id, None, None);
+            .mock_character(1, corporation_model.corporation_id, None, None);
     let (character_id_2, character_2) =
         test.eve()
-            .with_mock_character(2, corporation_model.corporation_id, None, None);
+            .mock_character(2, corporation_model.corporation_id, None, None);
     let (character_id_3, character_3) =
         test.eve()
-            .with_mock_character(3, corporation_model.corporation_id, None, None);
+            .mock_character(3, corporation_model.corporation_id, None, None);
 
     let character_repo = CharacterRepository::new(&test.db);
     let result = character_repo
@@ -305,7 +305,7 @@ async fn handles_large_batch() -> Result<(), TestError> {
     for i in 1..=100 {
         let (character_id, character) =
             test.eve()
-                .with_mock_character(i, corporation_model.corporation_id, None, None);
+                .mock_character(i, corporation_model.corporation_id, None, None);
         characters.push((character_id, character, corporation_model.id, None));
     }
 

@@ -9,7 +9,7 @@ use mockito::Mock;
 use crate::fixtures::eve::EveFixtures;
 
 impl<'a> EveFixtures<'a> {
-    pub fn with_faction_endpoint(
+    pub fn create_faction_endpoint(
         &mut self,
         mock_factions: Vec<Faction>,
         expected_requests: usize,
@@ -24,7 +24,7 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_alliance_endpoint(
+    pub fn create_alliance_endpoint(
         &mut self,
         alliance_id: i64,
         mock_alliance: Alliance,
@@ -42,7 +42,7 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_corporation_endpoint(
+    pub fn create_corporation_endpoint(
         &mut self,
         corporation_id: i64,
         mock_corporation: Corporation,
@@ -60,7 +60,7 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_character_endpoint(
+    pub fn create_character_endpoint(
         &mut self,
         character_id: i64,
         mock_character: Character,
@@ -78,7 +78,7 @@ impl<'a> EveFixtures<'a> {
             .create()
     }
 
-    pub fn with_character_affiliation_endpoint(
+    pub fn create_character_affiliation_endpoint(
         &mut self,
         mock_affiliations: Vec<CharacterAffiliation>,
         expected_requests: usize,

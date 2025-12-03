@@ -3,9 +3,45 @@
 //! This crate provides a declarative TestBuilder API for creating test environments
 //! with in-memory SQLite databases, mock ESI servers, and session management.
 //!
+//! # Architecture
+//!
+//! Bifrost's test utilities use a **two-phase architecture**:
+//!
+//! ## Phase 1: TestBuilder (Declarative Setup)
+//!
+//! Configure your test environment before execution. All operations are queued
+//! and executed during `.build()`:
+//!
+//! ```ignore
+//! use bifrost_test_utils::prelude::*;
+//!
+//! let test = TestBuilder::new()
+//!     .with_user_tables()              // Queue table creation
+//!     .with_mock_faction(1)            // Queue faction insertion
+//!     .with_faction_endpoint(...)      // Queue HTTP mock
+//!     .build()                         // Execute all queued operations
+//!     .await?;
+//! ```
+//!
+//! ## Phase 2: TestContext Fixtures (Imperative Operations)
+//!
+//! Perform operations during test execution using the returned [`TestContext`]:
+//!
+//! ```ignore
+//! // Create data objects (no side effects)
+//! let faction = factory::mock_faction(1);
+//!
+//! // Insert into database (side effect)
+//! test.eve().insert_mock_faction(1).await?;
+//!
+//! // Create HTTP mocks (side effect)
+//! test.eve().create_faction_endpoint(factions, 1);
+//! ```
+//!
 //! # Primary APIs
 //!
 //! - [`TestBuilder`] - Declarative builder for test setup (primary entry point)
+//! - [`TestContext`] - Test context with access to database, ESI client, and fixtures
 //! - [`factory`] - Factory functions for creating mock EVE ESI model objects
 //!
 //! # Examples
@@ -46,6 +82,8 @@
 //! ## With mock endpoints and fixtures
 //!
 //! ```ignore
+//! use bifrost_test_utils::{TestBuilder, factory};
+//!
 //! let faction_id = 1;
 //! let mock_faction = factory::mock_faction(faction_id);
 //!
@@ -62,17 +100,20 @@
 
 pub mod builder;
 pub mod constant;
+pub mod context;
 pub mod error;
 pub mod model;
 
 // Internal modules (not exposed in public API)
-mod context;
 mod fixtures;
 
 // Re-export primary API types
 pub use builder::TestBuilder;
-pub use error::TestError;
 pub use context::TestContext;
+pub use error::TestError;
+
+// Re-export factory module for creating mock data objects
+pub use fixtures::eve::factory;
 
 /// Prelude module containing commonly used imports for tests
 ///
@@ -82,7 +123,5 @@ pub use context::TestContext;
 /// use bifrost_test_utils::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::{
-        builder::TestBuilder, context::TestContext, error::TestError, fixtures::eve::factory,
-    };
+    pub use crate::{builder::TestBuilder, context::TestContext, error::TestError, factory};
 }

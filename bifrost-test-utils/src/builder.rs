@@ -423,14 +423,14 @@ impl TestBuilder {
         }
 
         for (factions, expected) in self.faction_endpoints {
-            mocks.push(setup.eve().with_faction_endpoint(factions, expected));
+            mocks.push(setup.eve().create_faction_endpoint(factions, expected));
         }
 
         for (alliance_id, alliance, expected) in self.alliance_endpoints {
             mocks.push(
                 setup
                     .eve()
-                    .with_alliance_endpoint(alliance_id, alliance, expected),
+                    .create_alliance_endpoint(alliance_id, alliance, expected),
             );
         }
 
@@ -438,7 +438,7 @@ impl TestBuilder {
             mocks.push(
                 setup
                     .eve()
-                    .with_corporation_endpoint(corp_id, corporation, expected),
+                    .create_corporation_endpoint(corp_id, corporation, expected),
             );
         }
 
@@ -446,7 +446,7 @@ impl TestBuilder {
             mocks.push(
                 setup
                     .eve()
-                    .with_character_endpoint(char_id, character, expected),
+                    .create_character_endpoint(char_id, character, expected),
             );
         }
 
@@ -454,12 +454,12 @@ impl TestBuilder {
             mocks.push(
                 setup
                     .eve()
-                    .with_character_affiliation_endpoint(affiliations, expected),
+                    .create_character_affiliation_endpoint(affiliations, expected),
             );
         }
 
         for (char_id, owner_hash) in self.jwt_configs {
-            mocks.extend(setup.auth().with_jwt_endpoints(char_id, &owner_hash));
+            mocks.extend(setup.auth().create_jwt_endpoints(char_id, &owner_hash));
         }
 
         // Store mocks in setup so they live as long as the test

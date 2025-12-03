@@ -3,9 +3,9 @@ use mockito::Mock;
 use crate::fixtures::auth::AuthFixtures;
 
 impl<'a> AuthFixtures<'a> {
-    pub fn with_jwt_endpoints(&mut self, character_id: i64, ownerhash: &str) -> Vec<Mock> {
-        let mock_keys = self.with_mock_jwt_keys();
-        let mock_token = self.with_mock_jwt_token(character_id, ownerhash);
+    pub fn create_jwt_endpoints(&mut self, character_id: i64, ownerhash: &str) -> Vec<Mock> {
+        let mock_keys = self.mock_jwt_keys();
+        let mock_token = self.mock_jwt_token(character_id, ownerhash);
 
         let mock_jwt_key_endpoint = self
             .setup

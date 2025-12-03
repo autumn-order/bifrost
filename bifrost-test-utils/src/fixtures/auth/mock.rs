@@ -13,7 +13,7 @@ use crate::fixtures::auth::AuthFixtures;
 static RSA_KEY_ID: &str = "JWT-Signature-Key-1";
 
 impl<'a> AuthFixtures<'a> {
-    pub fn with_mock_jwt_claims(&self) -> EveJwtClaims {
+    pub fn mock_jwt_claims(&self) -> EveJwtClaims {
         let expires_in_fifteen_minutes = Utc::now() + chrono::Duration::seconds(900);
         let created_now = Utc::now();
 
@@ -38,7 +38,7 @@ impl<'a> AuthFixtures<'a> {
     }
 
     /// Creates mock JWT keys used for validating a JWT token during an OAuth2 callback
-    pub fn with_mock_jwt_keys(&self) -> EveJwtKeys {
+    pub fn mock_jwt_keys(&self) -> EveJwtKeys {
         let public_key = include_bytes!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/src/fixtures/auth/public_test_rsa_key.pem"
@@ -77,7 +77,7 @@ impl<'a> AuthFixtures<'a> {
     }
 
     /// Creates mock JWT token for callback endpoint after successful login
-    pub fn with_mock_jwt_token(
+    pub fn mock_jwt_token(
         &self,
         character_id: i64,
         ownerhash: &str,
@@ -89,7 +89,7 @@ impl<'a> AuthFixtures<'a> {
 
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some(RSA_KEY_ID.to_string());
-        let mut claims = self.with_mock_jwt_claims();
+        let mut claims = self.mock_jwt_claims();
         claims.sub = format!("CHARACTER:EVE:{}", character_id);
         claims.owner = ownerhash.to_string();
         let encoding_key =

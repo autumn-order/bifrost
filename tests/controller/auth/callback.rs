@@ -69,7 +69,7 @@ async fn redirects_for_existing_user() -> Result<(), TestError> {
         .insert_user_with_mock_character(1, 1, None, None)
         .await?;
 
-    let jwt_endpoints = test.auth().with_jwt_endpoints(
+    let jwt_endpoints = test.auth().create_jwt_endpoints(
         character_model.character_id,
         &user_character_model.owner_hash,
     );

@@ -139,8 +139,11 @@ mod tests {
         /// Expect Ok when upserting a new faction
         #[tokio::test]
         async fn upserts_new_faction() -> Result<(), TestError> {
-            let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
-            let mock_faction = test.eve().with_mock_faction(1);
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
+            let mock_faction = test.eve().mock_faction(1);
 
             let repo = FactionRepository::new(&test.db);
             let result = repo.upsert_many(vec![mock_faction]).await;
@@ -155,9 +158,12 @@ mod tests {
         /// Expect Ok & update when trying to upsert an existing faction
         #[tokio::test]
         async fn updates_existing_faction() -> Result<(), TestError> {
-            let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
-            let mock_faction = test.eve().with_mock_faction(1);
-            let mock_faction_update = test.eve().with_mock_faction(1);
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
+            let mock_faction = test.eve().mock_faction(1);
+            let mock_faction_update = test.eve().mock_faction(1);
 
             let repo = FactionRepository::new(&test.db);
             let initial = repo.upsert_many(vec![mock_faction]).await?;
@@ -183,7 +189,10 @@ mod tests {
         /// Expect Ok with correct mappings when factions exist in database
         #[tokio::test]
         async fn returns_record_ids_for_existing_factions() -> Result<(), TestError> {
-            let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
             let faction_1 = test.eve().insert_mock_faction(1).await?;
             let faction_2 = test.eve().insert_mock_faction(2).await?;
             let faction_3 = test.eve().insert_mock_faction(3).await?;
@@ -225,7 +234,10 @@ mod tests {
         /// Expect Ok with empty Vec when no factions match
         #[tokio::test]
         async fn returns_empty_for_nonexistent_factions() -> Result<(), TestError> {
-            let test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
+            let test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
 
             let repo = FactionRepository::new(&test.db);
             let faction_ids = vec![1, 2, 3];
@@ -241,7 +253,10 @@ mod tests {
         /// Expect Ok with empty Vec when input is empty
         #[tokio::test]
         async fn returns_empty_for_empty_input() -> Result<(), TestError> {
-            let test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
+            let test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
 
             let repo = FactionRepository::new(&test.db);
             let faction_ids: Vec<i64> = vec![];
@@ -257,7 +272,10 @@ mod tests {
         /// Expect Ok with partial results when only some factions exist
         #[tokio::test]
         async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
-            let mut test = TestBuilder::new().with_table(entity::prelude::EveFaction).build().await?;
+            let mut test = TestBuilder::new()
+                .with_table(entity::prelude::EveFaction)
+                .build()
+                .await?;
             let faction_1 = test.eve().insert_mock_faction(1).await?;
             let faction_3 = test.eve().insert_mock_faction(3).await?;
 

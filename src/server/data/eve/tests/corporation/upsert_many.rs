@@ -9,8 +9,8 @@ async fn upserts_new_corporations() -> Result<(), TestError> {
         .with_table(entity::prelude::EveCorporation)
         .build()
         .await?;
-    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
-    let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
+    let (corporation_id_1, corporation_1) = test.eve().mock_corporation(1, None, None);
+    let (corporation_id_2, corporation_2) = test.eve().mock_corporation(2, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
@@ -36,12 +36,12 @@ async fn updates_existing_corporations() -> Result<(), TestError> {
         .with_table(entity::prelude::EveCorporation)
         .build()
         .await?;
-    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
-    let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
+    let (corporation_id_1, corporation_1) = test.eve().mock_corporation(1, None, None);
+    let (corporation_id_2, corporation_2) = test.eve().mock_corporation(2, None, None);
     let (corporation_id_1_update, mut corporation_1_update) =
-        test.eve().with_mock_corporation(1, None, None);
+        test.eve().mock_corporation(1, None, None);
     let (corporation_id_2_update, mut corporation_2_update) =
-        test.eve().with_mock_corporation(2, None, None);
+        test.eve().mock_corporation(2, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.db);
     let initial = corporation_repo
@@ -105,14 +105,14 @@ async fn upserts_mixed_new_and_existing_corporations() -> Result<(), TestError> 
         .with_table(entity::prelude::EveCorporation)
         .build()
         .await?;
-    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
-    let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
-    let (corporation_id_3, corporation_3) = test.eve().with_mock_corporation(3, None, None);
+    let (corporation_id_1, corporation_1) = test.eve().mock_corporation(1, None, None);
+    let (corporation_id_2, corporation_2) = test.eve().mock_corporation(2, None, None);
+    let (corporation_id_3, corporation_3) = test.eve().mock_corporation(3, None, None);
     let (corporation_id_1_update, mut corporation_1_update) =
-        test.eve().with_mock_corporation(1, None, None);
+        test.eve().mock_corporation(1, None, None);
     corporation_1_update.name = "Updated Corporation 1".to_string();
     let (corporation_id_2_update, corporation_2_update) =
-        test.eve().with_mock_corporation(2, None, None);
+        test.eve().mock_corporation(2, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.db);
 
@@ -193,10 +193,10 @@ async fn upserts_with_alliance_and_faction_relationships() -> Result<(), TestErr
     let faction_1 = test.eve().insert_mock_faction(1).await?;
     let faction_2 = test.eve().insert_mock_faction(2).await?;
 
-    let (corporation_id_1, corporation_1) = test.eve().with_mock_corporation(1, None, None);
-    let (corporation_id_2, corporation_2) = test.eve().with_mock_corporation(2, None, None);
-    let (corporation_id_3, corporation_3) = test.eve().with_mock_corporation(3, None, None);
-    let (corporation_id_4, corporation_4) = test.eve().with_mock_corporation(4, None, None);
+    let (corporation_id_1, corporation_1) = test.eve().mock_corporation(1, None, None);
+    let (corporation_id_2, corporation_2) = test.eve().mock_corporation(2, None, None);
+    let (corporation_id_3, corporation_3) = test.eve().mock_corporation(3, None, None);
+    let (corporation_id_4, corporation_4) = test.eve().mock_corporation(4, None, None);
 
     let corporation_repo = CorporationRepository::new(&test.db);
     let result = corporation_repo
@@ -261,7 +261,7 @@ async fn handles_large_batch() -> Result<(), TestError> {
 
     let mut corporations = Vec::new();
     for i in 1..=100 {
-        let (corporation_id, corporation) = test.eve().with_mock_corporation(i, None, None);
+        let (corporation_id, corporation) = test.eve().mock_corporation(i, None, None);
         corporations.push((corporation_id, corporation, None, None));
     }
 

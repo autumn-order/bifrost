@@ -25,9 +25,9 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
         .await?;
 
     // Create a character initially affiliated with corp1 and faction1
-    let (character_id, character) =
-        test.eve()
-            .with_mock_character(1, corp1.corporation_id, None, None);
+    let (character_id, character) = test
+        .eve()
+        .mock_character(1, corp1.corporation_id, None, None);
     let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp1.id, Some(faction1.id))])
@@ -143,9 +143,9 @@ async fn removes_faction_affiliation() -> Result<(), TestError> {
     let corp = test.eve().insert_mock_corporation(100, None, None).await?;
 
     // Create a character with a faction
-    let (character_id, character) =
-        test.eve()
-            .with_mock_character(1, corp.corporation_id, None, None);
+    let (character_id, character) = test
+        .eve()
+        .mock_character(1, corp.corporation_id, None, None);
     let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp.id, Some(faction.id))])
@@ -266,9 +266,9 @@ async fn updates_timestamp() -> Result<(), TestError> {
     let faction = test.eve().insert_mock_faction(1).await?;
 
     // Create a character
-    let (character_id, character) =
-        test.eve()
-            .with_mock_character(1, corp.corporation_id, None, None);
+    let (character_id, character) = test
+        .eve()
+        .mock_character(1, corp.corporation_id, None, None);
     let character_repo = CharacterRepository::new(&test.db);
     let chars = character_repo
         .upsert_many(vec![(character_id, character, corp.id, None)])

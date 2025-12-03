@@ -128,8 +128,8 @@ mod tests {
                 .with_table(entity::prelude::EveAlliance)
                 .build()
                 .await?;
-            let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
+            let (alliance_id_1, alliance_1) = test.eve().mock_alliance(1, None);
+            let (alliance_id_2, alliance_2) = test.eve().mock_alliance(2, None);
 
             let alliance_repo = AllianceRepository::new(&test.db);
             let result = alliance_repo
@@ -154,10 +154,10 @@ mod tests {
                 .with_table(entity::prelude::EveAlliance)
                 .build()
                 .await?;
-            let (alliance_id_1, alliance_1) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2, alliance_2) = test.eve().with_mock_alliance(2, None);
-            let (alliance_id_1_update, alliance_1_update) = test.eve().with_mock_alliance(1, None);
-            let (alliance_id_2_update, alliance_2_update) = test.eve().with_mock_alliance(2, None);
+            let (alliance_id_1, alliance_1) = test.eve().mock_alliance(1, None);
+            let (alliance_id_2, alliance_2) = test.eve().mock_alliance(2, None);
+            let (alliance_id_1_update, alliance_1_update) = test.eve().mock_alliance(1, None);
+            let (alliance_id_2_update, alliance_2_update) = test.eve().mock_alliance(2, None);
 
             let alliance_repo = AllianceRepository::new(&test.db);
             let initial = alliance_repo
