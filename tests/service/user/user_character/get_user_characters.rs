@@ -1,7 +1,18 @@
+//! Tests for UserCharacterService::get_user_characters method.
+//!
+//! This module verifies the user character retrieval service behavior, including
+//! successful retrieval of characters with and without alliances, handling multiple
+//! characters per user, timestamp validation, and edge cases for nonexistent users.
+
 use bifrost::server::service::user::user_character::UserCharacterService;
 use bifrost_test_utils::prelude::*;
 
-/// Expect Ok with Vec containing single character DTO without alliance
+/// Tests retrieving a character without alliance.
+///
+/// Verifies that the user character service successfully retrieves a character
+/// DTO for a user whose character is not affiliated with an alliance.
+///
+/// Expected: Ok with Vec containing one character DTO with null alliance
 #[tokio::test]
 async fn returns_character_without_alliance() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -28,7 +39,13 @@ async fn returns_character_without_alliance() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with Vec containing character DTO with alliance
+/// Tests retrieving a character with alliance.
+///
+/// Verifies that the user character service successfully retrieves a character
+/// DTO for a user whose character is affiliated with an alliance, including
+/// complete alliance information.
+///
+/// Expected: Ok with Vec containing one character DTO with alliance data
 #[tokio::test]
 async fn returns_character_with_alliance() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -66,7 +83,12 @@ async fn returns_character_with_alliance() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with Vec containing multiple character DTOs
+/// Tests retrieving multiple characters for a user.
+///
+/// Verifies that the user character service successfully retrieves all character
+/// DTOs associated with a user who has multiple characters linked to their account.
+///
+/// Expected: Ok with Vec containing two character DTOs
 #[tokio::test]
 async fn returns_multiple_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -102,7 +124,12 @@ async fn returns_multiple_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with empty Vec when user has no characters
+/// Tests retrieving characters for user without any characters.
+///
+/// Verifies that the user character service returns an empty list when querying
+/// a valid user who has no characters linked to their account.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn returns_empty_for_user_without_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -121,7 +148,12 @@ async fn returns_empty_for_user_without_characters() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with empty Vec when requesting a nonexistent user ID
+/// Tests retrieving characters for nonexistent user.
+///
+/// Verifies that the user character service returns an empty list when attempting
+/// to retrieve characters for a user ID that does not exist in the database.
+///
+/// Expected: Ok with empty Vec
 #[tokio::test]
 async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
@@ -139,7 +171,13 @@ async fn returns_empty_for_nonexistent_user() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect DTOs to have correct timestamp fields
+/// Tests character DTOs contain valid timestamps.
+///
+/// Verifies that the user character service returns character DTOs with correctly
+/// populated timestamp fields for character info, affiliation, corporation info,
+/// and corporation affiliation updates.
+///
+/// Expected: Ok with character DTOs containing recent timestamps
 #[tokio::test]
 async fn returns_characters_with_timestamps() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -186,7 +224,12 @@ async fn returns_characters_with_timestamps() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Error when required database tables do not exist
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the user character service returns an error when attempting to
+/// retrieve characters without the required database tables being created.
+///
+/// Expected: Err
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     // Use test setup that doesn't setup required tables, causing a database error

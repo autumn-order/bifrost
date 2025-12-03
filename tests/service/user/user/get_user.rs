@@ -1,7 +1,18 @@
+//! Tests for UserService::get_user method.
+//!
+//! This module verifies the user retrieval service behavior, including successful
+//! retrieval of existing users, handling of nonexistent user IDs, and error handling
+//! when required database tables are missing.
+
 use bifrost::server::{error::Error, service::user::UserService};
 use bifrost_test_utils::prelude::*;
 
-/// Expect Ok with Some & no additional characters for user with only a main character linked
+/// Tests retrieving an existing user.
+///
+/// Verifies that the user service successfully retrieves a user record from the
+/// database when provided with a valid user ID.
+///
+/// Expected: Ok with Some(user)
 #[tokio::test]
 async fn returns_user() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -19,7 +30,12 @@ async fn returns_user() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Ok with None for user ID that does not exist
+/// Tests retrieving a nonexistent user.
+///
+/// Verifies that the user service returns None when attempting to retrieve a
+/// user with an ID that does not exist in the database.
+///
+/// Expected: Ok with None
 #[tokio::test]
 async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
@@ -35,7 +51,12 @@ async fn returns_none_for_nonexistent_user() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Expect Error when required tables are not present
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the user service returns a database error when attempting to
+/// retrieve a user without the required database tables being created.
+///
+/// Expected: Err with DbErr
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
