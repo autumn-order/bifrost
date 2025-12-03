@@ -1,6 +1,5 @@
-use crate::server::service::user::user_character::UserCharacterService;
-
-use super::*;
+use bifrost::server::service::user::user_character::UserCharacterService;
+use bifrost_test_utils::prelude::*;
 
 /// Expect Ok with Vec containing single character DTO without alliance
 #[tokio::test]

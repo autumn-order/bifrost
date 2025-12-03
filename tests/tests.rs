@@ -8,4 +8,7 @@ mod worker;
 mod scheduler;
 
 #[cfg(feature = "server")]
+mod service;
+
+#[cfg(feature = "server")]
 mod util;
