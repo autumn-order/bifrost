@@ -18,6 +18,13 @@ use bifrost_test_utils::prelude::*;
 use crate::util::redis::RedisTest;
 use crate::worker::queue::setup_test_queue;
 
+/// Tests successful scheduling of faction update job.
+///
+/// Verifies that the faction scheduler creates and enqueues a single UpdateFactionInfo
+/// job. Unlike other entity schedulers, the faction scheduler always schedules exactly
+/// one job since there are only a small, fixed number of NPC factions in EVE Online.
+///
+/// Expected: Ok(1) and one UpdateFactionInfo job in queue
 #[tokio::test]
 async fn schedules_faction_update_job() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -41,6 +48,13 @@ async fn schedules_faction_update_job() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling without faction table in database.
+///
+/// Verifies that the faction scheduler works without database dependencies
+/// since it doesn't query the faction table. The scheduler always enqueues
+/// a job regardless of database state.
+///
+/// Expected: Ok(1) and one job in queue
 #[tokio::test]
 async fn schedules_without_faction_table() -> Result<(), TestError> {
     // The scheduler doesn't query the database, so it works even without tables
@@ -60,6 +74,13 @@ async fn schedules_without_faction_table() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling behavior with existing factions in database.
+///
+/// Verifies that the faction scheduler always schedules exactly one job
+/// regardless of how many factions exist in the database. The worker job
+/// itself is responsible for checking all factions.
+///
+/// Expected: Ok(1) and one UpdateFactionInfo job in queue
 #[tokio::test]
 async fn schedules_with_existing_factions() -> Result<(), TestError> {
     // The scheduler always schedules 1 job regardless of what's in the database
@@ -93,6 +114,13 @@ async fn schedules_with_existing_factions() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests duplicate detection for scheduling attempts.
+///
+/// Verifies that the faction scheduler prevents duplicate jobs from being
+/// added to the queue. When the same faction job is scheduled twice, the
+/// second attempt is rejected based on job content matching.
+///
+/// Expected: First schedule Ok(1), second schedule Ok(0), one job in queue
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -121,6 +149,13 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling after queue is cleared.
+///
+/// Verifies that the faction scheduler can successfully schedule a job again
+/// after the queue has been cleared (simulating job processing). This ensures
+/// the scheduler can run multiple times across different scheduling cycles.
+///
+/// Expected: Ok(1) for both scheduling attempts with fresh queues
 #[tokio::test]
 async fn schedules_multiple_times_after_queue_clear() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -151,6 +186,13 @@ async fn schedules_multiple_times_after_queue_clear() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests concurrent scheduling attempts with race conditions.
+///
+/// Verifies that the faction scheduler handles concurrent scheduling attempts
+/// correctly through duplicate detection. Multiple concurrent calls should result
+/// in only one job being enqueued due to Redis-based duplicate prevention.
+///
+/// Expected: Total of 1 job scheduled across concurrent attempts
 #[tokio::test]
 async fn schedules_with_multiple_concurrent_calls() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -185,6 +227,13 @@ async fn schedules_with_multiple_concurrent_calls() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests consistency of scheduling results across multiple operations.
+///
+/// Verifies that the faction scheduler returns consistent results when
+/// scheduling with fresh queues. Each independent scheduling operation
+/// should successfully enqueue exactly one job.
+///
+/// Expected: Ok(1) for each independent scheduling attempt
 #[tokio::test]
 async fn returns_consistent_result_on_success() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -208,6 +257,13 @@ async fn returns_consistent_result_on_success() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling with minimal database setup.
+///
+/// Verifies that the faction scheduler operates without any specific database
+/// tables since it doesn't query the database. This confirms the scheduler's
+/// independence from database schema requirements.
+///
+/// Expected: Ok(1) and one job in queue
 #[tokio::test]
 async fn works_with_minimal_database_setup() -> Result<(), TestError> {
     // Faction scheduler doesn't require any specific tables since it doesn't query the DB

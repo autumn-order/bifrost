@@ -17,6 +17,12 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use crate::util::redis::RedisTest;
 use crate::worker::queue::setup_test_queue;
 
+/// Tests scheduling when no characters exist in database.
+///
+/// Verifies that the affiliation scheduler correctly handles an empty character table
+/// by returning zero scheduled jobs without errors.
+///
+/// Expected: Ok(0) and empty queue
 #[tokio::test]
 async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
@@ -35,6 +41,12 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling when all characters have fresh affiliation cache.
+///
+/// Verifies that the affiliation scheduler skips characters with recent affiliation_updated_at
+/// timestamps and returns zero scheduled jobs when all characters are up to date.
+///
+/// Expected: Ok(0) and empty queue
 #[tokio::test]
 async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -66,6 +78,13 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
     Ok(())
 }
 
+/// Tests scheduling a single character with expired affiliation cache.
+///
+/// Verifies that the affiliation scheduler correctly identifies and schedules
+/// a job for a character whose affiliation_updated_at timestamp exceeds the cache duration
+/// (1 hour).
+///
+/// Expected: Ok(1) and one job in queue
 #[tokio::test]
 async fn schedules_single_expired_character_affiliation() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -101,6 +120,13 @@ async fn schedules_single_expired_character_affiliation() -> Result<(), TestErro
     Ok(())
 }
 
+/// Tests scheduling multiple characters with expired affiliation cache.
+///
+/// Verifies that the affiliation scheduler correctly identifies and batches
+/// multiple characters whose affiliation_updated_at timestamps exceed the cache
+/// duration into a single job (under the 1000 character ESI limit).
+///
+/// Expected: Ok(1) and one batch job in queue containing 5 characters
 #[tokio::test]
 async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -139,6 +165,13 @@ async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestE
     Ok(())
 }
 
+/// Tests selective scheduling of only expired character affiliations.
+///
+/// Verifies that the affiliation scheduler distinguishes between expired and
+/// up-to-date characters, scheduling only those with expired affiliation cache while
+/// skipping those with recent timestamps.
+///
+/// Expected: Ok(1) and one batch job in queue (only expired characters)
 #[tokio::test]
 async fn schedules_only_expired_character_affiliations() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -185,6 +218,13 @@ async fn schedules_only_expired_character_affiliations() -> Result<(), TestError
     Ok(())
 }
 
+/// Tests that oldest affiliations are prioritized for scheduling.
+///
+/// Verifies that the affiliation scheduler processes characters in order of
+/// their affiliation_updated_at timestamps, prioritizing the oldest (most stale) entries
+/// first for optimal cache freshness management.
+///
+/// Expected: Ok(1) and batch job containing characters ordered by age
 #[tokio::test]
 async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -251,6 +291,13 @@ async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests duplicate detection for scheduling attempts.
+///
+/// Verifies that the affiliation scheduler prevents duplicate jobs from being
+/// added to the queue. When the same affiliation job is scheduled twice, the
+/// second attempt is rejected based on job content matching.
+///
+/// Expected: First schedule Ok(1), second schedule Ok(0), one job in queue
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -295,6 +342,12 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the affiliation scheduler returns an error when required
+/// database tables (eve_character) are not present in the database schema.
+///
+/// Expected: Err
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -309,6 +362,13 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests batching behavior when character count exceeds ESI limit.
+///
+/// Verifies that the affiliation scheduler correctly batches characters into
+/// multiple jobs when the total count exceeds the ESI limit of 1000 characters
+/// per request. With 2500 characters, should create multiple batches.
+///
+/// Expected: Ok(n) where n >= 1, with at least one job scheduled
 #[tokio::test]
 async fn batches_characters_when_over_esi_limit() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -347,6 +407,12 @@ async fn batches_characters_when_over_esi_limit() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests batching when character count exactly matches ESI limit.
+///
+/// Verifies that the affiliation scheduler handles exactly 1000 characters
+/// (the ESI limit) by creating a single batch job without overflow.
+///
+/// Expected: Ok(1) with exactly one job containing 1000 characters
 #[tokio::test]
 async fn batches_exactly_at_esi_limit() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -383,6 +449,12 @@ async fn batches_exactly_at_esi_limit() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests batching when character count is just over ESI limit.
+///
+/// Verifies that the affiliation scheduler handles 1001 characters (one over
+/// the ESI limit) by creating multiple batch jobs as needed.
+///
+/// Expected: Ok(n) where n >= 1, with at least one job scheduled
 #[tokio::test]
 async fn batches_just_over_esi_limit() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -419,6 +491,13 @@ async fn batches_just_over_esi_limit() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling a moderate batch of characters within ESI limit.
+///
+/// Verifies that the affiliation scheduler can handle scheduling many characters
+/// (50 in this test) efficiently within a single batch, ensuring all expired
+/// affiliations are processed and queued correctly.
+///
+/// Expected: Ok(1) and one batch job in queue containing 50 characters
 #[tokio::test]
 async fn schedules_many_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;

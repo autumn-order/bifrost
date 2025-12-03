@@ -17,6 +17,12 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use crate::util::redis::RedisTest;
 use crate::worker::queue::setup_test_queue;
 
+/// Tests scheduling when no characters exist in database.
+///
+/// Verifies that the character scheduler correctly handles an empty character table
+/// by returning zero scheduled jobs without errors.
+///
+/// Expected: Ok(0) and empty queue
 #[tokio::test]
 async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
@@ -35,6 +41,12 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling when all characters have fresh cache.
+///
+/// Verifies that the character scheduler skips characters with recent info_updated_at
+/// timestamps and returns zero scheduled jobs when all characters are up to date.
+///
+/// Expected: Ok(0) and empty queue
 #[tokio::test]
 async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -66,6 +78,13 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
     Ok(())
 }
 
+/// Tests scheduling a single character with expired cache.
+///
+/// Verifies that the character scheduler correctly identifies and schedules
+/// a job for a character whose info_updated_at timestamp exceeds the cache duration
+/// (30 days).
+///
+/// Expected: Ok(1) and one job in queue
 #[tokio::test]
 async fn schedules_single_expired_character() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -101,6 +120,13 @@ async fn schedules_single_expired_character() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling multiple characters with expired cache.
+///
+/// Verifies that the character scheduler correctly identifies and schedules
+/// jobs for multiple characters whose info_updated_at timestamps exceed the cache
+/// duration.
+///
+/// Expected: Ok(5) and five jobs in queue
 #[tokio::test]
 async fn schedules_multiple_expired_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -138,6 +164,13 @@ async fn schedules_multiple_expired_characters() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests selective scheduling of only expired characters.
+///
+/// Verifies that the character scheduler distinguishes between expired and
+/// up-to-date characters, scheduling only those with expired cache while
+/// skipping those with recent timestamps.
+///
+/// Expected: Ok(3) and three jobs in queue (only expired characters)
 #[tokio::test]
 async fn schedules_only_expired_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -184,6 +217,13 @@ async fn schedules_only_expired_characters() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests that oldest characters are prioritized for scheduling.
+///
+/// Verifies that the character scheduler processes characters in order of
+/// their info_updated_at timestamps, prioritizing the oldest (most stale) entries
+/// first for optimal cache freshness management.
+///
+/// Expected: Ok(3) and jobs scheduled in age order (oldest first)
 #[tokio::test]
 async fn schedules_oldest_characters_first() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -249,6 +289,13 @@ async fn schedules_oldest_characters_first() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests duplicate detection for scheduling attempts.
+///
+/// Verifies that the character scheduler prevents duplicate jobs from being
+/// added to the queue. When the same character job is scheduled twice, the
+/// second attempt is rejected based on job content matching.
+///
+/// Expected: First schedule Ok(1), second schedule Ok(0), one job in queue
 #[tokio::test]
 async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
@@ -293,6 +340,12 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the character scheduler returns an error when required
+/// database tables (eve_character) are not present in the database schema.
+///
+/// Expected: Err
 #[tokio::test]
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
@@ -307,6 +360,13 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests scheduling a large batch of characters.
+///
+/// Verifies that the character scheduler can handle scheduling many characters
+/// (50 in this test) efficiently, ensuring all expired characters are processed
+/// and queued correctly.
+///
+/// Expected: Ok(50) and fifty jobs in queue
 #[tokio::test]
 async fn schedules_many_characters() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
