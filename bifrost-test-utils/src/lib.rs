@@ -66,16 +66,13 @@ pub mod error;
 pub mod model;
 
 // Internal modules (not exposed in public API)
+mod context;
 mod fixtures;
-mod setup;
 
 // Re-export primary API types
 pub use builder::TestBuilder;
 pub use error::TestError;
-
-// Re-export TestSetup for use in custom test utilities
-// (e.g., creating AppState in integration tests)
-pub use setup::TestSetup;
+pub use context::TestContext;
 
 /// Prelude module containing commonly used imports for tests
 ///
@@ -86,6 +83,6 @@ pub use setup::TestSetup;
 /// ```
 pub mod prelude {
     pub use crate::{
-        builder::TestBuilder, error::TestError, fixtures::eve::factory, setup::TestSetup,
+        builder::TestBuilder, context::TestContext, error::TestError, fixtures::eve::factory,
     };
 }

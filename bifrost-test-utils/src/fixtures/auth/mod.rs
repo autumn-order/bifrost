@@ -1,14 +1,14 @@
 pub mod mock;
 pub mod mockito;
 
-use crate::TestSetup;
+use crate::TestContext;
 
-impl TestSetup {
+impl TestContext {
     pub fn auth<'a>(&'a mut self) -> AuthFixtures<'a> {
         AuthFixtures { setup: self }
     }
 }
 
 pub struct AuthFixtures<'a> {
-    setup: &'a mut TestSetup,
+    setup: &'a mut TestContext,
 }

@@ -9,7 +9,7 @@ use crate::{
     error::TestError,
 };
 
-/// Test setup structure returned by `TestBuilder`
+/// Test context structure returned by `TestBuilder`
 ///
 /// This struct is the result of calling `TestBuilder::build()` and provides
 /// access to the test environment including:
@@ -40,7 +40,7 @@ use crate::{
 /// // Assert all mocks were called
 /// test.assert_mocks();
 /// ```
-pub struct TestSetup {
+pub struct TestContext {
     pub db: DatabaseConnection,
     pub esi_client: eve_esi::Client,
     pub session: Session,
@@ -49,7 +49,7 @@ pub struct TestSetup {
     pub(crate) mocks: Vec<Mock>,
 }
 
-impl TestSetup {
+impl TestContext {
     /// Convert database and ESI client into any type that can be constructed from them
     ///
     /// This allows conversion to AppState without creating a circular dependency
@@ -69,8 +69,8 @@ impl TestSetup {
     }
 }
 
-impl TestSetup {
-    /// Create a new test setup
+impl TestContext {
+    /// Create a new test context
     ///
     /// Creates an in-memory SQLite database, mock ESI server, and session store.
     pub(crate) async fn new() -> Result<Self, TestError> {
@@ -96,7 +96,7 @@ impl TestSetup {
 
         let db = Database::connect("sqlite::memory:").await.unwrap();
 
-        Ok(TestSetup {
+        Ok(TestContext {
             server: mock_server,
             db,
             esi_client,

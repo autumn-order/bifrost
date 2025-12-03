@@ -1,4 +1,4 @@
-use crate::{error::TestError, TestSetup};
+use crate::{error::TestError, TestContext};
 use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
 };
@@ -355,11 +355,11 @@ impl TestBuilder {
     /// 3. Creates mock HTTP endpoints (ESI endpoints, JWT endpoints, custom endpoints)
     ///
     /// # Returns
-    /// - `Ok(TestSetup)` - Fully configured test environment ready for use
+    /// - `Ok(TestContext)` - Fully configured test environment ready for use
     /// - `Err(TestError::DbErr)` - Database table creation or fixture insertion failed
     /// - `Err(TestError::EsiError)` - Mock ESI client initialization failed
-    pub async fn build(self) -> Result<TestSetup, TestError> {
-        let mut setup = TestSetup::new().await?;
+    pub async fn build(self) -> Result<TestContext, TestError> {
+        let mut setup = TestContext::new().await?;
 
         // 1. Create tables
         let mut all_tables = Vec::new();

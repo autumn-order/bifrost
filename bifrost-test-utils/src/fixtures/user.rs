@@ -2,16 +2,16 @@ use crate::model::{CharacterOwnershipModel, EveCharacterModel, UserModel};
 use chrono::Utc;
 use sea_orm::{ActiveValue, EntityTrait};
 
-use crate::{error::TestError, TestSetup};
+use crate::{error::TestError, TestContext};
 
-impl TestSetup {
+impl TestContext {
     pub fn user<'a>(&'a mut self) -> UserFixtures<'a> {
         UserFixtures { setup: self }
     }
 }
 
 pub struct UserFixtures<'a> {
-    setup: &'a mut TestSetup,
+    setup: &'a mut TestContext,
 }
 
 impl<'a> UserFixtures<'a> {
