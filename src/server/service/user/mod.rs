@@ -6,9 +6,6 @@
 
 pub mod user_character;
 
-#[cfg(test)]
-mod tests;
-
 use sea_orm::DatabaseConnection;
 
 use crate::{

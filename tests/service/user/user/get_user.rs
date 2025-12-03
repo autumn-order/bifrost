@@ -1,6 +1,5 @@
-use crate::server::{error::Error, service::user::UserService};
-
-use super::*;
+use bifrost::server::{error::Error, service::user::UserService};
+use bifrost_test_utils::prelude::*;
 
 /// Expect Ok with Some & no additional characters for user with only a main character linked
 #[tokio::test]
