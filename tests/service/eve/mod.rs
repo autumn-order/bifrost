@@ -1,1 +1,2 @@
+mod affiliation;
 mod faction;
