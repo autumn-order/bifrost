@@ -28,9 +28,9 @@ pub async fn schedule_faction_info_update(
     _db: DatabaseConnection,
     worker_queue: WorkerQueue,
 ) -> Result<usize, Error> {
-    worker_queue.push(WorkerJob::UpdateFactionInfo {}).await?;
+    let was_scheduled = worker_queue.push(WorkerJob::UpdateFactionInfo {}).await?;
 
-    const FACTION_UPDATES_SCHEDULED: usize = 1;
+    let scheduled_count = if was_scheduled { 1 } else { 0 };
 
-    Ok(FACTION_UPDATES_SCHEDULED)
+    Ok(scheduled_count)
 }

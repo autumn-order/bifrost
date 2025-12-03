@@ -328,6 +328,29 @@ impl WorkerQueue {
         }
     }
 
+    /// Gets the number of jobs currently in the queue.
+    ///
+    /// This method is useful for monitoring queue depth and ensuring
+    /// jobs are being processed in a timely manner.
+    ///
+    /// # Returns
+    /// - `Ok(usize)` - Number of jobs in the queue
+    /// - `Err(Error)` - Redis communication failed
+    pub async fn len(&self) -> Result<usize, Error> {
+        let count: i64 = self.inner.pool.zcard(&self.inner.config.queue_name).await?;
+        Ok(count as usize)
+    }
+
+    /// Checks if the queue is empty.
+    ///
+    /// # Returns
+    /// - `Ok(true)` - Queue is empty
+    /// - `Ok(false)` - Queue has jobs
+    /// - `Err(Error)` - Redis communication failed
+    pub async fn is_empty(&self) -> Result<bool, Error> {
+        Ok(self.len().await? == 0)
+    }
+
     /// Removes all jobs older than the configured TTL from the queue.
     ///
     /// This method is called automatically by the background cleanup task at regular

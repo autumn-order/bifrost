@@ -228,11 +228,96 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    mod get_ownership_by_character_id {
+        use bifrost_test_utils::prelude::*;
+
+        use super::*;
+
+        /// Expect Some when ownership entry exists for the given character_record_id
+        #[tokio::test]
+        async fn returns_ownership_when_exists() -> Result<(), TestError> {
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
+            let (_, ownership_model, character_model) = test
+                .user()
+                .insert_user_with_mock_character(1, 1, None, None)
+                .await?;
+
+            let user_character_repository = UserCharacterRepository::new(&test.db);
+            let result = user_character_repository
+                .get_ownership_by_character_id(character_model.id)
+                .await;
+
+            assert!(result.is_ok());
+            let maybe_ownership = result.unwrap();
+            assert!(maybe_ownership.is_some());
+            let ownership = maybe_ownership.unwrap();
+            assert_eq!(ownership.id, character_model.id);
+            assert_eq!(ownership.user_id, ownership_model.user_id);
+            assert_eq!(ownership.owner_hash, ownership_model.owner_hash);
+
+            Ok(())
+        }
+
+        /// Expect None when no ownership entry exists for the given character_record_id
+        #[tokio::test]
+        async fn returns_none_when_not_found() -> Result<(), TestError> {
+            let test = TestBuilder::new().with_user_tables().build().await?;
+
+            let nonexistent_character_record_id = 999;
+            let user_character_repository = UserCharacterRepository::new(&test.db);
+            let result = user_character_repository
+                .get_ownership_by_character_id(nonexistent_character_record_id)
+                .await;
+
+            assert!(result.is_ok());
+            let maybe_ownership = result.unwrap();
+            assert!(maybe_ownership.is_none());
+
+            Ok(())
+        }
+
+        /// Expect None when character exists but has no ownership entry
+        #[tokio::test]
+        async fn returns_none_when_character_exists_without_ownership() -> Result<(), TestError> {
+            let mut test = TestBuilder::new().with_user_tables().build().await?;
+            let character_model = test.eve().insert_mock_character(1, 1, None, None).await?;
+
+            let user_character_repository = UserCharacterRepository::new(&test.db);
+            let result = user_character_repository
+                .get_ownership_by_character_id(character_model.id)
+                .await;
+
+            assert!(result.is_ok());
+            let maybe_ownership = result.unwrap();
+            assert!(maybe_ownership.is_none());
+
+            Ok(())
+        }
+
+        /// Expect Error when required database tables are not present
+        #[tokio::test]
+        async fn fails_when_tables_missing() -> Result<(), TestError> {
+            // Use test setup that does not create required tables, causing a database error
+            let test = TestBuilder::new().build().await?;
+
+            let character_record_id = 1;
+            let user_character_repository = UserCharacterRepository::new(&test.db);
+            let result = user_character_repository
+                .get_ownership_by_character_id(character_record_id)
+                .await;
+
+            assert!(result.is_err());
+
+            Ok(())
+        }
+    }
 
     mod get_by_character_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         // Expect Some when character & character ownership entry is found
         #[tokio::test]
@@ -316,7 +401,7 @@ mod tests {
     mod get_ownerships_by_user_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         /// Expect Ok with 2 owned character entries
         #[tokio::test]
@@ -405,7 +490,7 @@ mod tests {
     mod get_owned_characters_by_user_id {
         use bifrost_test_utils::prelude::*;
 
-        use crate::server::data::user::user_character::UserCharacterRepository;
+        use super::*;
 
         /// Expect Ok with Vec length of 1 when requesting valid user ID
         /// Validates that corporation is present and alliance can be None
