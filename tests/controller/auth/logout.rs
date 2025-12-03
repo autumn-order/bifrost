@@ -1,10 +1,22 @@
+//! Tests for the logout endpoint.
+//!
+//! This module verifies the logout endpoint's behavior, including successful
+//! session cleanup when a user logs out and safe handling of logout requests
+//! when no session data exists.
+
 use axum::{http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::auth::logout, model::session::user::SessionUserId};
 
 use super::*;
 
+/// Tests successful logout with user session cleanup.
+///
+/// Verifies that the logout endpoint successfully clears the user ID from the
+/// session and returns a 307 temporary redirect to the login page when a logged-in
+/// user initiates logout.
+///
+/// Expected: Ok with 307 TEMPORARY_REDIRECT response and session cleared
 #[tokio::test]
-/// Expect 307 temporary redirect after logout with a user ID in session
 async fn logs_out_user_successfully() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -24,13 +36,14 @@ async fn logs_out_user_successfully() -> Result<(), TestError> {
     Ok(())
 }
 
-#[tokio::test]
-/// Expect 307 temporary redirect after logout even without session data
+/// Tests logout behavior when no session data exists.
 ///
-/// This checks for the 500 internal error that occurs when clearing
-/// a session without any data in it. To resolve this, the endpoint doesn't
-/// clear session unless there is actually a user ID in session, it will redirect
-/// to login regardless of clear being called.
+/// Verifies that the logout endpoint safely handles the case where there is no
+/// user session data, avoiding internal errors by only clearing session when data
+/// exists. The endpoint redirects to login regardless of session state.
+///
+/// Expected: Ok with 307 TEMPORARY_REDIRECT response
+#[tokio::test]
 async fn redirects_when_no_session_data() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 

@@ -1,10 +1,22 @@
+//! Tests for the get_user endpoint.
+//!
+//! This module verifies the get_user endpoint's behavior, including successful
+//! retrieval of user information for authenticated users, 404 responses for
+//! missing or non-existent users, and error handling for database issues.
+
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use bifrost::server::{controller::auth::get_user, model::session::user::SessionUserId};
 
 use super::*;
 
+/// Tests successful retrieval of user information for logged-in user.
+///
+/// Verifies that the get_user endpoint returns a 200 OK response with user
+/// information when a valid user ID exists in the session and the corresponding
+/// user is found in the database.
+///
+/// Expected: Ok with 200 OK response
 #[tokio::test]
-/// Expect 200 success with user information for existing user
 async fn found_for_logged_in_user() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -25,8 +37,13 @@ async fn found_for_logged_in_user() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests 404 response when no user is logged in.
+///
+/// Verifies that the get_user endpoint returns a 404 NOT FOUND response when
+/// there is no user ID in the session, indicating no authenticated user.
+///
+/// Expected: Err with 404 NOT_FOUND response
 #[tokio::test]
-/// Expect 404 not found for user that isn't in session
 async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -39,8 +56,14 @@ async fn not_found_for_user_not_logged_in() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests 404 response when session user is not in database.
+///
+/// Verifies that the get_user endpoint returns a 404 NOT FOUND response when
+/// the user ID from the session doesn't correspond to any user record in the
+/// database, handling stale session data gracefully.
+///
+/// Expected: Err with 404 NOT_FOUND response
 #[tokio::test]
-/// Expect 404 not found for user that isn't in database
 async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -59,8 +82,14 @@ async fn not_found_for_user_not_in_database() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests error handling when database tables are missing.
+///
+/// Verifies that the get_user endpoint returns a 500 INTERNAL SERVER ERROR
+/// response when required database tables don't exist, indicating a critical
+/// infrastructure issue rather than a user error.
+///
+/// Expected: Err with 500 INTERNAL_SERVER_ERROR response
 #[tokio::test]
-/// Expect 500 internal server error when required database tables dont exist
 async fn error_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 

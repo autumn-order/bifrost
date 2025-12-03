@@ -1,3 +1,9 @@
+//! Tests for the OAuth callback endpoint.
+//!
+//! This module verifies the OAuth callback endpoint's behavior during the EVE Online
+//! SSO authentication flow, including successful authentication for new and existing
+//! users, CSRF validation, and error handling when ESI is unavailable.
+
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,8 +16,14 @@ use bifrost::server::{
 
 use super::*;
 
+/// Tests successful redirect after OAuth callback for new user.
+///
+/// Verifies that when a new character logs in via EVE SSO, the callback endpoint
+/// successfully processes the OAuth code, creates the user and character records,
+/// stores the user ID in session, and redirects to the home page.
+///
+/// Expected: Ok with 308 PERMANENT_REDIRECT response and user ID in session
 #[tokio::test]
-/// Expect 307 temprorary redirect when logging with new character
 async fn redirects_for_new_user() -> Result<(), TestError> {
     let corporation_id = 1;
     let character_id = 1;
@@ -59,8 +71,14 @@ async fn redirects_for_new_user() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests successful redirect after OAuth callback for existing user.
+///
+/// Verifies that when an existing user logs in via EVE SSO, the callback endpoint
+/// successfully validates the JWT token, updates the session, and redirects to the
+/// home page without creating duplicate records.
+///
+/// Expected: Ok with 308 PERMANENT_REDIRECT response and existing user ID in session
 #[tokio::test]
-/// Expect 307 temprorary redirect when logging with existing user
 async fn redirects_for_existing_user() -> Result<(), TestError> {
     let mut test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -113,8 +131,14 @@ async fn redirects_for_existing_user() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests CSRF protection validation during OAuth callback.
+///
+/// Verifies that the callback endpoint rejects requests when the CSRF state
+/// parameter doesn't match the value stored in session, preventing CSRF attacks
+/// on the authentication flow.
+///
+/// Expected: Err with 400 BAD_REQUEST response
 #[tokio::test]
-/// Expect 400 bad request when CSRF state is modified
 async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
@@ -136,8 +160,14 @@ async fn fails_for_invalid_csrf_state() -> Result<(), TestError> {
     Ok(())
 }
 
+/// Tests error handling when ESI is unavailable during callback.
+///
+/// Verifies that the callback endpoint returns a 500 internal server error when
+/// it cannot communicate with the ESI API to complete the OAuth token exchange,
+/// indicating a service dependency failure.
+///
+/// Expected: Err with 500 INTERNAL_SERVER_ERROR response
 #[tokio::test]
-/// Test the return of a 500 internal server error response for callback
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
