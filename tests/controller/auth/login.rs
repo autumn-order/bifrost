@@ -57,3 +57,71 @@ async fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
 
     Ok(())
 }
+
+/// Tests that change_main parameter sets session flag.
+///
+/// Verifies that when the login endpoint is called with change_main=true,
+/// the flag is properly stored in the session for later use during the
+/// callback to update the user's main character.
+///
+/// Expected: Ok with 307 TEMPORARY_REDIRECT and change_main flag in session
+#[tokio::test]
+async fn sets_change_main_flag_in_session() -> Result<(), TestError> {
+    use bifrost::server::model::session::change_main::SessionUserChangeMain;
+
+    let test = TestBuilder::new().build().await?;
+
+    let params = LoginParams {
+        change_main: Some(true),
+    };
+    let result = login(
+        State(test.into_app_state()),
+        test.session.clone(),
+        Query(params),
+    )
+    .await;
+
+    assert!(result.is_ok());
+    let resp = result.unwrap().into_response();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    // Verify change_main flag was set in session
+    let change_main = SessionUserChangeMain::remove(&test.session).await.unwrap();
+    assert_eq!(change_main, Some(true));
+
+    Ok(())
+}
+
+/// Tests that change_main parameter not set when false.
+///
+/// Verifies that when the login endpoint is called without change_main or
+/// with change_main=false, no session flag is set, preventing unintended
+/// main character changes.
+///
+/// Expected: Ok with 307 TEMPORARY_REDIRECT and no change_main flag in session
+#[tokio::test]
+async fn does_not_set_change_main_flag_when_false() -> Result<(), TestError> {
+    use bifrost::server::model::session::change_main::SessionUserChangeMain;
+
+    let test = TestBuilder::new().build().await?;
+
+    let params = LoginParams {
+        change_main: Some(false),
+    };
+    let result = login(
+        State(test.into_app_state()),
+        test.session.clone(),
+        Query(params),
+    )
+    .await;
+
+    assert!(result.is_ok());
+    let resp = result.unwrap().into_response();
+    assert_eq!(resp.status(), StatusCode::TEMPORARY_REDIRECT);
+
+    // Verify change_main flag was not set in session
+    let change_main = SessionUserChangeMain::remove(&test.session).await.unwrap();
+    assert_eq!(change_main, None);
+
+    Ok(())
+}

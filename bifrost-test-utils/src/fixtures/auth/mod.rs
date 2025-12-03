@@ -4,6 +4,7 @@
 //! JWT tokens, JWT keys, and mock OAuth2 endpoints. These fixtures are used to test
 //! EVE SSO authentication flows without requiring real EVE Online credentials.
 
+pub mod factory;
 pub mod mock;
 pub mod mockito;
 
