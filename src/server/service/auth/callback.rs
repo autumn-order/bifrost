@@ -42,6 +42,7 @@ pub(super) enum Session {
 }
 
 /// Represents the database lookup result for a character's existence and ownership status.
+#[derive(Debug)]
 pub enum CharacterRecord {
     /// Character record was not found in database
     NotFound,
