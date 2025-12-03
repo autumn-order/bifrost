@@ -1,7 +1,18 @@
+//! Tests for CorporationRepository::update_affiliations method.
+//!
+//! This module verifies the corporation affiliation update behavior, including updating
+//! alliance affiliations for single and multiple corporations, handling batch operations,
+//! timestamp updates, and edge cases like empty inputs and mixed alliance assignments.
+
 use super::*;
 use sea_orm::EntityTrait;
 
-/// Should successfully update a single corporation's alliance affiliation
+/// Tests updating a single corporation's alliance affiliation.
+///
+/// Verifies that the corporation repository successfully updates a corporation's
+/// alliance affiliation in the database.
+///
+/// Expected: Ok with updated alliance_id
 #[tokio::test]
 async fn updates_single_corporation_alliance() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -38,7 +49,12 @@ async fn updates_single_corporation_alliance() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should successfully update multiple corporations in a single call
+/// Tests updating multiple corporations in a single call.
+///
+/// Verifies that the corporation repository successfully updates alliance affiliations
+/// for multiple corporations in a single batch operation.
+///
+/// Expected: Ok with all corporations updated to their respective alliances
 #[tokio::test]
 async fn updates_multiple_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -94,7 +110,12 @@ async fn updates_multiple_corporations() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should successfully remove alliance affiliation by setting to None
+/// Tests removing alliance affiliation.
+///
+/// Verifies that the corporation repository successfully removes a corporation's
+/// alliance affiliation by setting it to None.
+///
+/// Expected: Ok with alliance_id set to None
 #[tokio::test]
 async fn removes_alliance_affiliation() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -130,7 +151,13 @@ async fn removes_alliance_affiliation() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle batching for large numbers of corporations (>100)
+/// Tests handling large batch updates.
+///
+/// Verifies that the corporation repository correctly handles batching when updating
+/// affiliations for large numbers of corporations (>100), ensuring all updates are
+/// processed across multiple batches.
+///
+/// Expected: Ok with all 250 corporations updated
 #[tokio::test]
 async fn handles_large_batch_updates() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -186,7 +213,12 @@ async fn handles_large_batch_updates() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle empty input gracefully
+/// Tests handling empty input.
+///
+/// Verifies that the corporation repository handles empty affiliation update lists
+/// gracefully without errors.
+///
+/// Expected: Ok with no operations performed
 #[tokio::test]
 async fn handles_empty_input() -> Result<(), TestError> {
     let test = TestBuilder::new()
@@ -204,7 +236,12 @@ async fn handles_empty_input() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should update affiliation_updated_at timestamp when updating affiliations
+/// Tests updating affiliation timestamp.
+///
+/// Verifies that the corporation repository updates the affiliation_updated_at
+/// timestamp whenever affiliation data is modified.
+///
+/// Expected: Ok with affiliation_updated_at newer than original
 #[tokio::test]
 async fn updates_timestamp() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -247,7 +284,12 @@ async fn updates_timestamp() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should not affect corporations not in the update list
+/// Tests that other corporations are not affected.
+///
+/// Verifies that the corporation repository only updates corporations specified in
+/// the update list, leaving other corporations' affiliations unchanged.
+///
+/// Expected: Ok with only specified corporation updated
 #[tokio::test]
 async fn does_not_affect_other_corporations() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
@@ -298,7 +340,12 @@ async fn does_not_affect_other_corporations() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Should handle mix of Some and None alliance IDs in same batch
+/// Tests handling mixed alliance assignments.
+///
+/// Verifies that the corporation repository correctly processes a batch containing
+/// both Some and None alliance IDs, applying each appropriately.
+///
+/// Expected: Ok with corporations having correct alliance assignments
 #[tokio::test]
 async fn handles_mixed_alliance_assignments() -> Result<(), TestError> {
     let mut test = TestBuilder::new()

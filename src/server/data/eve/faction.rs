@@ -133,10 +133,16 @@ mod tests {
 
     use super::*;
 
+    /// Tests for FactionRepository::upsert_many method.
     mod upsert_many {
         use super::*;
 
-        /// Expect Ok when upserting a new faction
+        /// Tests upserting a new faction.
+        ///
+        /// Verifies that the faction repository successfully inserts a new faction
+        /// record into the database.
+        ///
+        /// Expected: Ok with Vec containing 1 created faction
         #[tokio::test]
         async fn upserts_new_faction() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -155,7 +161,13 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok & update when trying to upsert an existing faction
+        /// Tests updating an existing faction.
+        ///
+        /// Verifies that the faction repository updates an existing faction record when
+        /// upserting with the same faction ID, preserving created_at and updating
+        /// updated_at timestamp.
+        ///
+        /// Expected: Ok with updated faction, preserved created_at, newer updated_at
         #[tokio::test]
         async fn updates_existing_faction() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -183,10 +195,16 @@ mod tests {
         }
     }
 
+    /// Tests for FactionRepository::get_record_ids_by_faction_ids method.
     mod get_record_ids_by_faction_ids {
         use super::*;
 
-        /// Expect Ok with correct mappings when factions exist in database
+        /// Tests retrieving record IDs for existing factions.
+        ///
+        /// Verifies that the faction repository correctly maps faction IDs to their
+        /// corresponding database record IDs when all requested factions exist.
+        ///
+        /// Expected: Ok with Vec of (record_id, faction_id) tuples
         #[tokio::test]
         async fn returns_record_ids_for_existing_factions() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -231,7 +249,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec when no factions match
+        /// Tests retrieving record IDs for nonexistent factions.
+        ///
+        /// Verifies that the faction repository returns an empty list when attempting
+        /// to retrieve record IDs for faction IDs that do not exist in the database.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_nonexistent_factions() -> Result<(), TestError> {
             let test = TestBuilder::new()
@@ -250,7 +273,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with empty Vec when input is empty
+        /// Tests retrieving record IDs with empty input.
+        ///
+        /// Verifies that the faction repository handles empty input lists gracefully
+        /// by returning an empty result without errors.
+        ///
+        /// Expected: Ok with empty Vec
         #[tokio::test]
         async fn returns_empty_for_empty_input() -> Result<(), TestError> {
             let test = TestBuilder::new()
@@ -269,7 +297,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Ok with partial results when only some factions exist
+        /// Tests retrieving record IDs with mixed input.
+        ///
+        /// Verifies that the faction repository returns partial results when only some
+        /// of the requested faction IDs exist, excluding nonexistent IDs from the output.
+        ///
+        /// Expected: Ok with Vec containing only existing faction mappings
         #[tokio::test]
         async fn returns_partial_results_for_mixed_input() -> Result<(), TestError> {
             let mut test = TestBuilder::new()
@@ -305,7 +338,12 @@ mod tests {
             Ok(())
         }
 
-        /// Expect Error when required tables haven't been created
+        /// Tests error handling when database tables are missing.
+        ///
+        /// Verifies that the faction repository returns an error when attempting to
+        /// retrieve record IDs without the required database tables being created.
+        ///
+        /// Expected: Err
         #[tokio::test]
         async fn fails_when_tables_missing() -> Result<(), TestError> {
             let test = TestBuilder::new().build().await?;
