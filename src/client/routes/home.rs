@@ -47,10 +47,16 @@ pub fn Home() -> Element {
                         "This is a test instance of Bifrost"
                     }
                     p {
-                        "Alpha 2 of Bifrost is centered around testing a refactor of the worker pool/queue to handle background jobs which we have just replaced with our own implementation. This test simply confirms the stability & longevity of the new workers in production as well as the resource utilization over time."
+                        "Alpha 3 tests the new retry logic which will make up to 3 total attempts for ESI requests should ESI return any internal server errors instead of expected success responses."
                     }
                     p {
-                        "To participate in the test, simply login with EVE Online and play around with the character linking system. You can link characters to an account, then logout, login with a character not yet linked and then try to link your previous logged in characters to the new account to see how well transferring characters between accounts behaves. Try to break it."
+                        "Additionally, a major refactor has been completed which has made the internals of how we request ESI entities like alliances, corporations, and characters easier to use and more
+                        in-line with best practices. Our callback method, which handles the login, has also been refactored as well to be far easier to read and understand the various scenarios when logging in
+                        such as a character already has an account, or they are a new character, or they're being linked to an account, etc."
+                    }
+                    p {
+                        "To participate in the test, simply login with EVE Online and play around with the character linking system. You can link characters to an account, then logout, login with a character
+                        not yet linked and then try to link your previous logged in characters to the new account to see how well transferring characters between accounts behaves. Try to break it."
                     }
                     p {
                         "Keep an eye on the metadata on the auth page that shows when your character information was last updated, your data should update at a rate of:"
@@ -63,7 +69,7 @@ pub fn Home() -> Element {
                         li { "Affiliations: No longer than 1 hour and 10 minutes " }
                     }
                     p {
-                        "There is much more work to be done, this is a very basic implementation of the foundations built so far. The next test will involve groups, particularly group ownership by alliances, corporations, and even other groups. Keep an eye on the Autumn Discord for details!"
+                        "There is much more work to be done, this is a very basic implementation of the foundations built so far. Keep an eye on the Autumn Discord for details!"
                     }
                 }
                 ul { class: "flex flex-wrap justify-center gap-2",
