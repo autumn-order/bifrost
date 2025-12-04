@@ -61,15 +61,3 @@ jobs:
 
       - name: Image digest
         run: echo ${{ steps.meta.outputs.digest }}
-
-      - name: Set package visibility to public
-        run: |
-          PACKAGE_NAME=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          gh api \
-            --method PATCH \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /orgs/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME##*/}/visibility \
-            -f visibility='public'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
