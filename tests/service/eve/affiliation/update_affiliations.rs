@@ -740,7 +740,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
 
     assert!(matches!(
         result,
-        Err(Error::EsiError(eve_esi::Error::ReqwestError(_)))
+        Err(Error::EsiError(eve_esi::Error::EsiError(_)))
     ));
 
     Ok(())

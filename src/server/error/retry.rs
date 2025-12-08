@@ -63,29 +63,26 @@ impl Error {
     /// - `ErrorRetryStrategy::Fail` - Operation should fail permanently without retry
     pub fn to_retry_strategy(&self) -> ErrorRetryStrategy {
         match self {
-            // ESI request errors - categorize by HTTP status code
-            Error::EsiError(eve_esi::Error::ReqwestError(reqwest_error)) => {
-                if let Some(status) = reqwest_error.status() {
-                    match status {
-                        // 5xx Server Errors - ESI is temporarily unavailable
-                        //
-                        // Retry with backoff. If ESI internal errors accumulate, a global
-                        // circuit breaker should be triggered to defer all ESI requests until
-                        // a health check succeeds, avoiding hammering an already-failing ESI.
-                        s if s.is_server_error() => ErrorRetryStrategy::Retry,
+            // ESI HTTP error responses (4xx/5xx) - categorize by status code
+            //
+            // In eve_esi 0.5.0+, HTTP error responses are returned as EsiError with a status field
+            Error::EsiError(eve_esi::Error::EsiError(esi_error)) => {
+                match esi_error.status {
+                    // 5xx Server Errors - ESI is temporarily unavailable
+                    //
+                    // Retry with backoff. If ESI internal errors accumulate, a global
+                    // circuit breaker should be triggered to defer all ESI requests until
+                    // a health check succeeds, avoiding hammering an already-failing ESI.
+                    500..=599 => ErrorRetryStrategy::Retry,
 
-                        // 4xx Client Errors - Invalid request (programming bug)
-                        //
-                        // We're making invalid requests to ESI. This indicates a flaw in the
-                        // code that needs to be fixed. Retrying won't help.
-                        s if s.is_client_error() => ErrorRetryStrategy::Fail,
+                    // 4xx Client Errors - Invalid request (programming bug)
+                    //
+                    // We're making invalid requests to ESI. This indicates a flaw in the
+                    // code that needs to be fixed. Retrying won't help.
+                    400..=499 => ErrorRetryStrategy::Fail,
 
-                        // Unexpected HTTP status code - treat as permanent failure
-                        _ => ErrorRetryStrategy::Fail,
-                    }
-                } else {
-                    // Network error or connection issue without HTTP status - likely transient
-                    ErrorRetryStrategy::Retry
+                    // Unexpected HTTP status code - treat as permanent failure
+                    _ => ErrorRetryStrategy::Fail,
                 }
             }
 
