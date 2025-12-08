@@ -262,7 +262,7 @@ impl<'a> FactionOrchestrator<'a> {
         }
 
         // Fetch all factions from ESI
-        let fetched_factions = self.esi_client.universe().get_factions().await?;
+        let fetched_factions = self.esi_client.universe().get_factions().send().await?.data;
 
         for faction in &fetched_factions {
             cache

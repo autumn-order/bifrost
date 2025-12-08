@@ -116,7 +116,9 @@ impl<'a> AffiliationService<'a> {
                 let affiliations = esi_client
                     .character()
                     .character_affiliation(character_ids)
-                    .await?;
+                    .send()
+                    .await?
+                    .data;
 
                 if affiliations.is_empty() {
                     return Ok(());

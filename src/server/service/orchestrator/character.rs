@@ -193,7 +193,9 @@ impl<'a> CharacterOrchestrator<'a> {
             .esi_client
             .character()
             .get_character_public_information(character_id)
-            .await?;
+            .send()
+            .await?
+            .data;
 
         // Insert the fetched character into cache to avoid additional ESI fetches on retries
         cache
@@ -273,7 +275,9 @@ impl<'a> CharacterOrchestrator<'a> {
                     let character = esi_client
                         .character()
                         .get_character_public_information(id)
-                        .await?;
+                        .send()
+                        .await?
+                        .data;
                     Ok::<_, Error>((id, character))
                 };
                 futures.push(future);

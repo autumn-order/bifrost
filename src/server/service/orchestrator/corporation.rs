@@ -192,7 +192,9 @@ impl<'a> CorporationOrchestrator<'a> {
             .esi_client
             .corporation()
             .get_corporation_information(corporation_id)
-            .await?;
+            .send()
+            .await?
+            .data;
 
         // Insert the fetched corporation into cache to avoid additional ESI fetches on retries
         cache
@@ -275,7 +277,9 @@ impl<'a> CorporationOrchestrator<'a> {
                     let corporation = esi_client
                         .corporation()
                         .get_corporation_information(id)
-                        .await?;
+                        .send()
+                        .await?
+                        .data;
                     Ok::<_, Error>((id, corporation))
                 };
                 futures.push(future);
