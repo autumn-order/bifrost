@@ -187,7 +187,9 @@ impl<'a> AllianceOrchestrator<'a> {
             .esi_client
             .alliance()
             .get_alliance_information(alliance_id)
-            .await?;
+            .send()
+            .await?
+            .data;
 
         // Insert the fetched alliance into cache to avoid additional ESI fetches on retries
         cache
@@ -258,7 +260,12 @@ impl<'a> AllianceOrchestrator<'a> {
 
             for &id in chunk {
                 let future = async move {
-                    let alliance = esi_client.alliance().get_alliance_information(id).await?;
+                    let alliance = esi_client
+                        .alliance()
+                        .get_alliance_information(id)
+                        .send()
+                        .await?
+                        .data;
                     Ok::<_, Error>((id, alliance))
                 };
                 futures.push(future);

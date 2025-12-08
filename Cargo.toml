@@ -12,7 +12,7 @@ members = [".", "bifrost-test-utils", "entity", "migration"]
 base64 = "0.22.1"
 chrono = "0.4.42"
 entity = { path = "entity" }
-eve_esi = { version = "0.4.9" }
+eve_esi = { version = "0.5.0-rc.1" }
 jsonwebtoken = "9.3.1"
 mockito = "1.7.0"
 oauth2 = "5.0.0"
