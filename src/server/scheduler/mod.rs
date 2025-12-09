@@ -18,6 +18,9 @@ pub mod entity_refresh;
 pub mod eve;
 pub mod schedule;
 
+#[cfg(test)]
+mod tests;
+
 use self::eve::{
     affiliation::schedule_character_affiliation_update, alliance::schedule_alliance_info_update,
     character::schedule_character_info_update, corporation::schedule_corporation_info_update,
