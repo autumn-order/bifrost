@@ -5,8 +5,42 @@
 //! deserialized by worker handlers for processing. Each job variant contains the minimal
 //! data needed to perform the task (e.g., entity IDs to refresh).
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+
+/// Worker job with scheduled execution timestamp.
+///
+/// Wraps a `WorkerJob` with the timestamp it was scheduled for execution. This allows
+/// the worker handler to distinguish between jobs scheduled before ESI downtime (which
+/// should be rescheduled) versus jobs scheduled during downtime (scheduler bug).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScheduledWorkerJob {
+    /// The worker job to execute.
+    pub job: WorkerJob,
+    /// The UTC timestamp when this job was scheduled for execution.
+    pub scheduled_at: DateTime<Utc>,
+}
+
+impl ScheduledWorkerJob {
+    /// Creates a new scheduled worker job.
+    ///
+    /// # Arguments
+    /// - `job` - The worker job to execute
+    /// - `scheduled_at` - The UTC timestamp when the job was scheduled
+    ///
+    /// # Returns
+    /// - `ScheduledWorkerJob` - New scheduled job instance
+    pub fn new(job: WorkerJob, scheduled_at: DateTime<Utc>) -> Self {
+        Self { job, scheduled_at }
+    }
+}
+
+impl fmt::Display for ScheduledWorkerJob {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} (scheduled at {})", self.job, self.scheduled_at)
+    }
+}
 
 /// Background job types for EVE Online data refresh operations.
 ///

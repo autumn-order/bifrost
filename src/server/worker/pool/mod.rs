@@ -15,6 +15,7 @@ use dioxus_logger::tracing;
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 
+use crate::server::model::worker::ScheduledWorkerJob;
 use crate::server::worker::handler::WorkerJobHandler;
 use crate::server::{error::Error, worker::queue::WorkerQueue};
 
@@ -181,7 +182,7 @@ impl WorkerPool {
         semaphore: &Arc<Semaphore>,
     ) {
         match queue.pop().await {
-            Ok(Some(job)) => {
+            Ok(Some(scheduled_job)) => {
                 // Try to acquire a permit (blocks if at capacity)
                 match semaphore.clone().acquire_owned().await {
                     Ok(permit) => {
@@ -191,12 +192,12 @@ impl WorkerPool {
 
                         // Spawn task to execute the job
                         tokio::spawn(async move {
-                            Self::execute_job(job, handler, timeout, permit).await;
+                            Self::execute_job(scheduled_job, handler, timeout, permit).await;
                         });
                     }
                     Err(_) => {
                         // Semaphore closed (shutting down), push job back
-                        let _ = queue.push(job).await;
+                        let _ = queue.push(scheduled_job.job).await;
                         tracing::debug!(
                             "Dispatcher {} semaphore closed, returned job to queue",
                             dispatcher_id
@@ -222,29 +223,33 @@ impl WorkerPool {
     /// held until completion, limiting concurrency. Logs success, failure, or timeout.
     ///
     /// # Arguments
-    /// - `job` - Worker job to execute
+    /// - `scheduled_job` - Worker job to execute with its scheduled timestamp
     /// - `handler` - Job handler for execution
     /// - `timeout` - Maximum execution time
     /// - `_permit` - Semaphore permit (held until dropped)
     async fn execute_job(
-        job: crate::server::model::worker::WorkerJob,
+        scheduled_job: ScheduledWorkerJob,
         handler: Arc<WorkerJobHandler>,
         timeout: Duration,
         _permit: tokio::sync::OwnedSemaphorePermit,
     ) {
         // Execute job with timeout
-        let result = tokio::time::timeout(timeout, handler.handle(&job)).await;
+        let result = tokio::time::timeout(timeout, handler.handle(&scheduled_job)).await;
 
         match result {
             Ok(Ok(())) => {
                 // Job completed successfully
-                tracing::debug!("Job completed: {}", job);
+                tracing::debug!("Job completed: {}", scheduled_job);
             }
             Ok(Err(e)) => {
-                tracing::error!("Job failed: {}, error: {:?}", job, e);
+                tracing::error!("Job failed: {}, error: {:?}", scheduled_job, e);
             }
             Err(_) => {
-                tracing::error!("Job timed out after {} seconds: {}", timeout.as_secs(), job);
+                tracing::error!(
+                    "Job timed out after {} seconds: {}",
+                    timeout.as_secs(),
+                    scheduled_job
+                );
             }
         }
 

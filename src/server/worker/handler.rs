@@ -10,7 +10,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::server::{
     error::Error,
-    model::worker::WorkerJob,
+    model::worker::{ScheduledWorkerJob, WorkerJob},
     service::eve::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
         corporation::CorporationService, faction::FactionService,
@@ -69,42 +69,66 @@ impl WorkerJobHandler {
     ///
     /// This is the main entry point for job processing. If ESI downtime offset is enabled,
     /// checks if the current time falls within ESI's daily downtime window (11:00-11:05 UTC + 2 minute
-    /// grace period surrounding the window).If so, reschedules the job to run after downtime ends and
-    /// returns Ok without processing.
+    /// grace period surrounding the window). If currently in downtime, checks the job's scheduled
+    /// timestamp to determine if:
+    /// - Job was scheduled before downtime (app restart case) - reschedule with info log
+    /// - Job was scheduled during downtime (scheduler bug) - reschedule with warning
     ///
     /// Otherwise, pattern matches on the job type and dispatches to the corresponding handler
     /// method. Each handler method logs the operation and handles errors appropriately.
     ///
     /// # Arguments
-    /// - `job` - The worker job to execute
+    /// - `scheduled_job` - The worker job to execute with its scheduled timestamp
     ///
     /// # Returns
     /// - `Ok(())` - Job completed successfully or rescheduled due to downtime
     /// - `Err(Error)` - Job failed with error (logged automatically by each handler)
-    pub async fn handle(&self, job: &WorkerJob) -> Result<(), Error> {
+    pub async fn handle(&self, scheduled_job: &ScheduledWorkerJob) -> Result<(), Error> {
         // Check if we're within ESI downtime window (if offset is enabled)
         if self.offset_for_esi_downtime {
-            if let Some(downtime_remaining) = get_esi_downtime_remaining(Utc::now()) {
-                tracing::warn!(
-                    "Job execution delayed due to ESI downtime. Rescheduling job to run after downtime ends (in {} minutes): {}\n
-                    \n
-                    There may be an issue with the scheduler scheduling jobs overlapping the ESI downtime window. Please open a GitHub issue if this behavior continues.",
-                    downtime_remaining.num_minutes(),
-                    job
-                );
+            let now = Utc::now();
+            if let Some(downtime_remaining) = get_esi_downtime_remaining(now) {
+                // Check if job was scheduled before downtime window started
+                // Downtime window is 11:00-11:05 UTC (with 2 minute grace period surrounding the window)
+                let downtime_start = now - downtime_remaining;
+
+                if scheduled_job.scheduled_at < downtime_start {
+                    // Job was scheduled before downtime - likely app restart during downtime
+                    tracing::debug!(
+                        "Job scheduled at {} (before downtime window) pulled during ESI downtime. \
+                        Rescheduling to run after downtime ends (in {} minutes): {}\n\
+                        This behavior is expected when the application restarts during ESI downtime.",
+                        scheduled_job.scheduled_at,
+                        downtime_remaining.num_minutes(),
+                        scheduled_job.job
+                    );
+                } else {
+                    // Job was scheduled within downtime window - scheduler bug
+                    tracing::warn!(
+                        "Job scheduled at {} (during downtime window starting at {}) is being processed during ESI downtime. \
+                        Rescheduling to run after downtime ends (in {} minutes): {}\n\
+                        This may indicate a scheduler bug. Please open a GitHub issue if this behavior continues.",
+                        scheduled_job.scheduled_at,
+                        downtime_start,
+                        downtime_remaining.num_minutes(),
+                        scheduled_job.job
+                    );
+                }
 
                 // Calculate when downtime ends
-                let reschedule_time = Utc::now() + downtime_remaining;
+                let reschedule_time = now + downtime_remaining;
 
                 // Reschedule the job to run after downtime
-                self.queue.schedule(job.clone(), reschedule_time).await?;
+                self.queue
+                    .schedule(scheduled_job.job.clone(), reschedule_time)
+                    .await?;
 
                 return Ok(());
             }
         }
 
         // Process the job normally
-        match job {
+        match &scheduled_job.job {
             WorkerJob::UpdateFactionInfo => self.update_faction_info().await,
             WorkerJob::UpdateAllianceInfo { alliance_id } => {
                 self.update_alliance_info(*alliance_id).await

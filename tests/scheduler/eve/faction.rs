@@ -42,9 +42,12 @@ async fn schedules_faction_update_job() -> Result<(), TestError> {
     assert_eq!(queue.len().await.unwrap(), 1);
 
     // Pop the job to verify it's the correct type
-    let job = queue.pop().await.unwrap();
-    assert!(job.is_some());
-    assert!(matches!(job.unwrap(), WorkerJob::UpdateFactionInfo));
+    let scheduled_job = queue.pop().await.unwrap();
+    assert!(scheduled_job.is_some());
+    assert!(matches!(
+        scheduled_job.unwrap().job,
+        WorkerJob::UpdateFactionInfo
+    ));
 
     redis.cleanup().await?;
     Ok(())
@@ -120,9 +123,12 @@ async fn schedules_with_existing_factions() -> Result<(), TestError> {
     assert_eq!(queue.len().await.unwrap(), 1);
 
     // Pop the job to verify it's the correct type
-    let job = queue.pop().await.unwrap();
-    assert!(job.is_some());
-    assert!(matches!(job.unwrap(), WorkerJob::UpdateFactionInfo));
+    let scheduled_job = queue.pop().await.unwrap();
+    assert!(scheduled_job.is_some());
+    assert!(matches!(
+        scheduled_job.unwrap().job,
+        WorkerJob::UpdateFactionInfo
+    ));
 
     redis.cleanup().await?;
     Ok(())
