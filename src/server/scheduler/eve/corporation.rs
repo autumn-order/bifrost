@@ -5,15 +5,15 @@
 //! schedules staggered worker jobs to refresh their data from ESI. Batch sizing ensures
 //! all corporations are updated across the cache period without overwhelming the API or worker queue.
 
-use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
+use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::{
         config::eve::corporation::{CACHE_DURATION, SCHEDULE_INTERVAL},
         entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+        SchedulerState,
     },
-    worker::queue::WorkerQueue,
 };
 
 /// Wrapper type for corporation entities participating in scheduled refreshes.
@@ -44,17 +44,16 @@ impl SchedulableEntity for CorporationInfo {
 /// to distribute API load evenly.
 ///
 /// # Arguments
-/// - `db` - Database connection for querying corporations needing updates
-/// - `worker_queue` - Worker queue for dispatching corporation refresh jobs
+/// - `state` - Scheduler state containing database connection and worker queue for querying
+///   corporations needing updates and dispatching refresh jobs
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of corporation refresh jobs successfully scheduled (excludes duplicates)
 /// - `Err(Error)` - Database query failed or job scheduling failed
 pub async fn schedule_corporation_info_update(
-    db: DatabaseConnection,
-    worker_queue: WorkerQueue,
+    state: SchedulerState,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(&db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find corporations that need updating (returns corporation_ids)
     let corporation_ids = refresh_tracker
@@ -72,7 +71,7 @@ pub async fn schedule_corporation_info_update(
         .collect();
 
     let scheduled_job_count = refresh_tracker
-        .schedule_jobs::<CorporationInfo>(&worker_queue, jobs)
+        .schedule_jobs::<CorporationInfo>(&state.queue, jobs)
         .await?;
 
     Ok(scheduled_job_count)

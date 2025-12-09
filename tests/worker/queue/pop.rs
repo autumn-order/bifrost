@@ -62,12 +62,21 @@ mod pop {
         assert!(popped_job.is_some(), "Should return a job");
 
         // Verify it's the same job
-        match popped_job.unwrap() {
+        let scheduled_job = popped_job.unwrap();
+        match scheduled_job.job {
             WorkerJob::UpdateCharacterInfo { character_id } => {
                 assert_eq!(character_id, 12345, "Should be the same character ID");
             }
             _ => panic!("Should be UpdateCharacterInfo job"),
         }
+
+        // Verify scheduled timestamp is recent (within last second)
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(scheduled_job.scheduled_at);
+        assert!(
+            elapsed.num_seconds() < 2,
+            "Scheduled timestamp should be recent"
+        );
 
         redis.cleanup().await.expect("Failed to cleanup Redis");
     }
@@ -101,12 +110,21 @@ mod pop {
         assert!(popped_job.is_some(), "Should return a job");
 
         // Verify it's the same job
-        match popped_job.unwrap() {
+        let scheduled_job = popped_job.unwrap();
+        match scheduled_job.job {
             WorkerJob::UpdateAllianceInfo { alliance_id } => {
                 assert_eq!(alliance_id, 99000001, "Should be the same alliance ID");
             }
             _ => panic!("Should be UpdateAllianceInfo job"),
         }
+
+        // Verify scheduled timestamp is recent
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(scheduled_job.scheduled_at);
+        assert!(
+            elapsed.num_seconds() < 2,
+            "Scheduled timestamp should be recent"
+        );
 
         redis.cleanup().await.expect("Failed to cleanup Redis");
     }
@@ -140,7 +158,8 @@ mod pop {
         assert!(popped_job.is_some(), "Should return a job");
 
         // Verify it's the same job
-        match popped_job.unwrap() {
+        let scheduled_job = popped_job.unwrap();
+        match scheduled_job.job {
             WorkerJob::UpdateCorporationInfo { corporation_id } => {
                 assert_eq!(
                     corporation_id, 98000001,
@@ -149,6 +168,14 @@ mod pop {
             }
             _ => panic!("Should be UpdateCorporationInfo job"),
         }
+
+        // Verify scheduled timestamp is recent
+        let now = Utc::now();
+        let elapsed = now.signed_duration_since(scheduled_job.scheduled_at);
+        assert!(
+            elapsed.num_seconds() < 2,
+            "Scheduled timestamp should be recent"
+        );
 
         redis.cleanup().await.expect("Failed to cleanup Redis");
     }
@@ -245,26 +272,36 @@ mod pop {
             .expect("Should pop")
             .expect("Should have job");
 
-        match popped1 {
+        match popped1.job {
             WorkerJob::UpdateCharacterInfo { character_id } => {
                 assert_eq!(character_id, 11111, "First job should be 11111");
             }
             _ => panic!("Should be UpdateCharacterInfo"),
         }
 
-        match popped2 {
+        match popped2.job {
             WorkerJob::UpdateCharacterInfo { character_id } => {
                 assert_eq!(character_id, 22222, "Second job should be 22222");
             }
             _ => panic!("Should be UpdateCharacterInfo"),
         }
 
-        match popped3 {
+        match popped3.job {
             WorkerJob::UpdateCharacterInfo { character_id } => {
                 assert_eq!(character_id, 33333, "Third job should be 33333");
             }
             _ => panic!("Should be UpdateCharacterInfo"),
         }
+
+        // Verify scheduled timestamps are in chronological order
+        assert!(
+            popped1.scheduled_at < popped2.scheduled_at,
+            "First job should be scheduled before second"
+        );
+        assert!(
+            popped2.scheduled_at < popped3.scheduled_at,
+            "Second job should be scheduled before third"
+        );
 
         redis.cleanup().await.expect("Failed to cleanup Redis");
     }
@@ -358,16 +395,26 @@ mod pop {
 
         // Verify order: char, corp, alliance
         assert!(
-            matches!(pop1, WorkerJob::UpdateCharacterInfo { .. }),
+            matches!(pop1.job, WorkerJob::UpdateCharacterInfo { .. }),
             "First should be character job"
         );
         assert!(
-            matches!(pop2, WorkerJob::UpdateCorporationInfo { .. }),
+            matches!(pop2.job, WorkerJob::UpdateCorporationInfo { .. }),
             "Second should be corporation job"
         );
         assert!(
-            matches!(pop3, WorkerJob::UpdateAllianceInfo { .. }),
+            matches!(pop3.job, WorkerJob::UpdateAllianceInfo { .. }),
             "Third should be alliance job"
+        );
+
+        // Verify scheduled timestamps are in chronological order
+        assert!(
+            pop1.scheduled_at < pop2.scheduled_at,
+            "First job should be scheduled before second"
+        );
+        assert!(
+            pop2.scheduled_at < pop3.scheduled_at,
+            "Second job should be scheduled before third"
         );
 
         redis.cleanup().await.expect("Failed to cleanup Redis");

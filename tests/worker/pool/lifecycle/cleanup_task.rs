@@ -23,8 +23,13 @@ async fn starts_with_pool() {
         .await
         .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
+    let handler = WorkerJobHandler::new(
+        test.db.clone(),
+        test.esi_client.clone(),
+        queue.clone(),
+        false,
+    );
 
     let config = test_config();
     let pool = WorkerPool::new(config, queue.clone(), handler);

@@ -35,14 +35,13 @@ impl Worker {
     /// deduplication while the pool manages job execution.
     ///
     /// # Arguments
-    /// - `max_concurrent_jobs` - Maximum number of jobs that can be processed simultaneously
+    /// - `config` - Worker pool configuration including max concurrent jobs
     /// - `redis_pool` - Redis connection pool for job queue storage
     /// - `handler` - Job handler that processes different job types
     ///
     /// # Returns
     /// - `Worker` - New worker system ready to start processing jobs
-    pub fn new(max_concurrent_jobs: usize, redis_pool: Pool, handler: WorkerJobHandler) -> Self {
-        let config = WorkerPoolConfig::new(max_concurrent_jobs);
+    pub fn new(config: WorkerPoolConfig, redis_pool: Pool, handler: WorkerJobHandler) -> Self {
         let queue = WorkerQueue::new(redis_pool);
         let pool = WorkerPool::new(config, queue.clone(), handler);
 

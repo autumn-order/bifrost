@@ -47,7 +47,7 @@ use fred::prelude::*;
 
 use crate::server::{
     error::{worker::WorkerError, Error},
-    model::worker::WorkerJob,
+    model::worker::{ScheduledWorkerJob, WorkerJob},
     worker::queue::config::WorkerQueueConfig,
 };
 
@@ -284,17 +284,19 @@ impl WorkerQueue {
         Ok(was_added)
     }
 
-    /// Retrieves the earliest due job from the queue.
+    /// Retrieves the earliest due job from the queue with its scheduled timestamp.
     ///
     /// Uses a Lua script to atomically retrieve and remove the job with the lowest score
-    /// (earliest timestamp) that is due for execution (score <= current time).
+    /// (earliest timestamp) that is due for execution (score <= current time). Returns both
+    /// the job and the timestamp it was originally scheduled for, allowing the worker handler
+    /// to distinguish between jobs scheduled before downtime versus during downtime.
     ///
     /// # Returns
-    /// - `Ok(Some(WorkerJob))` - Job was popped from the queue
+    /// - `Ok(Some(ScheduledWorkerJob))` - Job was popped from the queue with scheduled timestamp
     /// - `Ok(None)` - Queue is empty or no jobs are due yet
     /// - `Err(Error::WorkerError)` - Deserialization failed
     /// - `Err(Error)` - Redis communication failed
-    pub async fn pop(&self) -> Result<Option<WorkerJob>, Error> {
+    pub async fn pop(&self) -> Result<Option<ScheduledWorkerJob>, Error> {
         // Execute Lua script to atomically pop earliest job that is due
         let now = Utc::now().timestamp_millis();
         let result: Option<Vec<Value>> = self
@@ -317,13 +319,23 @@ impl WorkerQueue {
                 }
 
                 let serialized: String = values[0].clone().convert()?;
+                let score_millis: i64 = values[1].clone().convert()?;
 
                 // Deserialize JSON back into WorkerJob
                 let job: WorkerJob = serde_json::from_str(&serialized).map_err(|e| {
                     Error::WorkerError(WorkerError::SerializationError(e.to_string()))
                 })?;
 
-                Ok(Some(job))
+                // Convert score (milliseconds) to DateTime<Utc>
+                let scheduled_at =
+                    DateTime::from_timestamp_millis(score_millis).ok_or_else(|| {
+                        Error::WorkerError(WorkerError::SerializationError(format!(
+                            "Invalid timestamp from Redis: {}",
+                            score_millis
+                        )))
+                    })?;
+
+                Ok(Some(ScheduledWorkerJob::new(job, scheduled_at)))
             }
         }
     }

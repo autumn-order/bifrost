@@ -5,15 +5,15 @@
 //! schedules staggered worker jobs to refresh their data from ESI. Character information
 //! includes basic metadata like name, birthday, and description which rarely changes.
 
-use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
+use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::{
         config::eve::character::{CACHE_DURATION, SCHEDULE_INTERVAL},
         entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+        SchedulerState,
     },
-    worker::queue::WorkerQueue,
 };
 
 /// Wrapper type for character entities participating in scheduled refreshes.
@@ -45,17 +45,16 @@ impl SchedulableEntity for CharacterInfo {
 /// changes, so a long cache duration is used.
 ///
 /// # Arguments
-/// - `db` - Database connection for querying characters needing updates
-/// - `worker_queue` - Worker queue for dispatching character refresh jobs
+/// - `state` - Scheduler state containing database connection and worker queue for querying
+///   characters needing updates and dispatching refresh jobs
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of character refresh jobs successfully scheduled (excludes duplicates)
 /// - `Err(Error)` - Database query failed or job scheduling failed
 pub async fn schedule_character_info_update(
-    db: DatabaseConnection,
-    worker_queue: WorkerQueue,
+    state: SchedulerState,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(&db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need updating (returns character_ids)
     let character_ids = refresh_tracker
@@ -73,7 +72,7 @@ pub async fn schedule_character_info_update(
         .collect();
 
     let scheduled_job_count = refresh_tracker
-        .schedule_jobs::<CharacterInfo>(&worker_queue, jobs)
+        .schedule_jobs::<CharacterInfo>(&state.queue, jobs)
         .await?;
 
     Ok(scheduled_job_count)

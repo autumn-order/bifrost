@@ -5,6 +5,7 @@
 //! job lists, duplicate detection, and large batch handling.
 
 use bifrost::server::model::worker::WorkerJob;
+use bifrost::server::scheduler::SchedulerState;
 
 use super::*;
 
@@ -24,8 +25,14 @@ async fn schedules_single_job() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -59,8 +66,14 @@ async fn schedules_multiple_jobs() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -102,8 +115,14 @@ async fn returns_zero_for_empty_jobs() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -136,8 +155,14 @@ async fn handles_duplicate_jobs() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -178,8 +203,14 @@ async fn schedules_many_jobs() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
