@@ -16,7 +16,7 @@ use crate::server::{
     config::Config,
     error::Error,
     scheduler::Scheduler,
-    worker::{handler::WorkerJobHandler, Worker, WorkerQueue},
+    worker::{handler::WorkerJobHandler, pool::WorkerPoolConfig, Worker, WorkerQueue},
 };
 
 /// Builds and configures the ESI client with OAuth credentials from configuration.
@@ -189,8 +189,15 @@ pub async fn start_workers(
     redis_pool: Pool,
     esi_client: eve_esi::Client,
 ) -> Result<Worker, Error> {
-    let handler = WorkerJobHandler::new(db, esi_client);
-    let worker = Worker::new(config.workers, redis_pool.clone(), handler);
+    // Create queue first so it can be passed to the handler
+    let queue = WorkerQueue::new(redis_pool.clone());
+
+    // Create handler with queue and ESI downtime offset enabled
+    let handler = WorkerJobHandler::new(db, esi_client, queue.clone(), true);
+
+    // Create worker with pool config
+    let pool_config = WorkerPoolConfig::new(config.workers);
+    let worker = Worker::new(pool_config, redis_pool.clone(), handler);
 
     worker.pool.start().await?;
 

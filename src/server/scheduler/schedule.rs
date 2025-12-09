@@ -29,10 +29,11 @@ pub(crate) static MIN_BATCH_LIMIT: i64 = 100;
 /// push jobs beyond the intended window.
 ///
 /// # Downtime Adjustment
-/// If the schedule interval overlaps with ESI downtime (10:58-11:07 UTC), the effective
-/// interval is reduced by the overlap duration before calculating the batch size. For
-/// example, a 30-minute interval with 9 minutes of downtime overlap becomes a 21-minute
-/// effective interval, resulting in a smaller batch to prevent overflow.
+/// If the schedule interval overlaps with ESI downtime (11:00-11:05 UTC + 2 minute
+/// grace period surrounding the window), the effective interval is reduced by the overlap
+/// duration before calculating the batch size. For example, a 30-minute interval with 9
+/// minutes of downtime overlap becomes a 21-minute effective interval, resulting in
+/// a smaller batch to prevent overflow.
 ///
 /// # Example
 /// With 10,000 entries, 24-hour cache, and 30-minute intervals:

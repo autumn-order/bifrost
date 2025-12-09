@@ -89,7 +89,8 @@ impl Scheduler {
     /// - `db` - Database connection for querying entities that need updates
     /// - `queue` - Worker queue for dispatching asynchronous refresh tasks
     /// - `offset_for_esi_downtime` - If `true`, adjusts job scheduling to avoid ESI downtime
-    ///   window (10:58-11:07 UTC). Set to `false` for testing to prevent time-dependent failures.
+    ///   window (11:00-11:05 UTC + 2 minute grace period surrounding the window). Set to `false`
+    ///   for testing to prevent time-dependent failures.
     ///
     /// # Returns
     /// - `Ok(Scheduler)` - Successfully created scheduler instance

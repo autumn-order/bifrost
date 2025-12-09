@@ -99,8 +99,13 @@ async fn multiple_dispatchers_for_high_concurrency() {
         .await
         .expect("Failed to create test setup");
     let redis = RedisTest::new().await.expect("Failed to create Redis test");
-    let handler = WorkerJobHandler::new(test.db.clone(), test.esi_client.clone());
     let queue = setup_test_queue(&redis);
+    let handler = WorkerJobHandler::new(
+        test.db.clone(),
+        test.esi_client.clone(),
+        queue.clone(),
+        false,
+    );
 
     // 119 jobs = 3 dispatchers (ceiling division ensures max 40 per dispatcher)
     let config = WorkerPoolConfig::new(119);
