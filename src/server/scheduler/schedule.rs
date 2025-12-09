@@ -80,7 +80,8 @@ fn calculate_downtime_overlap(schedule_interval: Duration) -> Duration {
 /// With 10,000 entries, 24-hour cache, and 30-minute intervals:
 /// - Batches per cache period: 1440 / 30 = 48
 /// - Batch size: 10,000 / 48 ≈ 208 entries per run
-/// - If 9 minutes overlap with downtime: effective interval = 21 minutes
+/// - If 9 minutes overlap with downtime: effective interval = 21 minutes (70% of original)
+/// - Scaled minimum batch: 100 * 0.7 = 70 entries
 /// - Adjusted batch size: 10,000 / (1440 / 21) ≈ 146 entries per run
 ///
 /// # Arguments
@@ -113,7 +114,13 @@ pub fn calculate_batch_limit(
     let batches_per_cache_period = cache.num_minutes() / effective_interval.num_minutes();
 
     if batches_per_cache_period > 0 {
-        (table_entries / batches_per_cache_period as u64).max(MIN_BATCH_LIMIT as u64)
+        // Scale MIN_BATCH_LIMIT proportionally with downtime overlap to prevent overflow
+        // If 30% of interval is downtime, reduce MIN_BATCH_LIMIT by 30%
+        let interval_ratio =
+            effective_interval.num_seconds() as f64 / schedule_interval.num_seconds() as f64;
+        let scaled_min_batch = (MIN_BATCH_LIMIT as f64 * interval_ratio).ceil() as u64;
+
+        (table_entries / batches_per_cache_period as u64).max(scaled_min_batch)
     } else {
         table_entries
     }
@@ -288,14 +295,16 @@ mod tests {
         /// Tests applying minimum batch limit with small entries.
         ///
         /// Verifies that the function enforces the minimum batch limit even when the
-        /// calculated size would be below the minimum threshold.
+        /// calculated size would be below the minimum threshold. The actual minimum
+        /// may be scaled down if there's downtime overlap.
         ///
-        /// Expected: 100 (minimum enforced despite calculation of 8)
+        /// Expected: >= MIN_BATCH_LIMIT * downtime_ratio (100 if no overlap)
         #[test]
         fn applies_minimum_batch_limit() {
             // 50 entries, 60 min cache, 10 min schedule = 6 batches, 8 per batch, but min is MIN_BATCH_LIMIT
             let result = calculate_batch_limit(50, Duration::minutes(60), Duration::minutes(10));
-            assert_eq!(result, 100);
+            // Result should be at least some portion of MIN_BATCH_LIMIT (scaled by downtime)
+            assert!(result >= 50); // At minimum, should schedule something reasonable
         }
 
         /// Tests working with different time units.
@@ -339,7 +348,9 @@ mod tests {
             let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30));
 
             // Should return a valid batch size (either full or reduced)
-            assert!(result >= 100); // At minimum, MIN_BATCH_LIMIT
+            // Note: MIN_BATCH_LIMIT may be scaled down if there's downtime overlap
+            assert!(result >= 50); // At minimum, scaled MIN_BATCH_LIMIT
+            assert!(result <= 10000); // Should not exceed total entries
         }
 
         /// Tests that entire interval during downtime returns zero.
@@ -358,6 +369,38 @@ mod tests {
             // This is validated by the effective_interval <= Duration::zero() check
             let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30));
             assert!(result <= 10000); // Should be reasonable
+        }
+
+        /// Tests that MIN_BATCH_LIMIT is scaled proportionally with downtime.
+        ///
+        /// Verifies that when downtime reduces the effective interval, MIN_BATCH_LIMIT
+        /// is also scaled down to prevent overflow. This ensures small tables don't
+        /// cause job overflow when downtime offsets are applied.
+        ///
+        /// Expected: MIN_BATCH_LIMIT scales with effective_interval / schedule_interval ratio
+        #[test]
+        fn scales_min_batch_limit_with_downtime() {
+            // Test with very small table that would normally hit MIN_BATCH_LIMIT
+            let schedule_interval = Duration::minutes(30);
+            let small_table_result =
+                calculate_batch_limit(10, Duration::hours(24), schedule_interval);
+
+            // Calculate what the expected result should be based on current downtime overlap
+            let downtime_overlap = calculate_downtime_overlap(schedule_interval);
+            let effective_interval = schedule_interval - downtime_overlap;
+
+            // Calculate expected scaled MIN_BATCH_LIMIT
+            let interval_ratio =
+                effective_interval.num_seconds() as f64 / schedule_interval.num_seconds() as f64;
+            let expected_scaled_min = (MIN_BATCH_LIMIT as f64 * interval_ratio).ceil() as u64;
+
+            // With 10 entries and 24 hour cache, calculated batch would be tiny,
+            // so we should get the scaled MIN_BATCH_LIMIT
+            assert_eq!(
+                small_table_result, expected_scaled_min,
+                "Expected scaled MIN_BATCH_LIMIT of {} (ratio: {:.2}), got {}",
+                expected_scaled_min, interval_ratio, small_table_result
+            );
         }
     }
 
