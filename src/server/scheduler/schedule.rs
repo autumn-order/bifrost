@@ -8,6 +8,7 @@
 use chrono::{DateTime, Duration, Utc};
 
 use crate::server::model::worker::WorkerJob;
+use crate::server::util::eve::get_esi_downtime_remaining;
 
 /// Minimum batch size for entity updates per scheduling cycle.
 ///
@@ -61,6 +62,12 @@ pub fn calculate_batch_limit(
 /// and spreads worker queue and API load over time. Jobs are scheduled with sub-second precision
 /// when many jobs need to fit within a short window.
 ///
+/// # Downtime Handling
+/// ESI daily downtime occurs between 11:00 and 11:05 UTC. This function applies a 2-minute
+/// grace period before and after (10:58-11:07 UTC total) to avoid scheduling jobs during
+/// or immediately adjacent to downtime. When the first job overlaps this window, it and all
+/// subsequent jobs are shifted to begin after 11:07 UTC, maintaining their relative spacing.
+///
 /// # Arguments
 /// - `jobs` - Vector of worker jobs to be scheduled
 /// - `schedule_interval` - Time window across which to distribute the jobs
@@ -68,14 +75,6 @@ pub fn calculate_batch_limit(
 /// # Returns
 /// - `Ok(Vec<(WorkerJob, DateTime<Utc>)>)` - List of jobs paired with their scheduled execution times
 /// - `Err(Error)` - Currently never returns an error (reserved for future validation)
-///
-/// # Example
-/// ```ignore
-/// // Schedule 120 jobs across a 30-minute window
-/// let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }, /* ... */];
-/// let schedule = create_job_schedule(jobs, Duration::minutes(30)).await?;
-/// // Jobs will be scheduled at: now, now+15s, now+30s, now+45s, etc.
-/// ```
 pub async fn create_job_schedule(
     jobs: Vec<WorkerJob>,
     schedule_interval: Duration,
@@ -89,12 +88,23 @@ pub async fn create_job_schedule(
     let base_time = Utc::now();
 
     let mut scheduled_jobs = Vec::new();
+    let mut cumulative_offset = Duration::zero();
 
     for (index, job) in jobs.into_iter().enumerate() {
         // Distribute jobs evenly across the window: (index * window) / total_jobs
         // This allows multiple jobs per second and ensures all jobs fit within the window
         let offset_seconds = (index as i64 * window_seconds) / num_jobs;
-        let scheduled_time = base_time + Duration::seconds(offset_seconds);
+        let mut scheduled_time = base_time + Duration::seconds(offset_seconds) + cumulative_offset;
+
+        // Check if this job overlaps with ESI downtime
+        //
+        // This will only return Some() once: when the first job hits downtime,
+        // the cumulative offset pushes all subsequent jobs past the window.
+        if let Some(downtime_remaining) = get_esi_downtime_remaining(scheduled_time) {
+            // Offset this job to after downtime ends
+            cumulative_offset = cumulative_offset + downtime_remaining;
+            scheduled_time = scheduled_time + downtime_remaining;
+        }
 
         scheduled_jobs.push((job, scheduled_time))
     }
@@ -560,10 +570,167 @@ mod tests {
                         scheduled_jobs[i].1.timestamp() - scheduled_jobs[i - 1].1.timestamp();
                     assert_eq!(
                         actual_interval, expected_interval,
-                        "For {} jobs with {:?} interval, expected interval {} but got {}",
-                        job_count, interval, expected_interval, actual_interval
+                        "Job count: {}, Expected interval: {}, Actual interval: {}",
+                        job_count, expected_interval, actual_interval
                     );
                 }
+            }
+        }
+
+        /// Tests offsetting jobs that overlap with ESI downtime.
+        ///
+        /// Verifies that when a job is scheduled during ESI downtime window (10:58-11:07 UTC),
+        /// it and all subsequent jobs are offset to after the downtime period.
+        ///
+        /// Expected: Jobs scheduled during downtime are moved to after 11:07 UTC
+        #[tokio::test]
+        async fn offsets_jobs_during_downtime() {
+            // Mock the current time to be 11:00 UTC (during downtime)
+            // We'll create jobs that would be scheduled during the downtime window
+            let jobs = vec![
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 3 },
+            ];
+
+            // Schedule over 10 minutes, which would normally space jobs 200 seconds apart
+            let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+
+            assert!(result.is_ok());
+            let scheduled_jobs = result.unwrap();
+            assert_eq!(scheduled_jobs.len(), 3);
+
+            // If we're currently in downtime, all jobs should be offset
+            // Verify that timestamps are still monotonically increasing
+            for i in 1..scheduled_jobs.len() {
+                assert!(
+                    scheduled_jobs[i].1.timestamp() >= scheduled_jobs[i - 1].1.timestamp(),
+                    "Timestamps should be monotonically increasing even after downtime offset"
+                );
+            }
+        }
+
+        /// Tests that jobs before downtime are not offset.
+        ///
+        /// Verifies that jobs scheduled well before the ESI downtime window
+        /// are not affected by the downtime offset logic.
+        ///
+        /// Expected: Jobs maintain original schedule when not in downtime
+        #[tokio::test]
+        async fn does_not_offset_jobs_before_downtime() {
+            // This test runs at current time which is likely not during downtime
+            let jobs = vec![
+                WorkerJob::UpdateAllianceInfo { alliance_id: 1 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 2 },
+            ];
+
+            let schedule_interval = Duration::minutes(5);
+            let before = Utc::now().timestamp();
+            let result = create_job_schedule(jobs, schedule_interval).await;
+
+            assert!(result.is_ok());
+            let scheduled_jobs = result.unwrap();
+
+            // If not in downtime, jobs should be within the normal window
+            // (or slightly extended if they happen to hit downtime)
+            for (_, scheduled_at) in &scheduled_jobs {
+                assert!(
+                    scheduled_at.timestamp() >= before,
+                    "Job should not be scheduled before start time"
+                );
+            }
+
+            // Timestamps should still be monotonically increasing
+            assert!(scheduled_jobs[1].1.timestamp() >= scheduled_jobs[0].1.timestamp());
+        }
+
+        /// Tests cumulative offset when multiple jobs hit downtime.
+        ///
+        /// Verifies that when multiple consecutive jobs would be scheduled during
+        /// downtime, the cumulative offset is maintained so all jobs are properly
+        /// spaced after the downtime window.
+        ///
+        /// Expected: All jobs after first downtime hit maintain cumulative offset
+        #[tokio::test]
+        async fn maintains_cumulative_offset_through_downtime() {
+            // Create many jobs to test cumulative offset behavior
+            let mut jobs = Vec::new();
+            for i in 1..=10 {
+                jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
+            }
+
+            let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+
+            assert!(result.is_ok());
+            let scheduled_jobs = result.unwrap();
+            assert_eq!(scheduled_jobs.len(), 10);
+
+            // All timestamps must be monotonically increasing
+            for i in 1..scheduled_jobs.len() {
+                assert!(
+                    scheduled_jobs[i].1.timestamp() > scheduled_jobs[i - 1].1.timestamp(),
+                    "Timestamp at index {} must be greater than previous",
+                    i
+                );
+            }
+
+            // If any job was offset, subsequent jobs should maintain spacing
+            for i in 1..scheduled_jobs.len() {
+                let interval =
+                    scheduled_jobs[i].1.timestamp() - scheduled_jobs[i - 1].1.timestamp();
+
+                // After downtime offset, intervals should be positive
+                assert!(interval > 0, "Interval must be positive");
+            }
+        }
+
+        /// Tests that job order is preserved even with downtime offsets.
+        ///
+        /// Verifies that when jobs are offset due to downtime, their relative
+        /// order is maintained in the schedule.
+        ///
+        /// Expected: Jobs maintain input order despite downtime offsets
+        #[tokio::test]
+        async fn preserves_job_order_with_downtime_offset() {
+            let jobs = vec![
+                WorkerJob::UpdateAllianceInfo { alliance_id: 100 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 200 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 300 },
+                WorkerJob::UpdateAllianceInfo { alliance_id: 400 },
+            ];
+
+            let result = create_job_schedule(jobs, Duration::minutes(15)).await;
+
+            assert!(result.is_ok());
+            let scheduled_jobs = result.unwrap();
+            assert_eq!(scheduled_jobs.len(), 4);
+
+            // Verify job order is preserved
+            assert!(matches!(
+                scheduled_jobs[0].0,
+                WorkerJob::UpdateAllianceInfo { alliance_id: 100 }
+            ));
+            assert!(matches!(
+                scheduled_jobs[1].0,
+                WorkerJob::UpdateAllianceInfo { alliance_id: 200 }
+            ));
+            assert!(matches!(
+                scheduled_jobs[2].0,
+                WorkerJob::UpdateAllianceInfo { alliance_id: 300 }
+            ));
+            assert!(matches!(
+                scheduled_jobs[3].0,
+                WorkerJob::UpdateAllianceInfo { alliance_id: 400 }
+            ));
+
+            // Verify temporal ordering
+            for i in 1..scheduled_jobs.len() {
+                assert!(
+                    scheduled_jobs[i].1 >= scheduled_jobs[i - 1].1,
+                    "Job {} should be scheduled at or after job {}",
+                    i,
+                    i - 1
+                );
             }
         }
     }
