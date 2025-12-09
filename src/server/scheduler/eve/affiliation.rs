@@ -6,16 +6,16 @@
 //! cache duration) and schedules batch jobs to refresh multiple characters per ESI request,
 //! respecting the 1000-character limit per affiliation API call.
 
-use sea_orm::{ColumnTrait, DatabaseConnection, IntoSimpleExpr};
+use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
     model::worker::WorkerJob,
     scheduler::{
         config::eve::character_affiliation::{CACHE_DURATION, SCHEDULE_INTERVAL},
         entity_refresh::{EntityRefreshTracker, SchedulableEntity},
+        SchedulerState,
     },
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
-    worker::queue::WorkerQueue,
 };
 
 /// Wrapper type for character affiliation entities participating in scheduled refreshes.
@@ -47,17 +47,16 @@ impl SchedulableEntity for CharacterAffiliation {
 /// endpoint limit, reducing API call overhead while keeping affiliation data fresh.
 ///
 /// # Arguments
-/// - `db` - Database connection for querying characters needing affiliation updates
-/// - `worker_queue` - Worker queue for dispatching affiliation refresh jobs
+/// - `state` - Scheduler state containing database connection and worker queue for querying
+///   characters needing affiliation updates and dispatching refresh jobs
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of affiliation refresh jobs successfully scheduled (excludes duplicates)
 /// - `Err(Error)` - Database query failed or job scheduling failed
 pub async fn schedule_character_affiliation_update(
-    db: DatabaseConnection,
-    worker_queue: WorkerQueue,
+    state: SchedulerState,
 ) -> Result<usize, crate::server::error::Error> {
-    let refresh_tracker = EntityRefreshTracker::new(&db, CACHE_DURATION, SCHEDULE_INTERVAL);
+    let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need affiliation updates (returns character_ids)
     let character_ids = refresh_tracker
@@ -77,7 +76,7 @@ pub async fn schedule_character_affiliation_update(
         .collect();
 
     let scheduled_job_count = refresh_tracker
-        .schedule_jobs::<CharacterAffiliation>(&worker_queue, jobs)
+        .schedule_jobs::<CharacterAffiliation>(&state.queue, jobs)
         .await?;
 
     Ok(scheduled_job_count)

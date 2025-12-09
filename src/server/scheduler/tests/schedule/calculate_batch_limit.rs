@@ -13,7 +13,7 @@ use crate::server::scheduler::schedule::{
 /// Expected: 0
 #[test]
 fn returns_zero_for_empty_table() {
-    let result = calculate_batch_limit(0, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(0, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 0);
 }
 
@@ -26,7 +26,7 @@ fn returns_zero_for_empty_table() {
 #[test]
 fn calculates_standard_batch_size() {
     // 600 entries, 60 min cache, 10 min schedule = 6 batches, 100 per batch
-    let result = calculate_batch_limit(600, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(600, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 100);
 }
 
@@ -39,7 +39,7 @@ fn calculates_standard_batch_size() {
 #[test]
 fn returns_minimum_of_one_hundred() {
     // 5 entries, 60 min cache, 10 min schedule = 6 batches, but min MIN_BATCH_LIMIT per batch
-    let result = calculate_batch_limit(5, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(5, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 100);
 }
 
@@ -52,7 +52,7 @@ fn returns_minimum_of_one_hundred() {
 #[test]
 fn returns_all_entries_when_interval_equals_cache() {
     // 100 entries, 60 min cache, 60 min schedule = 1 batch, all entries
-    let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(60));
+    let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(60), false);
     assert_eq!(result, 100);
 }
 
@@ -65,7 +65,7 @@ fn returns_all_entries_when_interval_equals_cache() {
 #[test]
 fn returns_all_entries_when_interval_exceeds_cache() {
     // 100 entries, 60 min cache, 120 min schedule = 0 batches per period, return all
-    let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(120));
+    let result = calculate_batch_limit(100, Duration::minutes(60), Duration::minutes(120), false);
     assert_eq!(result, 100);
 }
 
@@ -77,7 +77,7 @@ fn returns_all_entries_when_interval_exceeds_cache() {
 /// Expected: 100 (minimum enforced)
 #[test]
 fn handles_single_entry() {
-    let result = calculate_batch_limit(1, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(1, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 100);
 }
 
@@ -90,7 +90,7 @@ fn handles_single_entry() {
 #[test]
 fn handles_large_number_of_entries() {
     // 10000 entries, 60 min cache, 10 min schedule = 6 batches, 1666 per batch
-    let result = calculate_batch_limit(10000, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(10000, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 1666);
 }
 
@@ -103,7 +103,7 @@ fn handles_large_number_of_entries() {
 #[test]
 fn handles_uneven_division() {
     // 1000 entries, 60 min cache, 10 min schedule = 6 batches, 166 per batch (1000/6 = 166.66)
-    let result = calculate_batch_limit(1000, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(1000, Duration::minutes(60), Duration::minutes(10), false);
     assert_eq!(result, 166);
 }
 
@@ -117,7 +117,7 @@ fn handles_uneven_division() {
 #[test]
 fn applies_minimum_batch_limit() {
     // 50 entries, 60 min cache, 10 min schedule = 6 batches, 8 per batch, but min is MIN_BATCH_LIMIT
-    let result = calculate_batch_limit(50, Duration::minutes(60), Duration::minutes(10));
+    let result = calculate_batch_limit(50, Duration::minutes(60), Duration::minutes(10), false);
     // Result should be at least some portion of MIN_BATCH_LIMIT (scaled by downtime)
     assert!(result >= 50); // At minimum, should schedule something reasonable
 }
@@ -131,7 +131,7 @@ fn applies_minimum_batch_limit() {
 #[test]
 fn works_with_different_time_units() {
     // 1000 entries, 120 min cache, 30 min schedule = 4 batches, 250 per batch
-    let result = calculate_batch_limit(1000, Duration::minutes(120), Duration::minutes(30));
+    let result = calculate_batch_limit(1000, Duration::minutes(120), Duration::minutes(30), false);
     assert_eq!(result, 250);
 }
 
@@ -144,7 +144,7 @@ fn works_with_different_time_units() {
 #[test]
 fn handles_small_cache_to_schedule_ratio() {
     // 100 entries, 15 min cache, 10 min schedule = 1 batch, 100 per batch
-    let result = calculate_batch_limit(100, Duration::minutes(15), Duration::minutes(10));
+    let result = calculate_batch_limit(100, Duration::minutes(15), Duration::minutes(10), false);
     assert_eq!(result, 100);
 }
 
@@ -160,7 +160,7 @@ fn accounts_for_downtime_overlap() {
     // The batch size should be adjusted based on downtime overlap
     // We can't test exact values without mocking time, but we can verify
     // the function handles downtime overlap calculation without panicking
-    let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30));
+    let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30), false);
 
     // Should return a valid batch size (either full or reduced)
     // Note: MIN_BATCH_LIMIT may be scaled down if there's downtime overlap
@@ -182,7 +182,7 @@ fn returns_zero_when_entire_interval_is_downtime() {
 
     // Even with entries, if there's no effective time to schedule, return 0
     // This is validated by the effective_interval <= Duration::zero() check
-    let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30));
+    let result = calculate_batch_limit(10000, Duration::hours(24), Duration::minutes(30), false);
     assert!(result <= 10000); // Should be reasonable
 }
 
@@ -197,7 +197,8 @@ fn returns_zero_when_entire_interval_is_downtime() {
 fn scales_min_batch_limit_with_downtime() {
     // Test with very small table that would normally hit MIN_BATCH_LIMIT
     let schedule_interval = Duration::minutes(30);
-    let small_table_result = calculate_batch_limit(10, Duration::hours(24), schedule_interval);
+    let small_table_result =
+        calculate_batch_limit(10, Duration::hours(24), schedule_interval, false);
 
     // Calculate what the expected result should be based on current downtime overlap
     let downtime_overlap = calculate_downtime_overlap(schedule_interval);

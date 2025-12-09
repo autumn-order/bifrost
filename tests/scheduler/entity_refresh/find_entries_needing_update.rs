@@ -5,6 +5,7 @@
 //! entry identification, ordering by age, batch limits, and error handling.
 
 use super::*;
+use bifrost::server::scheduler::SchedulerState;
 
 /// Tests finding entries when database table is empty.
 ///
@@ -20,8 +21,17 @@ async fn returns_empty_when_no_entries() -> Result<(), TestError> {
         .build()
         .await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -50,8 +60,17 @@ async fn returns_empty_when_all_up_to_date() -> Result<(), TestError> {
         .await?;
     test.eve().insert_mock_alliance(1, None).await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -92,8 +111,17 @@ async fn returns_entries_with_expired_cache() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -149,8 +177,17 @@ async fn returns_oldest_updated_first() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -199,8 +236,17 @@ async fn respects_batch_limit() -> Result<(), TestError> {
 
     // With 10 entries, cache 24h, interval 30min = 10 / 48 = 0 -> min 100
     // But we only have 10 entries, so we should get all 10
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -240,8 +286,17 @@ async fn handles_single_entry() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );
@@ -266,8 +321,17 @@ async fn handles_single_entry() -> Result<(), TestError> {
 async fn fails_when_tables_missing() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 
+    let redis = RedisTest::new().await?;
+    let queue = setup_test_queue(&redis);
+
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue,
+        offset_for_esi_downtime: false,
+    };
+
     let tracker = EntityRefreshTracker::new(
-        &test.db,
+        &state,
         alliance_config::CACHE_DURATION,
         alliance_config::SCHEDULE_INTERVAL,
     );

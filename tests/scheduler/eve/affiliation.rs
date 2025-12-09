@@ -5,6 +5,7 @@
 //! edge cases like empty tables and duplicate scheduling attempts.
 
 use bifrost::server::scheduler::eve::affiliation::schedule_character_affiliation_update;
+use bifrost::server::scheduler::SchedulerState;
 use bifrost_test_utils::prelude::*;
 use chrono::{Duration, Utc};
 use entity::prelude::EveCharacter;
@@ -26,7 +27,13 @@ async fn returns_zero_when_no_characters() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -63,7 +70,13 @@ async fn returns_zero_when_all_characters_up_to_date() -> Result<(), TestError> 
         .insert_mock_character(3, corporation.corporation_id, None, None)
         .await?;
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 0);
@@ -105,7 +118,13 @@ async fn schedules_single_expired_character_affiliation() -> Result<(), TestErro
         .exec(&test.db)
         .await?;
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -149,7 +168,13 @@ async fn schedules_multiple_expired_character_affiliations() -> Result<(), TestE
             .await?;
     }
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // All 5 characters fit in one batch (under 1000 limit)
@@ -202,7 +227,13 @@ async fn schedules_only_expired_character_affiliations() -> Result<(), TestError
         .insert_mock_character(5, corporation.corporation_id, None, None)
         .await?;
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // Only the 3 expired characters should be scheduled (in 1 batch)
@@ -275,7 +306,13 @@ async fn schedules_oldest_affiliations_first() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // All 3 fit in one batch
@@ -317,8 +354,14 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     // Schedule first time
-    let result1 = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let result1 = schedule_character_affiliation_update(state.clone()).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
@@ -327,7 +370,7 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
 
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
-    let result2 = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let result2 = schedule_character_affiliation_update(state).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
@@ -351,7 +394,13 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_err());
 
@@ -392,7 +441,13 @@ async fn batches_characters_when_over_esi_limit() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // All 2500 characters are batched into jobs, but duplicate detection in Redis
@@ -435,7 +490,13 @@ async fn batches_exactly_at_esi_limit() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // Should create exactly 1 job with 1000 characters
@@ -477,7 +538,13 @@ async fn batches_just_over_esi_limit() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // Should create multiple jobs but duplicate detection may reduce count
@@ -520,7 +587,13 @@ async fn schedules_many_characters() -> Result<(), TestError> {
             .await?;
     }
 
-    let result = schedule_character_affiliation_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_character_affiliation_update(state).await;
 
     assert!(result.is_ok());
     // All 50 fit in one batch (under 1000 limit)

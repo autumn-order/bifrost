@@ -5,9 +5,7 @@
 //! of NPC factions in EVE Online. Rather than querying for individual faction expiration times,
 //! the scheduler simply enqueues a single job that checks and updates all factions if needed.
 
-use sea_orm::DatabaseConnection;
-
-use crate::server::{error::Error, model::worker::WorkerJob, worker::WorkerQueue};
+use crate::server::{error::Error, model::worker::WorkerJob, scheduler::SchedulerState};
 
 /// Schedules a faction information update check to the worker queue.
 ///
@@ -18,17 +16,13 @@ use crate::server::{error::Error, model::worker::WorkerJob, worker::WorkerQueue}
 /// by comparing the stored `updated_at` timestamp against the 24-hour cache duration.
 ///
 /// # Arguments
-/// - `_db` - Database connection (unused; kept for API consistency with other schedulers)
-/// - `worker_queue` - Worker queue to push the update job onto
+/// - `state` - Scheduler state containing the worker queue (database connection unused for factions)
 ///
 /// # Returns
 /// - `Ok(1)` - Successfully scheduled one faction update check job
 /// - `Err(Error)` - Failed to enqueue the job to the worker queue
-pub async fn schedule_faction_info_update(
-    _db: DatabaseConnection,
-    worker_queue: WorkerQueue,
-) -> Result<usize, Error> {
-    let was_scheduled = worker_queue.push(WorkerJob::UpdateFactionInfo {}).await?;
+pub async fn schedule_faction_info_update(state: SchedulerState) -> Result<usize, Error> {
+    let was_scheduled = state.queue.push(WorkerJob::UpdateFactionInfo {}).await?;
 
     let scheduled_count = if was_scheduled { 1 } else { 0 };
 

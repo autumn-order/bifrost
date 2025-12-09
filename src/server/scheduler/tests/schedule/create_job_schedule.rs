@@ -12,7 +12,7 @@ use crate::server::{model::worker::WorkerJob, scheduler::schedule::create_job_sc
 /// Expected: Ok with empty Vec
 #[tokio::test]
 async fn returns_empty_for_no_jobs() {
-    let result = create_job_schedule(vec![], Duration::minutes(10)).await;
+    let result = create_job_schedule(vec![], Duration::minutes(10), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -30,7 +30,7 @@ async fn schedules_single_job() {
     let jobs = vec![WorkerJob::UpdateAllianceInfo { alliance_id: 1 }];
 
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(10), false).await;
     let after = Utc::now().timestamp();
 
     assert!(result.is_ok());
@@ -62,7 +62,7 @@ async fn staggers_job_execution_times() {
 
     let schedule_interval = Duration::minutes(10);
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, schedule_interval).await;
+    let result = create_job_schedule(jobs, schedule_interval, false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -100,7 +100,7 @@ async fn handles_more_jobs_than_seconds() {
 
     let schedule_interval = Duration::minutes(10); // 600 seconds
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, schedule_interval).await;
+    let result = create_job_schedule(jobs, schedule_interval, false).await;
     let after = before + schedule_interval.num_seconds();
 
     assert!(result.is_ok());
@@ -141,7 +141,7 @@ async fn returns_correct_job_structure() {
     ];
 
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, Duration::minutes(5)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(5), false).await;
     let after = Utc::now().timestamp() + Duration::minutes(5).num_seconds();
 
     assert!(result.is_ok());
@@ -188,7 +188,7 @@ async fn schedules_within_interval_window() {
 
     let schedule_interval = Duration::minutes(10);
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, schedule_interval).await;
+    let result = create_job_schedule(jobs, schedule_interval, false).await;
     let after = before + schedule_interval.num_seconds();
 
     assert!(result.is_ok());
@@ -221,7 +221,7 @@ async fn maintains_job_order() {
         WorkerJob::UpdateAllianceInfo { alliance_id: 40 },
     ];
 
-    let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(10), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -259,7 +259,7 @@ async fn produces_monotonic_timestamps() {
         jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
     }
 
-    let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(10), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -297,7 +297,7 @@ async fn calculates_correct_intervals_for_different_counts() {
             jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
         }
 
-        let result = create_job_schedule(jobs, interval).await;
+        let result = create_job_schedule(jobs, interval, false).await;
         assert!(result.is_ok());
 
         let scheduled_jobs = result.unwrap();
@@ -333,7 +333,7 @@ async fn offsets_jobs_during_downtime() {
     ];
 
     // Schedule over 10 minutes, which would normally space jobs 200 seconds apart
-    let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(10), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -365,7 +365,7 @@ async fn does_not_offset_jobs_before_downtime() {
 
     let schedule_interval = Duration::minutes(5);
     let before = Utc::now().timestamp();
-    let result = create_job_schedule(jobs, schedule_interval).await;
+    let result = create_job_schedule(jobs, schedule_interval, false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -398,7 +398,7 @@ async fn maintains_cumulative_offset_through_downtime() {
         jobs.push(WorkerJob::UpdateAllianceInfo { alliance_id: i });
     }
 
-    let result = create_job_schedule(jobs, Duration::minutes(10)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(10), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();
@@ -437,7 +437,7 @@ async fn preserves_job_order_with_downtime_offset() {
         WorkerJob::UpdateAllianceInfo { alliance_id: 400 },
     ];
 
-    let result = create_job_schedule(jobs, Duration::minutes(15)).await;
+    let result = create_job_schedule(jobs, Duration::minutes(15), false).await;
 
     assert!(result.is_ok());
     let scheduled_jobs = result.unwrap();

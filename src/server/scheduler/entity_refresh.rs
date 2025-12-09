@@ -8,12 +8,18 @@
 use chrono::{Duration, Utc};
 use dioxus_logger::tracing;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, IntoSimpleExpr, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    ColumnTrait, EntityTrait, IntoSimpleExpr, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
 
-use super::schedule::{calculate_batch_limit, create_job_schedule};
-use crate::server::{error::Error, model::worker::WorkerJob, worker::queue::WorkerQueue};
+use crate::server::{
+    error::Error,
+    model::worker::WorkerJob,
+    scheduler::{
+        schedule::{calculate_batch_limit, create_job_schedule},
+        SchedulerState,
+    },
+    worker::queue::WorkerQueue,
+};
 
 /// Trait for entities that support scheduled cache updates.
 ///
@@ -46,7 +52,7 @@ pub trait SchedulableEntity {
 /// over time, and schedules worker jobs with staggered execution times to avoid overwhelming
 /// the API or worker system.
 pub struct EntityRefreshTracker<'a> {
-    db: &'a DatabaseConnection,
+    state: &'a SchedulerState,
     cache_duration: Duration,
     schedule_interval: Duration,
 }
@@ -65,12 +71,12 @@ impl<'a> EntityRefreshTracker<'a> {
     /// # Returns
     /// A new `EntityRefreshTracker` instance configured with the provided parameters.
     pub fn new(
-        db: &'a DatabaseConnection,
+        state: &'a SchedulerState,
         cache_duration: Duration,
         schedule_interval: Duration,
     ) -> Self {
         Self {
-            db,
+            state,
             cache_duration,
             schedule_interval,
         }
@@ -104,7 +110,7 @@ impl<'a> EntityRefreshTracker<'a> {
         S::Entity: Send + Sync,
         <S::Entity as EntityTrait>::Model: Send + Sync,
     {
-        let table_entries = S::Entity::find().count(self.db).await?;
+        let table_entries = S::Entity::find().count(&self.state.db).await?;
         if table_entries == 0 {
             return Ok(Vec::new());
         }
@@ -112,8 +118,12 @@ impl<'a> EntityRefreshTracker<'a> {
         let now = Utc::now().naive_utc();
         let cache_expiry_threshold = now - self.cache_duration;
 
-        let max_batch_size =
-            calculate_batch_limit(table_entries, self.cache_duration, self.schedule_interval);
+        let max_batch_size = calculate_batch_limit(
+            table_entries,
+            self.cache_duration,
+            self.schedule_interval,
+            self.state.offset_for_esi_downtime,
+        );
 
         let ids: Vec<i64> = S::Entity::find()
             // Only update entries after their cache has expired to get fresh data
@@ -123,7 +133,7 @@ impl<'a> EntityRefreshTracker<'a> {
             .select_only()
             .column(S::id_column())
             .into_tuple()
-            .all(self.db)
+            .all(&self.state.db)
             .await?;
 
         Ok(ids)
@@ -159,7 +169,12 @@ impl<'a> EntityRefreshTracker<'a> {
     where
         S: SchedulableEntity + Send + Sync,
     {
-        let job_schedule = create_job_schedule(jobs, self.schedule_interval).await?;
+        let job_schedule = create_job_schedule(
+            jobs,
+            self.schedule_interval,
+            self.state.offset_for_esi_downtime,
+        )
+        .await?;
 
         let mut scheduled_count = 0;
 

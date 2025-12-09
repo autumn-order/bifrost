@@ -215,7 +215,7 @@ pub async fn start_workers(
 /// - `Ok(())` - Scheduler successfully created and background task spawned
 /// - `Err(Error)` - Failed to initialize the scheduler (occurs before spawning)
 pub async fn start_scheduler(db: DatabaseConnection, queue: WorkerQueue) -> Result<(), Error> {
-    let scheduler = Scheduler::new(db, queue).await?;
+    let scheduler = Scheduler::new(db, queue, true).await?;
 
     tokio::spawn(async move {
         if let Err(e) = scheduler.start().await {

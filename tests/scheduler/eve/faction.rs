@@ -7,6 +7,7 @@
 
 use bifrost::server::{
     model::worker::WorkerJob, scheduler::eve::faction::schedule_faction_info_update,
+    scheduler::SchedulerState,
 };
 use bifrost_test_utils::prelude::*;
 
@@ -26,7 +27,13 @@ async fn schedules_faction_update_job() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_faction_info_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -57,7 +64,13 @@ async fn schedules_without_faction_table() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_faction_info_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
@@ -91,7 +104,13 @@ async fn schedules_with_existing_factions() -> Result<(), TestError> {
     test.eve().insert_mock_faction(2).await?;
     test.eve().insert_mock_faction(3).await?;
 
-    let result = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_faction_info_update(state).await;
 
     assert!(result.is_ok());
     // Still just 1 job since the worker job handles all factions
@@ -122,8 +141,14 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     // Schedule first time
-    let result1 = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let result1 = schedule_faction_info_update(state.clone()).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
@@ -132,7 +157,7 @@ async fn handles_duplicate_scheduling_attempts() -> Result<(), TestError> {
 
     // Attempt to schedule again - duplicate jobs are rejected
     // The duplicate detection is based on job content (serialized JSON), not scheduled time
-    let result2 = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let result2 = schedule_faction_info_update(state).await;
     assert!(result2.is_ok());
     // Same job already exists in queue, so it won't be scheduled again
     assert_eq!(result2.unwrap(), 0);
@@ -157,8 +182,14 @@ async fn schedules_multiple_times_after_queue_clear() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
     // Schedule first time
-    let result1 = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let result1 = schedule_faction_info_update(state.clone()).await;
     assert!(result1.is_ok());
     assert_eq!(result1.unwrap(), 1);
 
@@ -170,7 +201,12 @@ async fn schedules_multiple_times_after_queue_clear() -> Result<(), TestError> {
     let queue2 = setup_test_queue(&redis2);
 
     // Should be able to schedule again with new queue
-    let result2 = schedule_faction_info_update(test.db.clone(), queue2.clone()).await;
+    let state2 = SchedulerState {
+        db: test.db.clone(),
+        queue: queue2.clone(),
+        offset_for_esi_downtime: false,
+    };
+    let result2 = schedule_faction_info_update(state2).await;
     assert!(result2.is_ok());
     assert_eq!(result2.unwrap(), 1);
 
@@ -195,16 +231,21 @@ async fn schedules_with_multiple_concurrent_calls() -> Result<(), TestError> {
     let queue = setup_test_queue(&redis);
 
     // Attempt to schedule from multiple concurrent calls
-    let db = test.db.clone();
-    let queue_clone = queue.clone();
+    let state1 = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
 
-    let handle1 = tokio::spawn(async move { schedule_faction_info_update(db, queue_clone).await });
+    let handle1 = tokio::spawn(async move { schedule_faction_info_update(state1).await });
 
-    let db2 = test.db.clone();
-    let queue_clone2 = queue.clone();
+    let state2 = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
 
-    let handle2 =
-        tokio::spawn(async move { schedule_faction_info_update(db2, queue_clone2).await });
+    let handle2 = tokio::spawn(async move { schedule_faction_info_update(state2).await });
 
     let result1 = handle1.await.unwrap();
     let result2 = handle2.await.unwrap();
@@ -233,12 +274,17 @@ async fn schedules_with_multiple_concurrent_calls() -> Result<(), TestError> {
 async fn returns_consistent_result_on_success() -> Result<(), TestError> {
     let test = TestBuilder::new().build().await?;
 
-    // Test multiple independent scheduling operations return consistent results
     for _ in 0..3 {
         let redis = RedisTest::new().await?;
         let queue = setup_test_queue(&redis);
 
-        let result = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+        let state = SchedulerState {
+            db: test.db.clone(),
+            queue: queue.clone(),
+            offset_for_esi_downtime: false,
+        };
+
+        let result = schedule_faction_info_update(state).await;
 
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 1);
@@ -266,7 +312,13 @@ async fn works_with_minimal_database_setup() -> Result<(), TestError> {
     let redis = RedisTest::new().await?;
     let queue = setup_test_queue(&redis);
 
-    let result = schedule_faction_info_update(test.db.clone(), queue.clone()).await;
+    let state = SchedulerState {
+        db: test.db.clone(),
+        queue: queue.clone(),
+        offset_for_esi_downtime: false,
+    };
+
+    let result = schedule_faction_info_update(state).await;
 
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), 1);
