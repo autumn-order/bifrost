@@ -28,6 +28,7 @@ use crate::server::error::{retry::ErrorRetryStrategy, Error};
 /// - **Backoff strategy**: Exponential starting at 1 second (1s, 2s, 4s, ...)
 /// - **Retry conditions**: Only errors with `ErrorRetryStrategy::Retry` are retried
 /// - **Permanent failures**: Errors with `ErrorRetryStrategy::Fail` return immediately
+/// - **Rate limited**: Errors with `ErrorRetryStrategy::RateLimited` return immediately (handled at job level)
 ///
 /// # Example
 ///
@@ -177,6 +178,10 @@ where
                 Err(e) => match e.to_retry_strategy() {
                     ErrorRetryStrategy::Fail => {
                         tracing::error!("Permanent error for {}: {:?}", description, e);
+                        return Err(e);
+                    }
+                    ErrorRetryStrategy::RateLimited(_) => {
+                        tracing::warn!("Rate limited for {}", description);
                         return Err(e);
                     }
                     ErrorRetryStrategy::Retry => {
