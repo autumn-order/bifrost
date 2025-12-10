@@ -44,15 +44,12 @@ pub fn Home() -> Element {
                 }
                 div { class: "flex flex-col gap-2 px-4 max-w-256",
                     p { class: "font-bold text-center",
-                        "This is a test instance of Bifrost"
-                    }
-                    p {
-                        "Alpha 3 tests the new retry logic which will make up to 3 total attempts for ESI requests should ESI return any internal server errors instead of expected success responses."
-                    }
-                    p {
-                        "Additionally, a major refactor has been completed which has made the internals of how we request ESI entities like alliances, corporations, and characters easier to use and more
-                        in-line with best practices. Our callback method, which handles the login, has also been refactored as well to be far easier to read and understand the various scenarios when logging in
-                        such as a character already has an account, or they are a new character, or they're being linked to an account, etc."
+                        "This is a test instance of Bifrost, see the latest " a {
+                            class: "link",
+                            href: "https://github.com/autumn-order/bifrost/releases",
+                            "release notes"
+                        }
+                        " for details."
                     }
                     p {
                         "To participate in the test, simply login with EVE Online and play around with the character linking system. You can link characters to an account, then logout, login with a character
