@@ -125,6 +125,27 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .one(self.db)
             .await
     }
+
+    /// Updates the updated_at timestamp for all faction records.
+    ///
+    /// Sets the `updated_at` timestamp to the current time for all faction records
+    /// in the database. Used when ESI returns 304 Not Modified to indicate the
+    /// cached data is still current without updating other fields.
+    ///
+    /// # Returns
+    /// - `Ok(())` - All faction timestamps updated successfully
+    /// - `Err(DbErr)` - Database operation failed
+    pub async fn update_all_timestamps(&self) -> Result<(), DbErr> {
+        entity::prelude::EveFaction::update_many()
+            .col_expr(
+                entity::eve_faction::Column::UpdatedAt,
+                sea_orm::sea_query::Expr::value(Utc::now().naive_utc()),
+            )
+            .exec(self.db)
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]

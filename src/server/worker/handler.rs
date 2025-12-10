@@ -158,7 +158,7 @@ impl WorkerJobHandler {
         tracing::debug!("Checking for daily NPC faction info update");
 
         let factions = FactionService::new(&self.db, &self.esi_client)
-            .update_factions()
+            .update()
             .await
             .map_err(|e| {
                 tracing::error!("Failed to update NPC faction information: {:?}", e);
