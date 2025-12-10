@@ -1,1 +1,1 @@
-mod update_factions;
+mod update;

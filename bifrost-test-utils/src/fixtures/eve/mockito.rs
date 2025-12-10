@@ -159,4 +159,169 @@ impl<'a> EveFixtures<'a> {
             .expect(expected_requests)
             .create()
     }
+
+    /// Create a mock HTTP endpoint that returns an error status code.
+    ///
+    /// Sets up a mock GET endpoint at `/corporations/{corporation_id}` that returns
+    /// the specified error status code. Useful for testing retry logic and error handling.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The corporation ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_corporation_endpoint_error(
+        &mut self,
+        corporation_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/corporations/{}", corporation_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(status_code)
+            .expect(expected_requests)
+            .create()
+    }
+
+    /// Create a mock HTTP endpoint that returns 304 Not Modified.
+    ///
+    /// Sets up a mock GET endpoint at `/corporations/{corporation_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The corporation ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_corporation_endpoint_not_modified(
+        &mut self,
+        corporation_id: i64,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/corporations/{}", corporation_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(304)
+            .expect(expected_requests)
+            .create()
+    }
+
+    /// Create a mock HTTP endpoint for alliance that returns an error status code.
+    ///
+    /// Sets up a mock GET endpoint at `/alliances/{alliance_id}` that returns
+    /// the specified error status code. Useful for testing retry logic and error handling.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_alliance_endpoint_error(
+        &mut self,
+        alliance_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/alliances/{}", alliance_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(status_code)
+            .expect(expected_requests)
+            .create()
+    }
+
+    /// Create a mock HTTP endpoint that returns 304 Not Modified.
+    ///
+    /// Sets up a mock GET endpoint at `/alliances/{alliance_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_alliance_endpoint_not_modified(
+        &mut self,
+        alliance_id: i64,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/alliances/{}", alliance_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(304)
+            .expect(expected_requests)
+            .create()
+    }
+
+    /// Create a mock HTTP endpoint for character that returns an error status code.
+    ///
+    /// Sets up a mock GET endpoint at `/characters/{character_id}` that returns
+    /// the specified error status code. Useful for testing retry logic and error handling.
+    ///
+    /// # Arguments
+    /// - `character_id` - The character ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_character_endpoint_error(
+        &mut self,
+        character_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/characters/{}", character_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(status_code)
+            .expect(expected_requests)
+            .create()
+    }
+
+    /// Create a mock HTTP endpoint that returns 304 Not Modified.
+    ///
+    /// Sets up a mock GET endpoint at `/characters/{character_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior.
+    ///
+    /// # Arguments
+    /// - `character_id` - The character ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_character_endpoint_not_modified(
+        &mut self,
+        character_id: i64,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/characters/{}", character_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(304)
+            .expect(expected_requests)
+            .create()
+    }
 }

@@ -1,23 +1,19 @@
-//! Tests for FactionService::update_factions method.
+//! Tests for FactionService::update method.
 //!
 //! This module verifies the faction update service behavior during ESI data
-//! synchronization, including cache expiry handling, retry logic for transient
-//! failures, and error handling for missing tables or unavailable ESI endpoints.
+//! synchronization, including caching with 304 Not Modified responses, retry logic
+//! for transient failures, and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{
-    error::Error,
-    service::{eve::faction::FactionService, orchestrator::faction::FactionOrchestrator},
-};
+use bifrost::server::{error::Error, service::eve::faction::FactionService};
 use bifrost_test_utils::prelude::*;
-use chrono::{Duration, Utc};
-use sea_orm::{ActiveModelTrait, ActiveValue, EntityTrait, IntoActiveModel};
+use sea_orm::EntityTrait;
 
 /// Tests updating an empty factions table.
 ///
 /// Verifies that the faction service successfully fetches faction data from ESI
 /// and populates an empty database table with the retrieved faction records.
 ///
-/// Expected: Ok with one faction inserted</parameter>
+/// Expected: Ok with one faction inserted
 #[tokio::test]
 async fn updates_empty_faction_table() -> Result<(), TestError> {
     let faction_id = 1;
@@ -29,7 +25,7 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let update_result = faction_service.update_factions().await;
+    let update_result = faction_service.update().await;
 
     assert!(update_result.is_ok());
     let updated = update_result.unwrap();
@@ -41,15 +37,14 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Tests updating factions past cache expiry.
+/// Tests updating factions with fresh data from ESI.
 ///
-/// Verifies that the faction service updates faction records when their
-/// updated_at timestamp exceeds the cache duration, triggering a fresh fetch
-/// from ESI and database update.
+/// Verifies that the faction service updates faction records when ESI returns
+/// fresh data (200 OK), updating all faction fields and timestamps.
 ///
 /// Expected: Ok with faction updated and new timestamp
 #[tokio::test]
-async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
+async fn updates_factions_with_fresh_data() -> Result<(), TestError> {
     let faction_id = 1;
 
     let test = TestBuilder::new()
@@ -59,74 +54,74 @@ async fn updates_factions_past_cache_expiry() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_model = entity::prelude::EveFaction::find()
+    let faction_before = entity::prelude::EveFaction::find()
         .one(&test.db)
         .await?
         .unwrap();
+    let old_timestamp = faction_before.updated_at;
 
-    // Set updated_at to *before* the effective expiry so an update should be performed.
-    let now = Utc::now();
-    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
-    let updated_at = effective_expiry
-        .checked_sub_signed(Duration::minutes(5))
-        .unwrap_or(effective_expiry);
-    let mut faction_am = faction_model.into_active_model();
-    faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.db).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
     assert_eq!(updated.len(), 1);
-    let updated_faction = updated.iter().next().unwrap();
-    assert!(updated_faction.updated_at > updated_at);
+    let updated_faction = &updated[0];
+    assert!(updated_faction.updated_at > old_timestamp);
 
     test.assert_mocks();
 
     Ok(())
 }
 
-/// Tests skipping update when within cache period.
+/// Tests updating timestamps on 304 Not Modified response.
 ///
-/// Verifies that the faction service skips ESI calls and database updates when
-/// existing faction records have recent updated_at timestamps within the cache
-/// expiry window.
+/// Verifies that when ESI returns 304 Not Modified, only the updated_at
+/// timestamps are updated for all factions while other fields remain unchanged.
 ///
-/// Expected: Ok with empty update list and no ESI calls
+/// Expected: Ok with empty result list (304 returns no models) and timestamps updated
 #[tokio::test]
-async fn skips_update_within_cache_expiry() -> Result<(), TestError> {
+async fn updates_timestamps_on_304_not_modified() -> Result<(), TestError> {
     let faction_id = 1;
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_mock_faction(faction_id)
-        .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 0)
+        .with_mock_endpoint(|server| {
+            server
+                .mock("GET", "/universe/factions")
+                .with_status(304)
+                .expect(1)
+                .create()
+        })
         .build()
         .await?;
 
-    let faction_model = entity::prelude::EveFaction::find()
+    let faction_before = entity::prelude::EveFaction::find()
         .one(&test.db)
         .await?
         .unwrap();
+    let old_timestamp = faction_before.updated_at;
+    let old_name = faction_before.name.clone();
 
-    // Set updated_at to just after the effective expiry so it should be considered cached.
-    let now = Utc::now();
-    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
-    let updated_at = effective_expiry
-        .checked_add_signed(Duration::minutes(1))
-        .unwrap_or(effective_expiry);
-    let mut faction_am = faction_model.into_active_model();
-    faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.db).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
-    assert!(updated.is_empty());
+    assert!(updated.is_empty()); // 304 returns empty vec
+
+    // Verify timestamp was updated in database
+    let faction_after = entity::prelude::EveFaction::find()
+        .one(&test.db)
+        .await?
+        .unwrap();
+    assert!(faction_after.updated_at > old_timestamp);
+    assert_eq!(faction_after.name, old_name); // Other fields unchanged
 
     test.assert_mocks();
 
@@ -160,7 +155,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
@@ -194,7 +189,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_err());
     assert!(matches!(result, Err(Error::EsiError(_))));
@@ -219,7 +214,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let update_result = faction_service.update_factions().await;
+    let update_result = faction_service.update().await;
 
     assert!(matches!(
         update_result,
@@ -246,7 +241,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let update_result = faction_service.update_factions().await;
+    let update_result = faction_service.update().await;
 
     assert!(matches!(update_result, Err(Error::DbErr(_))));
 
@@ -279,7 +274,7 @@ async fn updates_multiple_factions() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
@@ -314,7 +309,7 @@ async fn handles_empty_esi_response() -> Result<(), TestError> {
         .await?;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
@@ -349,22 +344,8 @@ async fn adds_new_factions_from_esi() -> Result<(), TestError> {
         .build()
         .await?;
 
-    // Set existing faction to expired so it gets updated
-    let existing_faction = entity::prelude::EveFaction::find()
-        .one(&test.db)
-        .await?
-        .unwrap();
-    let now = Utc::now();
-    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
-    let expired_updated_at = effective_expiry
-        .checked_sub_signed(Duration::minutes(5))
-        .unwrap_or(effective_expiry);
-    let mut faction_am = existing_faction.into_active_model();
-    faction_am.updated_at = ActiveValue::Set(expired_updated_at);
-    faction_am.update(&test.db).await?;
-
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
@@ -383,14 +364,14 @@ async fn adds_new_factions_from_esi() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Tests updating all factions when all are expired.
+/// Tests updating multiple factions with fresh data.
 ///
-/// Verifies that when all factions in the database have expired cache entries,
-/// the service updates all of them in a single operation.
+/// Verifies that when multiple factions exist and ESI returns fresh data,
+/// all factions are updated with new timestamps.
 ///
 /// Expected: Ok with all factions updated
 #[tokio::test]
-async fn updates_all_factions_when_all_expired() -> Result<(), TestError> {
+async fn updates_multiple_factions_with_fresh_data() -> Result<(), TestError> {
     let faction1_id = 500_001;
     let faction2_id = 500_002;
 
@@ -408,30 +389,23 @@ async fn updates_all_factions_when_all_expired() -> Result<(), TestError> {
         .build()
         .await?;
 
-    // Set both factions to expired
-    let now = Utc::now();
-    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
-    let expired_updated_at = effective_expiry
-        .checked_sub_signed(Duration::minutes(5))
-        .unwrap_or(effective_expiry);
+    let factions_before = entity::prelude::EveFaction::find().all(&test.db).await?;
+    let old_timestamps: Vec<_> = factions_before.iter().map(|f| f.updated_at).collect();
 
-    let factions = entity::prelude::EveFaction::find().all(&test.db).await?;
-    for faction in factions {
-        let mut faction_am = faction.into_active_model();
-        faction_am.updated_at = ActiveValue::Set(expired_updated_at);
-        faction_am.update(&test.db).await?;
-    }
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
     assert_eq!(updated.len(), 2);
 
-    // Verify all have new timestamps
+    // Verify all have newer timestamps
     for faction in updated {
-        assert!(faction.updated_at > expired_updated_at);
+        assert!(old_timestamps
+            .iter()
+            .all(|old_ts| faction.updated_at > *old_ts));
     }
 
     test.assert_mocks();
@@ -439,52 +413,50 @@ async fn updates_all_factions_when_all_expired() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Tests retry logic respects cache expiry early return.
+/// Tests handling 304 Not Modified with multiple factions.
 ///
-/// Verifies that the faction service's cache expiry check occurs before ESI
-/// calls, preventing unnecessary API requests even during retry scenarios when
-/// cached data is still valid.
+/// Verifies that when ESI returns 304 for multiple existing factions,
+/// all faction timestamps are updated but no data is changed.
 ///
-/// Expected: Ok with no ESI calls and empty update list
+/// Expected: Ok with empty result list and all timestamps updated
 #[tokio::test]
-async fn retry_logic_respects_cache_expiry_early_return() -> Result<(), TestError> {
-    let faction_id = 1;
+async fn handles_304_with_multiple_factions() -> Result<(), TestError> {
+    let faction1_id = 500_001;
+    let faction2_id = 500_002;
 
-    // Create an endpoint that would fail if called
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
-        .with_mock_faction(faction_id)
+        .with_mock_faction(faction1_id)
+        .with_mock_faction(faction2_id)
         .with_mock_endpoint(|server| {
             server
                 .mock("GET", "/universe/factions")
-                .with_status(500)
-                .expect(0) // Should not be called
+                .with_status(304)
+                .expect(1)
                 .create()
         })
         .build()
         .await?;
 
-    let faction_model = entity::prelude::EveFaction::find()
-        .one(&test.db)
-        .await?
-        .unwrap();
+    let factions_before = entity::prelude::EveFaction::find().all(&test.db).await?;
+    let old_timestamps: Vec<_> = factions_before.iter().map(|f| f.updated_at).collect();
 
-    // Set updated_at to within cache period
-    let now = Utc::now();
-    let effective_expiry = FactionOrchestrator::effective_faction_cache_expiry(now).unwrap();
-    let updated_at = effective_expiry
-        .checked_add_signed(Duration::minutes(1))
-        .unwrap_or(effective_expiry);
-    let mut faction_am = faction_model.into_active_model();
-    faction_am.updated_at = ActiveValue::Set(updated_at);
-    faction_am.update(&test.db).await?;
+    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
     let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update_factions().await;
+    let result = faction_service.update().await;
 
     assert!(result.is_ok());
     let updated = result.unwrap();
-    assert!(updated.is_empty()); // No update performed due to cache
+    assert!(updated.is_empty()); // 304 returns empty vec
+
+    // Verify all timestamps were updated
+    let factions_after = entity::prelude::EveFaction::find().all(&test.db).await?;
+    for faction in factions_after {
+        assert!(old_timestamps
+            .iter()
+            .all(|old_ts| faction.updated_at > *old_ts));
+    }
 
     test.assert_mocks();
 

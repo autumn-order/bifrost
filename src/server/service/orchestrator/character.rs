@@ -549,6 +549,64 @@ impl<'a> CharacterOrchestrator<'a> {
         Ok(())
     }
 
+    /// Ensures all dependencies for characters exist in the database.
+    ///
+    /// This method resolves and ensures all required and optional dependencies for the
+    /// specified characters exist in the database:
+    /// - **Corporations** (required): All characters must have a valid corporation affiliation
+    /// - **Factions** (optional): Characters may have faction affiliations
+    ///
+    /// The method fetches missing dependencies from ESI and caches them for later persistence.
+    /// To persist the cached dependencies, call their respective persist methods within a transaction.
+    ///
+    /// # Arguments
+    /// - `characters` - Slice of character data to check for dependencies
+    /// - `cache` - Unified cache to track fetched dependencies
+    ///
+    /// # Returns
+    /// - `Ok(())` - All dependencies resolved and cached
+    /// - `Err(Error::EsiError)` - Failed to fetch dependency data from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    pub async fn ensure_character_dependencies(
+        &self,
+        characters: &[&Character],
+        cache: &mut OrchestrationCache,
+    ) -> Result<(), Error> {
+        // Collect all unique corporation IDs
+        let corporation_ids: Vec<i64> = characters
+            .iter()
+            .map(|c| c.corporation_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        // Ensure all corporations exist
+        if !corporation_ids.is_empty() {
+            let corporation_orch = CorporationOrchestrator::new(self.db, self.esi_client);
+            corporation_orch
+                .ensure_corporations_exist(corporation_ids, cache)
+                .await?;
+        }
+
+        // Collect all unique faction IDs (filtering out None values)
+        let faction_ids: Vec<i64> = characters
+            .iter()
+            .filter_map(|c| c.faction_id)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        // Ensure all factions exist
+        if !faction_ids.is_empty() {
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
+            faction_orch
+                .ensure_factions_exist(faction_ids, cache)
+                .await?;
+        }
+
+        Ok(())
+    }
+
     /// Persists all characters currently in the ESI cache to the database.
     ///
     /// This is a convenience method that persists all characters that have been fetched

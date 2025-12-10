@@ -8,7 +8,8 @@ use chrono::Utc;
 use eve_esi::model::corporation::Corporation;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
 /// Repository for managing EVE Online corporation records in the database.
@@ -185,5 +186,56 @@ impl<'a, C: ConnectionTrait> CorporationRepository<'a, C> {
         }
 
         Ok(())
+    }
+
+    /// Finds a corporation by its EVE Online corporation ID.
+    ///
+    /// Retrieves the corporation record from the database using the EVE corporation ID.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID to look up
+    ///
+    /// # Returns
+    /// - `Ok(Some(EveCorporation))` - Corporation found
+    /// - `Ok(None)` - Corporation not found in database
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn find_by_eve_id(
+        &self,
+        corporation_id: i64,
+    ) -> Result<Option<EveCorporationModel>, DbErr> {
+        entity::prelude::EveCorporation::find()
+            .filter(entity::eve_corporation::Column::CorporationId.eq(corporation_id))
+            .one(self.db)
+            .await
+    }
+
+    /// Updates the info_updated_at timestamp for a corporation to the current time.
+    ///
+    /// Sets the info_updated_at field to the current UTC timestamp for the specified
+    /// corporation. This is used to mark when corporation information was last refreshed,
+    /// even if no data changed.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - Internal database record ID of the corporation to update
+    ///
+    /// # Returns
+    /// - `Ok(EveCorporation)` - Updated corporation record with new timestamp
+    /// - `Err(DbErr)` - Database operation failed or corporation not found
+    pub async fn update_info_timestamp(
+        &self,
+        corporation_id: i32,
+    ) -> Result<EveCorporationModel, DbErr> {
+        let corporation = entity::prelude::EveCorporation::find_by_id(corporation_id)
+            .one(self.db)
+            .await?
+            .ok_or(DbErr::RecordNotFound(format!(
+                "Corporation with id {} not found",
+                corporation_id
+            )))?;
+
+        let mut active_model: entity::eve_corporation::ActiveModel = corporation.into();
+        active_model.info_updated_at = ActiveValue::Set(Utc::now().naive_utc());
+
+        active_model.update(self.db).await
     }
 }

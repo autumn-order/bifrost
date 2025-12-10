@@ -4,9 +4,11 @@
 //! and persisting it to the database. Operations use orchestrators to handle dependencies
 //! and include retry logic for reliability.
 
+use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
+    data::eve::alliance::AllianceRepository,
     error::Error,
     model::db::EveAllianceModel,
     service::{
@@ -41,20 +43,31 @@ impl<'a> AllianceService<'a> {
         Self { db, esi_client }
     }
 
-    /// Fetches and persists alliance information from ESI.
+    /// Updates alliance information by fetching from ESI and persisting to the database.
     ///
-    /// Retrieves complete alliance data from the ESI API and stores it in the database.
-    /// If the alliance has faction affiliations, those dependencies are resolved and persisted
-    /// first. Uses retry logic to handle transient ESI or database failures.
+    /// This method handles alliance updates with caching support:
+    ///
+    /// **For new alliances (not in database):**
+    /// - Fetches complete alliance data from ESI
+    /// - Resolves and persists any faction dependencies
+    /// - Creates new alliance record in database
+    ///
+    /// **For existing alliances:**
+    /// - Uses HTTP conditional requests (If-Modified-Since) to check for changes
+    /// - If ESI returns 304 Not Modified: Only updates the `updated_at` timestamp
+    /// - If ESI returns fresh data: Updates all alliance fields and dependencies
+    ///
+    /// The method uses retry logic to handle transient ESI or database failures automatically.
+    /// All database operations are performed within transactions to ensure consistency.
     ///
     /// # Arguments
-    /// - `alliance_id` - EVE Online alliance ID to fetch and store
+    /// - `alliance_id` - EVE Online alliance ID to fetch and update
     ///
     /// # Returns
-    /// - `Ok(EveAlliance)` - The created or updated alliance record
-    /// - `Err(Error::EsiError)` - Failed to fetch alliance data from ESI
+    /// - `Ok(EveAllianceModel)` - The created or updated alliance database record
+    /// - `Err(Error::EsiError)` - Failed to fetch alliance data from ESI after retries
     /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn upsert(&self, alliance_id: i64) -> Result<EveAllianceModel, Error> {
+    pub async fn update(&self, alliance_id: i64) -> Result<EveAllianceModel, Error> {
         let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
 
         let db = self.db.clone();
@@ -67,19 +80,59 @@ impl<'a> AllianceService<'a> {
                 let esi_client = esi_client.clone();
 
                 Box::pin(async move {
+                    let alliance_repo = AllianceRepository::new(&db);
                     let alliance_orch = AllianceOrchestrator::new(&db, &esi_client);
 
-                    let fetched_alliance = alliance_orch.fetch_alliance(alliance_id, cache).await?;
+                    // Check if alliance already exists in database
+                    let Some(existing_alliance) = alliance_repo.find_by_eve_id(alliance_id).await?
+                    else {
+                        // Alliance not in database, fetch information from ESI
+                        let esi_data = alliance_orch.fetch_alliance(alliance_id, cache).await?;
+
+                        // Persist fetched alliance to database
+                        let txn = TrackedTransaction::begin(&db).await?;
+
+                        let created_alliance = alliance_orch
+                            .persist(&txn, alliance_id, esi_data, cache)
+                            .await?;
+
+                        txn.commit().await?;
+
+                        return Ok(created_alliance);
+                    };
+
+                    // Fetch alliance from ESI, returning 304 not modified if nothing changed since last fetch
+                    let CachedResponse::Fresh(fresh_esi_data) = esi_client
+                        .alliance()
+                        .get_alliance_information(alliance_id)
+                        .send_cached(CacheStrategy::IfModifiedSince(
+                            existing_alliance.updated_at.and_utc(),
+                        ))
+                        .await?
+                    else {
+                        // Alliance data hasn't changed (304), just update the timestamp
+                        let refreshed_alliance = alliance_repo
+                            .update_info_timestamp(existing_alliance.id)
+                            .await?;
+
+                        // Return alliance with updated timestamp
+                        return Ok(refreshed_alliance);
+                    };
+
+                    // Ensure the alliance's dependencies (faction) exist in database
+                    alliance_orch
+                        .ensure_alliance_dependencies(&[&fresh_esi_data.data], cache)
+                        .await?;
 
                     let txn = TrackedTransaction::begin(&db).await?;
 
-                    let model = alliance_orch
-                        .persist(&txn, alliance_id, fetched_alliance, cache)
+                    let updated_alliance = alliance_orch
+                        .persist(&txn, alliance_id, fresh_esi_data.data, cache)
                         .await?;
 
                     txn.commit().await?;
 
-                    Ok(model)
+                    Ok(updated_alliance)
                 })
             },
         )

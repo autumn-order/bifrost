@@ -7,7 +7,7 @@
 use std::collections::HashSet;
 
 use chrono::{DateTime, Duration, NaiveDateTime, Utc};
-use eve_esi::model::universe::Faction;
+use eve_esi::{model::universe::Faction, CacheStrategy, CachedResponse};
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -220,24 +220,24 @@ impl<'a> FactionOrchestrator<'a> {
             .collect())
     }
 
-    /// Retrieves NPC faction information from ESI if the cache has expired.
+    /// Retrieves NPC faction information from ESI using If-Modified-Since.
     ///
-    /// ESI only supports fetching all factions at once and caches faction information for
-    /// 24 hours, resetting at 11:05 UTC daily. This method checks if the stored factions
-    /// are within the valid cache window before fetching from ESI.
+    /// ESI only supports fetching all factions at once. This method uses the latest
+    /// faction update timestamp from the database to send an If-Modified-Since request
+    /// to ESI. If ESI returns 304 Not Modified, returns None. If fresh data is returned,
+    /// caches and returns the factions.
     ///
     /// # Arguments
     /// - `cache` - Unified cache for orchestration that prevents duplicate fetching of factions
     ///   during retry attempts
     ///
     /// # Returns
-    /// - `Ok(Some(Vec<Faction>))` - Factions were fetched because cache expired
-    /// - `Ok(None)` - Factions are already up to date, no fetch was performed
+    /// - `Ok(Some(Vec<Faction>))` - Fresh faction data was fetched from ESI
+    /// - `Ok(None)` - ESI returned 304 Not Modified (no changes since last update)
     /// - `Err(Error::EsiError)` - Failed to fetch factions from ESI
     /// - `Err(Error::DbErr)` - Failed to query database for latest faction timestamp
     ///
     /// # Note
-    /// The effective cache expiry is calculated based on ESI's 24-hour cache window.
     /// Factions are automatically added to the cache when fetched.
     pub async fn fetch_factions(
         &self,
@@ -247,22 +247,29 @@ impl<'a> FactionOrchestrator<'a> {
             return Ok(Some(cache.faction_esi.values().cloned().collect()));
         }
 
-        // Check cache expiry against database
+        // Get the latest faction timestamp to use for If-Modified-Since
         let faction_repo = FactionRepository::new(self.db);
+        let latest_faction = faction_repo.get_latest().await?;
 
-        let now = Utc::now();
-        let effective_expiry = Self::effective_faction_cache_expiry(now)?;
+        // Fetch factions from ESI with If-Modified-Since if we have existing data
+        let fetched_factions = if let Some(latest) = latest_faction {
+            let esi_response = self
+                .esi_client
+                .universe()
+                .get_factions()
+                .send_cached(CacheStrategy::IfModifiedSince(latest.updated_at.and_utc()))
+                .await?;
 
-        // If the latest faction entry was updated at or after the effective expiry, return None
-        // to prevent cache updates
-        if let Some(latest_faction_model) = faction_repo.get_latest().await? {
-            if latest_faction_model.updated_at >= effective_expiry {
+            // Handle 304 Not Modified
+            let CachedResponse::Fresh(fresh_data) = esi_response else {
                 return Ok(None);
-            }
-        }
+            };
 
-        // Fetch all factions from ESI
-        let fetched_factions = self.esi_client.universe().get_factions().send().await?.data;
+            fresh_data.data
+        } else {
+            // No existing factions, fetch without If-Modified-Since
+            self.esi_client.universe().get_factions().send().await?.data
+        };
 
         for faction in &fetched_factions {
             cache

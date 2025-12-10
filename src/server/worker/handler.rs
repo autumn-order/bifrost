@@ -158,7 +158,7 @@ impl WorkerJobHandler {
         tracing::debug!("Checking for daily NPC faction info update");
 
         let factions = FactionService::new(&self.db, &self.esi_client)
-            .update_factions()
+            .update()
             .await
             .map_err(|e| {
                 tracing::error!("Failed to update NPC faction information: {:?}", e);
@@ -195,7 +195,7 @@ impl WorkerJobHandler {
         );
 
         AllianceService::new(&self.db, &self.esi_client)
-            .upsert(alliance_id)
+            .update(alliance_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -229,7 +229,7 @@ impl WorkerJobHandler {
         );
 
         CorporationService::new(&self.db, &self.esi_client)
-            .upsert(corporation_id)
+            .update(corporation_id)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -266,7 +266,7 @@ impl WorkerJobHandler {
         );
 
         CharacterService::new(&self.db, &self.esi_client)
-            .upsert(character_id)
+            .update(character_id)
             .await
             .map_err(|e| {
                 tracing::error!(
