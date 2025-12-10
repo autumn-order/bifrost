@@ -43,6 +43,8 @@ pub struct TestBuilder {
     corporation_not_modified_endpoints: Vec<(i64, usize)>, // (corporation_id, expected_requests)
     alliance_error_endpoints: Vec<(i64, usize, usize)>, // (alliance_id, status_code, expected_requests)
     alliance_not_modified_endpoints: Vec<(i64, usize)>, // (alliance_id, expected_requests)
+    character_error_endpoints: Vec<(i64, usize, usize)>, // (character_id, status_code, expected_requests)
+    character_not_modified_endpoints: Vec<(i64, usize)>, // (character_id, expected_requests)
 }
 
 impl TestBuilder {
@@ -72,6 +74,8 @@ impl TestBuilder {
             corporation_not_modified_endpoints: Vec::new(),
             alliance_error_endpoints: Vec::new(),
             alliance_not_modified_endpoints: Vec::new(),
+            character_error_endpoints: Vec::new(),
+            character_not_modified_endpoints: Vec::new(),
         }
     }
 
@@ -396,6 +400,52 @@ impl TestBuilder {
         self
     }
 
+    /// Add mock character endpoint that returns an error status code.
+    ///
+    /// Creates a mock HTTP endpoint at `/characters/{character_id}` that returns the specified
+    /// error status code. Useful for testing retry logic and error handling. The mock will verify
+    /// it was called exactly `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `character_id` - The character ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_character_endpoint_error(
+        mut self,
+        character_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Self {
+        self.character_error_endpoints
+            .push((character_id, status_code, expected_requests));
+        self
+    }
+
+    /// Add mock character endpoint that returns 304 Not Modified.
+    ///
+    /// Creates a mock HTTP endpoint at `/characters/{character_id}` that returns 304 Not Modified,
+    /// indicating the cached data is still current. Used to test caching behavior. The mock will
+    /// verify it was called exactly `expected_requests` times.
+    ///
+    /// # Arguments
+    /// - `character_id` - The character ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_character_endpoint_not_modified(
+        mut self,
+        character_id: i64,
+        expected_requests: usize,
+    ) -> Self {
+        self.character_not_modified_endpoints
+            .push((character_id, expected_requests));
+        self
+    }
+
     /// Add mock character affiliation endpoint to the test server.
     ///
     /// Creates a mock HTTP endpoint at `/characters/affiliation` that returns the specified
@@ -595,6 +645,22 @@ impl TestBuilder {
                 setup
                     .eve()
                     .create_alliance_endpoint_not_modified(alliance_id, expected),
+            );
+        }
+
+        for (char_id, status_code, expected) in self.character_error_endpoints {
+            mocks.push(
+                setup
+                    .eve()
+                    .create_character_endpoint_error(char_id, status_code, expected),
+            );
+        }
+
+        for (char_id, expected) in self.character_not_modified_endpoints {
+            mocks.push(
+                setup
+                    .eve()
+                    .create_character_endpoint_not_modified(char_id, expected),
             );
         }
 

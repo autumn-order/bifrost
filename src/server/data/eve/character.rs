@@ -8,7 +8,8 @@ use chrono::Utc;
 use eve_esi::model::character::Character;
 use migration::{CaseStatement, Expr, OnConflict};
 use sea_orm::{
-    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
 /// Repository for managing EVE Online character records in the database.
@@ -184,5 +185,54 @@ impl<'a, C: ConnectionTrait> CharacterRepository<'a, C> {
         }
 
         Ok(())
+    }
+
+    /// Finds a character by their EVE Online character ID.
+    ///
+    /// Searches the database for a character with the specified EVE character ID
+    /// and returns the complete character record if found.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID to search for
+    ///
+    /// # Returns
+    /// - `Ok(Some(EveCharacterModel))` - Character found in database
+    /// - `Ok(None)` - Character not found in database
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn find_by_eve_id(
+        &self,
+        character_id: i64,
+    ) -> Result<Option<EveCharacterModel>, DbErr> {
+        entity::prelude::EveCharacter::find()
+            .filter(entity::eve_character::Column::CharacterId.eq(character_id))
+            .one(self.db)
+            .await
+    }
+
+    /// Updates the info timestamp for a character record.
+    ///
+    /// Sets the `info_updated_at` timestamp to the current time for the specified
+    /// character record. Used when ESI returns 304 Not Modified to indicate the
+    /// cached data is still current without updating other fields.
+    ///
+    /// # Arguments
+    /// - `record_id` - Internal database ID of the character record
+    ///
+    /// # Returns
+    /// - `Ok(EveCharacterModel)` - Character record with updated timestamp
+    /// - `Err(DbErr)` - Database operation failed or record not found
+    pub async fn update_info_timestamp(&self, record_id: i32) -> Result<EveCharacterModel, DbErr> {
+        let mut active_model: entity::eve_character::ActiveModel =
+            entity::prelude::EveCharacter::find_by_id(record_id)
+                .one(self.db)
+                .await?
+                .ok_or_else(|| {
+                    DbErr::RecordNotFound(format!("Character record {} not found", record_id))
+                })?
+                .into();
+
+        active_model.info_updated_at = ActiveValue::Set(Utc::now().naive_utc());
+
+        active_model.update(self.db).await
     }
 }

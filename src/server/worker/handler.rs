@@ -266,7 +266,7 @@ impl WorkerJobHandler {
         );
 
         CharacterService::new(&self.db, &self.esi_client)
-            .upsert(character_id)
+            .update(character_id)
             .await
             .map_err(|e| {
                 tracing::error!(
