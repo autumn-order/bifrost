@@ -24,6 +24,13 @@ pub enum ErrorRetryStrategy {
     /// - Redis connection errors
     Retry,
 
+    /// Rate limited by ESI, retry after the specified duration.
+    ///
+    /// Used for ESI 429 responses that include a retry_after field indicating
+    /// when the next request can be made. If no duration is provided, falls back
+    /// to exponential backoff retry behavior.
+    RateLimited(Option<std::time::Duration>),
+
     /// Fail permanently without retry.
     ///
     /// Used for errors that won't resolve with retry, such as:
@@ -68,6 +75,13 @@ impl Error {
             // In eve_esi 0.5.0+, HTTP error responses are returned as EsiError with a status field
             Error::EsiError(eve_esi::Error::EsiError(esi_error)) => {
                 match esi_error.status {
+                    // 429 Rate Limited - ESI rate limit exceeded
+                    //
+                    // Retry after the specified duration if provided, otherwise use
+                    // exponential backoff. This prevents hammering ESI when we've
+                    // exceeded our rate limit.
+                    429 => ErrorRetryStrategy::RateLimited(esi_error.retry_after),
+
                     // 5xx Server Errors - ESI is temporarily unavailable
                     //
                     // Retry with backoff. If ESI internal errors accumulate, a global

@@ -4,12 +4,14 @@
 //! jobs including EVE Online data updates. Each job type is dispatched to the appropriate
 //! service method with error handling and logging.
 
+use std::time::Duration;
+
 use chrono::Utc;
 use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    error::Error,
+    error::{retry::ErrorRetryStrategy, Error},
     model::worker::{ScheduledWorkerJob, WorkerJob},
     service::eve::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
@@ -77,12 +79,18 @@ impl WorkerJobHandler {
     /// Otherwise, pattern matches on the job type and dispatches to the corresponding handler
     /// method. Each handler method logs the operation and handles errors appropriately.
     ///
+    /// If a job fails and the error retry strategy indicates it should be retried, the job
+    /// is pushed back to the queue with a backoff delay. Rate-limited errors
+    /// (429) use the retry_after duration if provided. Jobs are retried up to 3 times
+    /// internally within each handler method (via RetryContext), so queue-level retries
+    /// handle cases where all internal attempts have been exhausted.
+    ///
     /// # Arguments
     /// - `scheduled_job` - The worker job to execute with its scheduled timestamp
     ///
     /// # Returns
-    /// - `Ok(())` - Job completed successfully or rescheduled due to downtime
-    /// - `Err(Error)` - Job failed with error (logged automatically by each handler)
+    /// - `Ok(())` - Job completed successfully, rescheduled due to downtime, or pushed back for retry
+    /// - `Err(Error)` - Job failed permanently (not retryable)
     pub async fn handle(&self, scheduled_job: &ScheduledWorkerJob) -> Result<(), Error> {
         // Check if we're within ESI downtime window (if offset is enabled)
         if self.offset_for_esi_downtime {
@@ -128,7 +136,7 @@ impl WorkerJobHandler {
         }
 
         // Process the job normally
-        match &scheduled_job.job {
+        let result = match &scheduled_job.job {
             WorkerJob::UpdateFactionInfo => self.update_faction_info().await,
             WorkerJob::UpdateAllianceInfo { alliance_id } => {
                 self.update_alliance_info(*alliance_id).await
@@ -141,6 +149,64 @@ impl WorkerJobHandler {
             }
             WorkerJob::UpdateAffiliations { character_ids } => {
                 self.update_affiliations(character_ids.clone()).await
+            }
+        };
+
+        // Handle result based on retry strategy
+        match result {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                match e.to_retry_strategy() {
+                    ErrorRetryStrategy::Retry => {
+                        // Job execution failed after internal retries (up to 3 times).
+                        // Push back to queue with backoff (basic implementation).
+                        // TODO: Track retry count per job for better backoff strategy.
+                        let backoff = Duration::from_secs(120); // 2 minute basic backoff
+                        let reschedule_time =
+                            Utc::now() + chrono::Duration::from_std(backoff).unwrap();
+
+                        tracing::warn!(
+                            "Job failed after internal retries, pushing back to queue with {} second backoff: {}. Error: {:?}",
+                            backoff.as_secs(),
+                            scheduled_job.job,
+                            e
+                        );
+
+                        self.queue
+                            .schedule(scheduled_job.job.clone(), reschedule_time)
+                            .await?;
+
+                        Ok(())
+                    }
+                    ErrorRetryStrategy::RateLimited(retry_after) => {
+                        // ESI rate limit (429) - use provided retry_after or default backoff of
+                        // 15 minutes which is when ESI token windows are typically fully replenished
+                        let backoff = retry_after.unwrap_or_else(|| Duration::from_secs(900));
+                        let reschedule_time =
+                            Utc::now() + chrono::Duration::from_std(backoff).unwrap();
+
+                        tracing::warn!(
+                            "Job rate limited (429), pushing back to queue with {} second backoff: {}",
+                            backoff.as_secs(),
+                            scheduled_job.job
+                        );
+
+                        self.queue
+                            .schedule(scheduled_job.job.clone(), reschedule_time)
+                            .await?;
+
+                        Ok(())
+                    }
+                    ErrorRetryStrategy::Fail => {
+                        // Permanent failure - do not retry
+                        tracing::error!(
+                            "Job failed permanently (not retryable): {}. Error: {:?}",
+                            scheduled_job.job,
+                            e
+                        );
+                        Err(e)
+                    }
+                }
             }
         }
     }
