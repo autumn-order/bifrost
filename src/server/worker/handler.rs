@@ -229,7 +229,7 @@ impl WorkerJobHandler {
         );
 
         CorporationService::new(&self.db, &self.esi_client)
-            .upsert(corporation_id)
+            .update(corporation_id)
             .await
             .map_err(|e| {
                 tracing::error!(

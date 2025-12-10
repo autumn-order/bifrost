@@ -39,6 +39,9 @@ pub struct TestBuilder {
     character_affiliation_endpoints:
         Vec<(Vec<eve_esi::model::character::CharacterAffiliation>, usize)>,
     jwt_configs: Vec<(i64, String)>, // (character_id, owner_hash)
+    corporation_error_endpoints: Vec<(i64, usize, usize)>, // (corporation_id, status_code, expected_requests)
+    corporation_not_modified_endpoints: Vec<(i64, usize)>, // (corporation_id, expected_requests)
+    alliance_error_endpoints: Vec<(i64, usize, usize)>, // (alliance_id, status_code, expected_requests)
 }
 
 impl TestBuilder {
@@ -64,6 +67,9 @@ impl TestBuilder {
             character_endpoints: Vec::new(),
             character_affiliation_endpoints: Vec::new(),
             jwt_configs: Vec::new(),
+            corporation_error_endpoints: Vec::new(),
+            corporation_not_modified_endpoints: Vec::new(),
+            alliance_error_endpoints: Vec::new(),
         }
     }
 
@@ -275,6 +281,74 @@ impl TestBuilder {
         self
     }
 
+    /// Add mock corporation endpoint that returns an error status code.
+    ///
+    /// Creates a mock HTTP endpoint at `/corporations/{corporation_id}` that returns the
+    /// specified error status code. Useful for testing retry logic and error handling.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The corporation ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_corporation_endpoint_error(
+        mut self,
+        corporation_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Self {
+        self.corporation_error_endpoints
+            .push((corporation_id, status_code, expected_requests));
+        self
+    }
+
+    /// Add mock corporation endpoint that returns 304 Not Modified.
+    ///
+    /// Creates a mock HTTP endpoint at `/corporations/{corporation_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior with If-Modified-Since headers.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - The corporation ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_corporation_endpoint_not_modified(
+        mut self,
+        corporation_id: i64,
+        expected_requests: usize,
+    ) -> Self {
+        self.corporation_not_modified_endpoints
+            .push((corporation_id, expected_requests));
+        self
+    }
+
+    /// Add mock alliance endpoint that returns an error status code.
+    ///
+    /// Creates a mock HTTP endpoint at `/alliances/{alliance_id}` that returns the
+    /// specified error status code. Useful for testing retry logic and error handling.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `status_code` - HTTP status code to return (e.g., 500, 503, 404)
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_alliance_endpoint_error(
+        mut self,
+        alliance_id: i64,
+        status_code: usize,
+        expected_requests: usize,
+    ) -> Self {
+        self.alliance_error_endpoints
+            .push((alliance_id, status_code, expected_requests));
+        self
+    }
+
     /// Add mock character endpoint to the test server.
     ///
     /// Creates a mock HTTP endpoint at `/characters/{character_id}` that returns the specified
@@ -466,6 +540,30 @@ impl TestBuilder {
 
         for (char_id, owner_hash) in self.jwt_configs {
             mocks.extend(setup.auth().create_jwt_endpoints(char_id, &owner_hash));
+        }
+
+        for (corp_id, status_code, expected) in self.corporation_error_endpoints {
+            mocks.push(setup.eve().create_corporation_endpoint_error(
+                corp_id,
+                status_code,
+                expected,
+            ));
+        }
+
+        for (corp_id, expected) in self.corporation_not_modified_endpoints {
+            mocks.push(
+                setup
+                    .eve()
+                    .create_corporation_endpoint_not_modified(corp_id, expected),
+            );
+        }
+
+        for (alliance_id, status_code, expected) in self.alliance_error_endpoints {
+            mocks.push(setup.eve().create_alliance_endpoint_error(
+                alliance_id,
+                status_code,
+                expected,
+            ));
         }
 
         // Store mocks in setup so they live as long as the test

@@ -201,23 +201,9 @@ impl<'a> CorporationOrchestrator<'a> {
             .corporation_esi
             .insert(corporation_id, fetched_corporation.clone());
 
-        // Ensure the corporation's alliance exists in database else fetch it for persistence later
-        if let Some(alliance_id) = fetched_corporation.alliance_id {
-            let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
-
-            alliance_orch
-                .ensure_alliances_exist(vec![alliance_id], cache)
-                .await?;
-        }
-
-        // Ensure the corporation's faction exists in database else fetch it for persistence later
-        if let Some(faction_id) = fetched_corporation.faction_id {
-            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
-
-            faction_orch
-                .ensure_factions_exist(vec![faction_id], cache)
-                .await?;
-        }
+        // Ensure the corporation's dependencies (alliance, faction) exist in database
+        self.ensure_corporation_dependencies(&[&fetched_corporation], cache)
+            .await?;
 
         Ok(fetched_corporation)
     }
@@ -311,22 +297,9 @@ impl<'a> CorporationOrchestrator<'a> {
             .map(|(_, corporation)| corporation)
             .collect();
 
-        let faction_ids = get_corporation_faction_dependency_ids(&corporations_ref);
-        let alliance_ids = get_corporation_alliance_dependency_ids(&corporations_ref);
-
-        if !faction_ids.is_empty() {
-            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
-            faction_orch
-                .ensure_factions_exist(faction_ids, cache)
-                .await?;
-        }
-
-        if !alliance_ids.is_empty() {
-            let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
-            alliance_orch
-                .ensure_alliances_exist(alliance_ids, cache)
-                .await?;
-        }
+        // Ensure all dependencies (alliances, factions) exist in database
+        self.ensure_corporation_dependencies(&corporations_ref, cache)
+            .await?;
 
         Ok(requested_corporations)
     }
@@ -506,6 +479,45 @@ impl<'a> CorporationOrchestrator<'a> {
                 corporation_id
             ))
         })
+    }
+
+    /// Ensures all alliance and faction dependencies for the given corporations exist.
+    ///
+    /// This method extracts all alliance and faction IDs from the provided corporations
+    /// and ensures they exist in the database (fetching them if necessary).
+    /// This is used to resolve foreign key dependencies before persisting corporations.
+    ///
+    /// # Arguments
+    /// - `corporations` - Slice of corporation references to check for dependencies
+    /// - `cache` - Unified cache to prevent duplicate database queries and ESI calls
+    ///
+    /// # Returns
+    /// - `Ok(())` - All dependencies exist or have been fetched
+    /// - `Err(Error::EsiError)` - Failed to fetch dependencies from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    pub async fn ensure_corporation_dependencies(
+        &self,
+        corporations: &[&Corporation],
+        cache: &mut OrchestrationCache,
+    ) -> Result<(), Error> {
+        let faction_ids = get_corporation_faction_dependency_ids(corporations);
+        let alliance_ids = get_corporation_alliance_dependency_ids(corporations);
+
+        if !faction_ids.is_empty() {
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
+            faction_orch
+                .ensure_factions_exist(faction_ids, cache)
+                .await?;
+        }
+
+        if !alliance_ids.is_empty() {
+            let alliance_orch = AllianceOrchestrator::new(self.db, self.esi_client);
+            alliance_orch
+                .ensure_alliances_exist(alliance_ids, cache)
+                .await?;
+        }
+
+        Ok(())
     }
 
     /// Ensures corporations exist in the database, fetching from ESI if missing.
