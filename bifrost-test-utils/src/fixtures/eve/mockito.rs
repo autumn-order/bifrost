@@ -242,4 +242,31 @@ impl<'a> EveFixtures<'a> {
             .expect(expected_requests)
             .create()
     }
+
+    /// Create a mock HTTP endpoint that returns 304 Not Modified.
+    ///
+    /// Sets up a mock GET endpoint at `/alliances/{alliance_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Mock` - The created mock endpoint that will be automatically verified
+    pub fn create_alliance_endpoint_not_modified(
+        &mut self,
+        alliance_id: i64,
+        expected_requests: usize,
+    ) -> Mock {
+        let url = format!("/alliances/{}", alliance_id);
+
+        self.setup
+            .server
+            .mock("GET", url.as_str())
+            .with_status(304)
+            .expect(expected_requests)
+            .create()
+    }
 }

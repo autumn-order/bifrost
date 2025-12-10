@@ -42,6 +42,7 @@ pub struct TestBuilder {
     corporation_error_endpoints: Vec<(i64, usize, usize)>, // (corporation_id, status_code, expected_requests)
     corporation_not_modified_endpoints: Vec<(i64, usize)>, // (corporation_id, expected_requests)
     alliance_error_endpoints: Vec<(i64, usize, usize)>, // (alliance_id, status_code, expected_requests)
+    alliance_not_modified_endpoints: Vec<(i64, usize)>, // (alliance_id, expected_requests)
 }
 
 impl TestBuilder {
@@ -70,6 +71,7 @@ impl TestBuilder {
             corporation_error_endpoints: Vec::new(),
             corporation_not_modified_endpoints: Vec::new(),
             alliance_error_endpoints: Vec::new(),
+            alliance_not_modified_endpoints: Vec::new(),
         }
     }
 
@@ -349,6 +351,28 @@ impl TestBuilder {
         self
     }
 
+    /// Add mock alliance endpoint that returns 304 Not Modified.
+    ///
+    /// Creates a mock HTTP endpoint at `/alliances/{alliance_id}` that returns
+    /// 304 Not Modified, indicating the cached data is still current. Used to test
+    /// caching behavior with If-Modified-Since headers.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - The alliance ID for the endpoint path
+    /// - `expected_requests` - Number of times this endpoint should be called
+    ///
+    /// # Returns
+    /// - `Self` - The builder instance for method chaining
+    pub fn with_alliance_endpoint_not_modified(
+        mut self,
+        alliance_id: i64,
+        expected_requests: usize,
+    ) -> Self {
+        self.alliance_not_modified_endpoints
+            .push((alliance_id, expected_requests));
+        self
+    }
+
     /// Add mock character endpoint to the test server.
     ///
     /// Creates a mock HTTP endpoint at `/characters/{character_id}` that returns the specified
@@ -564,6 +588,14 @@ impl TestBuilder {
                 status_code,
                 expected,
             ));
+        }
+
+        for (alliance_id, expected) in self.alliance_not_modified_endpoints {
+            mocks.push(
+                setup
+                    .eve()
+                    .create_alliance_endpoint_not_modified(alliance_id, expected),
+            );
         }
 
         // Store mocks in setup so they live as long as the test

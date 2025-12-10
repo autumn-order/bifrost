@@ -456,6 +456,37 @@ impl<'a> AllianceOrchestrator<'a> {
         })
     }
 
+    /// Ensures all dependencies for the given alliances exist in the database.
+    ///
+    /// Resolves and fetches faction dependencies for the provided alliances.
+    /// This method extracts faction IDs from the alliance data and ensures they
+    /// exist in the database by fetching them from ESI if necessary.
+    ///
+    /// # Arguments
+    /// - `alliances` - Slice of alliance references to check for dependencies
+    /// - `cache` - Unified cache for tracking database entries and ESI data
+    ///
+    /// # Returns
+    /// - `Ok(())` - All dependencies exist in database or are now cached for persistence
+    /// - `Err(Error::EsiError)` - Failed to fetch missing dependencies from ESI
+    /// - `Err(Error::DbErr)` - Database query failed
+    pub async fn ensure_alliance_dependencies(
+        &self,
+        alliances: &[&Alliance],
+        cache: &mut OrchestrationCache,
+    ) -> Result<(), Error> {
+        let faction_ids = get_alliance_faction_dependency_ids(alliances);
+
+        if !faction_ids.is_empty() {
+            let faction_orch = FactionOrchestrator::new(self.db, self.esi_client);
+            faction_orch
+                .ensure_factions_exist(faction_ids, cache)
+                .await?;
+        }
+
+        Ok(())
+    }
+
     /// Ensures alliances exist in the database, fetching from ESI if missing.
     ///
     /// This method checks the database for the provided alliance IDs and fetches

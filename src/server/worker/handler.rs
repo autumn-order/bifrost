@@ -195,7 +195,7 @@ impl WorkerJobHandler {
         );
 
         AllianceService::new(&self.db, &self.esi_client)
-            .upsert(alliance_id)
+            .update(alliance_id)
             .await
             .map_err(|e| {
                 tracing::error!(

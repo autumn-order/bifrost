@@ -8,7 +8,8 @@ use chrono::Utc;
 use eve_esi::model::alliance::Alliance;
 use migration::OnConflict;
 use sea_orm::{
-    ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
+    ActiveModelTrait, ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 
 /// Repository for managing EVE Online alliance records in the database.
@@ -109,6 +110,54 @@ impl<'a, C: ConnectionTrait> AllianceRepository<'a, C> {
             .into_tuple::<(i32, i64)>()
             .all(self.db)
             .await
+    }
+
+    /// Finds an alliance by its EVE Online alliance ID.
+    ///
+    /// Retrieves the alliance record from the database using the EVE alliance ID.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID to look up
+    ///
+    /// # Returns
+    /// - `Ok(Some(EveAlliance))` - Alliance found
+    /// - `Ok(None)` - Alliance not found in database
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn find_by_eve_id(
+        &self,
+        alliance_id: i64,
+    ) -> Result<Option<EveAllianceModel>, DbErr> {
+        entity::prelude::EveAlliance::find()
+            .filter(entity::eve_alliance::Column::AllianceId.eq(alliance_id))
+            .one(self.db)
+            .await
+    }
+
+    /// Updates the updated_at timestamp for an alliance to the current time.
+    ///
+    /// Sets the updated_at field to the current UTC timestamp for the specified
+    /// alliance. This is used to mark when alliance information was last refreshed,
+    /// even if no data changed.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - Internal database record ID of the alliance to update
+    ///
+    /// # Returns
+    /// - `Ok(EveAlliance)` - Updated alliance record with new timestamp
+    /// - `Err(DbErr)` - Database operation failed or alliance not found
+    pub async fn update_info_timestamp(&self, alliance_id: i32) -> Result<EveAllianceModel, DbErr> {
+        let alliance = entity::prelude::EveAlliance::find_by_id(alliance_id)
+            .one(self.db)
+            .await?
+            .ok_or(DbErr::RecordNotFound(format!(
+                "Alliance with id {} not found",
+                alliance_id
+            )))?;
+
+        let mut active_model: entity::eve_alliance::ActiveModel = alliance.into();
+        active_model.updated_at = ActiveValue::Set(Utc::now().naive_utc());
+
+        active_model.update(self.db).await
     }
 }
 
