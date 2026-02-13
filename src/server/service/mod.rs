@@ -8,5 +8,6 @@
 pub mod auth;
 pub mod eve;
 pub mod orchestrator;
+pub mod provider;
 pub mod retry;
 pub mod user;
