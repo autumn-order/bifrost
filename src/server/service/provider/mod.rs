@@ -1,10 +1,58 @@
 //! # EVE Online Entity Orchestration Provider
+//!
+//! This module provides a two-phase system for fetching EVE Online entities from ESI
+//! and persisting them to the database with proper relationship handling.
+//!
+//! ## Overview
+//!
+//! The provider system consists of two main components:
+//!
+//! - [`EveEntityProviderBuilder`]: Fetches entities from ESI and resolves database relationships
+//! - [`EveEntityProvider`]: Stores fetched entities to the database with relationship integrity
+//!
+//! ## Workflow
+//!
+//! 1. **Build Phase**: Request entities by ID, the builder fetches from ESI and resolves dependencies
+//! 2. **Store Phase**: Persist all entities to database in dependency order (factions → alliances → corporations → characters)
+//!
+//! ## Relationship Handling
+//!
+//! The provider automatically:
+//! - Fetches related entities (e.g., a character's corporation, corporation's alliance)
+//! - Checks the database for existing related entities to avoid redundant ESI calls
+//! - Stores entities in dependency order to maintain referential integrity
+//! - Logs warnings when related entities cannot be found
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+//!
+//! async fn update_character_affiliations(
+//!     db: &DatabaseConnection,
+//!     esi_client: &eve_esi::Client,
+//!     character_ids: Vec<i64>,
+//! ) -> Result<(), Error> {
+//!     let txn = db.begin().await?;
+//!
+//!     let provider = EveEntityProviderBuilder::new(db, esi_client)
+//!         .characters(character_ids)
+//!         .build()
+//!         .await?;
+//!
+//!     let stored = provider.store(&txn).await?;
+//!     txn.commit().await?;
+//!
+//!     Ok(())
+//! }
+//! ```
 
-pub mod builder;
+mod builder;
 mod util;
 
 use std::collections::HashMap;
 
+use dioxus_logger::tracing;
 use entity::{
     eve_alliance::Model as EveAllianceModel, eve_character::Model as EveCharacterModel,
     eve_corporation::Model as EveCorporationModel, eve_faction::Model as EveFactionModel,
@@ -14,8 +62,33 @@ use eve_esi::model::{
 };
 use sea_orm::DatabaseTransaction;
 
-use crate::server::error::Error;
+use crate::server::{
+    data::eve::{
+        alliance::AllianceRepository, character::CharacterRepository,
+        corporation::CorporationRepository, faction::FactionRepository,
+    },
+    error::Error,
+};
 
+pub use builder::EveEntityProviderBuilder;
+
+/// Provides EVE Entities fetched from ESI via the [`EveEntityProviderBuilder`].
+///
+/// Contains fetched ESI data and database relationship mappings needed to store
+/// entities with proper foreign key references.
+///
+/// # Usage
+///
+/// After building, call [`store()`](Self::store) within a database transaction to persist all entities.
+/// The provider consumes itself during storage to prevent reuse.
+///
+/// # Relationship Integrity
+///
+/// Entities are stored in dependency order:
+/// 1. Factions (if any were fetched)
+/// 2. Alliances (references factions)
+/// 3. Corporations (references alliances and factions)
+/// 4. Characters (references corporations and factions)
 pub struct EveEntityProvider {
     // ESI data (what was fetched)
     factions_map: Option<HashMap<i64, Faction>>,
@@ -23,59 +96,398 @@ pub struct EveEntityProvider {
     corporations_map: HashMap<i64, Corporation>,
     characters_map: HashMap<i64, Character>,
 
-    // DB IDs for relationships (from DB check)
-    faction_record_id_map: HashMap<i64, i32>,
-    alliance_record_id_map: HashMap<i64, i32>,
-    corporation_record_id_map: HashMap<i64, i32>,
+    // Maps EVE ID -> DB Record ID
+    // Used for existing related entity DB records found when building provider
+    factions_record_id_map: HashMap<i64, i32>,
+    alliances_record_id_map: HashMap<i64, i32>,
+    corporations_record_id_map: HashMap<i64, i32>,
 }
 
 impl EveEntityProvider {
-    /// Stores all fetched entities without returning the stored data
+    /// Gets a character from the fetched ESI data by character ID.
     ///
-    /// Useful for high volume bulk operations such as updating affiliations
-    pub async fn store(&self, txn: &DatabaseTransaction) -> Result<(), Error> {
-        // Store in dependency order: factions -> alliances -> corps -> chars
-        // Only store entities that were fetched (not in *_db_ids)
-
-        todo!()
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID
+    ///
+    /// # Returns
+    /// - `Some(&Character)` - Character data if it was requested and fetched
+    /// - `None` - Character was not requested in the builder
+    pub fn get_character(&self, character_id: i64) -> Option<&Character> {
+        self.characters_map.get(&character_id)
     }
 
-    /// Stores all fetched entities, returning the stored data
-    pub async fn store_with_returning(
+    /// Gets a corporation from the fetched ESI data by corporation ID.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID
+    ///
+    /// # Returns
+    /// - `Some(&Corporation)` - Corporation data if it was requested and fetched
+    /// - `None` - Corporation was not requested in the builder
+    pub fn get_corporation(&self, corporation_id: i64) -> Option<&Corporation> {
+        self.corporations_map.get(&corporation_id)
+    }
+
+    /// Gets an alliance from the fetched ESI data by alliance ID.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID
+    ///
+    /// # Returns
+    /// - `Some(&Alliance)` - Alliance data if it was requested and fetched
+    /// - `None` - Alliance was not requested in the builder
+    pub fn get_alliance(&self, alliance_id: i64) -> Option<&Alliance> {
+        self.alliances_map.get(&alliance_id)
+    }
+
+    /// Stores all fetched entities to the database within the provided transaction.
+    ///
+    /// Entities are stored in dependency order to maintain referential integrity.
+    /// This method consumes the provider to prevent double-storage.
+    ///
+    /// # Arguments
+    ///
+    /// - `txn` - Database transaction to use for all storage operations
+    ///
+    /// # Returns
+    ///
+    /// [`StoredEntities`] containing the database models of all stored entities,
+    /// useful for accessing generated IDs and timestamps.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any database operation fails. The transaction should
+    /// be rolled back by the caller.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use bifrost::server::service::{provider::EveEntityProviderBuilder, error:Error};
+    /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
+    /// let txn = db.begin().await?;
+    ///
+    /// let provider = EveEntityProviderBuilder::new(db, esi)
+    ///     .character(123456789)
+    ///     .build()
+    ///     .await?;
+    ///
+    /// let stored = provider.store(&txn).await?;
+    ///
+    /// if let Some(character) = stored.get_character(123456789) {
+    ///     println!("Stored character with DB ID: {}", character.id);
+    /// }
+    ///
+    /// txn.commit().await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn store(mut self, txn: &DatabaseTransaction) -> Result<StoredEntities, Error> {
+        if let Some(factions_map) = self.factions_map.take() {
+            let stored_factions_record_map = self.store_factions(txn, factions_map).await?;
+            self.factions_record_id_map.extend(
+                stored_factions_record_map
+                    .iter()
+                    .map(|(faction_id, faction)| (*faction_id, faction.id.clone())),
+            );
+        }
+
+        let stored_alliances_record_map = if self.alliances_map.len() > 0 {
+            let alliances_map = std::mem::take(&mut self.alliances_map);
+            let stored_alliances_record_map = self.store_alliances(txn, alliances_map).await?;
+            self.alliances_record_id_map.extend(
+                stored_alliances_record_map
+                    .iter()
+                    .map(|(alliance_id, alliance)| (*alliance_id, alliance.id.clone())),
+            );
+
+            stored_alliances_record_map
+        } else {
+            Default::default()
+        };
+
+        let stored_corporations_record_map = if self.corporations_map.len() > 0 {
+            let corporations_map = std::mem::take(&mut self.corporations_map);
+            let stored_corporations_record_map =
+                self.store_corporations(txn, corporations_map).await?;
+            self.corporations_record_id_map.extend(
+                stored_corporations_record_map
+                    .iter()
+                    .map(|(corporation_id, corporation)| (*corporation_id, corporation.id.clone())),
+            );
+
+            stored_corporations_record_map
+        } else {
+            Default::default()
+        };
+
+        let stored_characters_record_map = if self.characters_map.len() > 0 {
+            let characters_map = std::mem::take(&mut self.characters_map);
+            self.store_characters(txn, characters_map).await?
+        } else {
+            Default::default()
+        };
+
+        Ok(StoredEntities {
+            alliances_map: stored_alliances_record_map,
+            corporations_map: stored_corporations_record_map,
+            characters_map: stored_characters_record_map,
+        })
+    }
+
+    /// Stores faction entities to the database.
+    ///
+    /// Upserts all fetched factions, updating existing records or creating new ones.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to use
+    /// - `factions_map` - Map of faction IDs to faction ESI data
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, EveFactionModel>)` - Map of faction IDs to stored database models
+    /// - `Err(Error::DbErr)` - Database operation failed
+    async fn store_factions(
         &self,
         txn: &DatabaseTransaction,
-    ) -> Result<StoredEntities, Error> {
-        // Store in dependency order: factions -> alliances -> corps -> chars
-        // Only store entities that were fetched (not in *_db_ids)
+        factions_map: HashMap<i64, Faction>,
+    ) -> Result<HashMap<i64, EveFactionModel>, Error> {
+        let faction_repo = FactionRepository::new(txn);
 
-        todo!()
+        let stored_factions = faction_repo
+            .upsert_many(
+                factions_map
+                    .into_iter()
+                    .map(|(_, faction)| faction)
+                    .collect(),
+            )
+            .await?;
+
+        Ok(stored_factions
+            .into_iter()
+            .map(|f| (f.faction_id, f))
+            .collect())
+    }
+
+    /// Stores alliance entities to the database with faction relationships.
+    ///
+    /// Upserts all fetched alliances, linking them to their factions if present.
+    /// Logs warnings for alliances with faction IDs that couldn't be resolved.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to use
+    /// - `alliances_map` - Map of alliance IDs to alliance ESI data
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, EveAllianceModel>)` - Map of alliance IDs to stored database models
+    /// - `Err(Error::DbErr)` - Database operation failed
+    async fn store_alliances(
+        &self,
+        txn: &DatabaseTransaction,
+        alliances_map: HashMap<i64, Alliance>,
+    ) -> Result<HashMap<i64, EveAllianceModel>, Error> {
+        let alliance_repo = AllianceRepository::new(txn);
+
+        let alliance_relations = alliances_map.into_iter().map(|(alliance_id, alliance)| {
+            let faction_record_id = alliance.faction_id.and_then(|faction_id| {
+                match self.factions_record_id_map.get(&faction_id) {
+                    Some(id) => Some(*id),
+                    None => {
+                        tracing::warn!(
+                            faction_id = %faction_id,
+                            alliance_id = %alliance_id,
+                            "Failed to find faction record ID in database; alliance will have no related faction"
+                        );
+                        None
+                    }
+                }
+            });
+
+            (alliance_id, alliance, faction_record_id)
+        }).collect();
+
+        let stored_alliances = alliance_repo.upsert_many(alliance_relations).await?;
+
+        Ok(stored_alliances
+            .into_iter()
+            .map(|a| (a.alliance_id, a))
+            .collect())
+    }
+
+    /// Stores corporation entities to the database with alliance and faction relationships.
+    ///
+    /// Upserts all fetched corporations, linking them to their alliances and factions if present.
+    /// Logs warnings for corporations with alliance or faction IDs that couldn't be resolved.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to use
+    /// - `corporations_map` - Map of corporation IDs to corporation ESI data
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, EveCorporationModel>)` - Map of corporation IDs to stored database models
+    /// - `Err(Error::DbErr)` - Database operation failed
+    async fn store_corporations(
+        &self,
+        txn: &DatabaseTransaction,
+        corporations_map: HashMap<i64, Corporation>,
+    ) -> Result<HashMap<i64, EveCorporationModel>, Error> {
+        let corporation_repo = CorporationRepository::new(txn);
+
+        let corporation_relations = corporations_map.into_iter().map(|(corporation_id, corporation)| {
+            let faction_record_id = corporation.faction_id.and_then(|faction_id| {
+                match self.factions_record_id_map.get(&faction_id) {
+                    Some(id) => Some(*id),
+                    None => {
+                        tracing::warn!(
+                            faction_id = %faction_id,
+                            corporation_id = %corporation_id,
+                            "Failed to find faction record ID in database; corporation will have no related faction"
+                        );
+                        None
+                    }
+                }
+            });
+
+            let alliance_record_id = corporation.alliance_id.and_then(|alliance_id| {
+                match self.alliances_record_id_map.get(&alliance_id) {
+                    Some(id) => Some(*id),
+                    None => {
+                        tracing::warn!(
+                            alliance_id = %alliance_id,
+                            corporation_id = %corporation_id,
+                            "Failed to find alliance record ID in database; corporation will have no related alliance"
+                        );
+                        None
+                    }
+                }
+            });
+
+            (corporation_id, corporation, alliance_record_id, faction_record_id)
+        }).collect();
+
+        let stored_corporations = corporation_repo.upsert_many(corporation_relations).await?;
+
+        Ok(stored_corporations
+            .into_iter()
+            .map(|c| (c.corporation_id, c))
+            .collect())
+    }
+
+    /// Stores character entities to the database with corporation and faction relationships.
+    ///
+    /// Upserts all fetched characters, linking them to their corporations and factions if present.
+    /// Characters without resolvable corporations are skipped with error logs, as corporations
+    /// are required for character records.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to use
+    /// - `characters_map` - Map of character IDs to character ESI data
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, EveCharacterModel>)` - Map of character IDs to stored database models
+    /// - `Err(Error::DbErr)` - Database operation failed
+    async fn store_characters(
+        &self,
+        txn: &DatabaseTransaction,
+        characters_map: HashMap<i64, Character>,
+    ) -> Result<HashMap<i64, EveCharacterModel>, Error> {
+        let character_repo = CharacterRepository::new(txn);
+
+        let character_relations = characters_map.into_iter().filter_map(|(character_id, character)| {
+            let faction_record_id = character.faction_id.and_then(|faction_id| {
+                match self.factions_record_id_map.get(&faction_id) {
+                    Some(id) => Some(*id),
+                    None => {
+                        tracing::warn!(
+                            faction_id = %faction_id,
+                            character_id = %character_id,
+                            "Failed to find faction record ID in database; character will have no related faction"
+                        );
+                        None
+                    }
+                }
+            });
+
+            let corporation_record_id =
+                match self.corporations_record_id_map.get(&character.corporation_id) {
+                    Some(id) => *id,
+                    None => {
+                        tracing::error!(
+                            corporation_id = %character.corporation_id,
+                            character_id = %character_id,
+                            "Failed to find corporation record ID in database; skipping saving character to database due to missing corporation"
+                        );
+
+                        return None; // Skip this character
+                    }
+                };
+
+            Some((character_id, character, corporation_record_id, faction_record_id))
+        }).collect();
+
+        let stored_characters = character_repo.upsert_many(character_relations).await?;
+
+        Ok(stored_characters
+            .into_iter()
+            .map(|c| (c.character_id, c))
+            .collect())
     }
 }
 
-/// Provides information related to entities stored by [`EveEntityProvider`]
+/// Database models of entities stored by [`EveEntityProvider`].
+///
+/// Provides access to the persisted database records with their generated IDs
+/// and timestamps. Maps EVE Online IDs to database models.
+///
+/// # Example
+///
+/// ```no_run
+/// # use bifrost::server::service::provider::StoredEntities;
+/// # fn example(stored: &StoredEntities, char_id: i64) {
+/// if let Some(character) = stored.get_character(char_id) {
+///     println!("Character DB ID: {}, Updated: {}", character.id, character.updated_at);
+/// }
+/// # }
+/// ```
 pub struct StoredEntities {
     // Maps EVE ID -> DB Model
-    pub factions: HashMap<i64, EveFactionModel>,
-    pub alliances: HashMap<i64, EveAllianceModel>,
-    pub corporations: HashMap<i64, EveCorporationModel>,
-    pub characters: HashMap<i64, EveCharacterModel>,
+    alliances_map: HashMap<i64, EveAllianceModel>,
+    corporations_map: HashMap<i64, EveCorporationModel>,
+    characters_map: HashMap<i64, EveCharacterModel>,
 }
+
 impl StoredEntities {
+    /// Gets a character from the stored database models by character ID.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID
+    ///
+    /// # Returns
+    /// - `Some(&EveCharacterModel)` - Character database model if it was stored
+    /// - `None` - Character was not stored or was skipped
     pub fn get_character(&self, character_id: i64) -> Option<&EveCharacterModel> {
-        self.characters.get(&character_id)
+        self.characters_map.get(&character_id)
     }
 
+    /// Gets a corporation from the stored database models by corporation ID.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID
+    ///
+    /// # Returns
+    /// - `Some(&EveCorporationModel)` - Corporation database model if it was stored
+    /// - `None` - Corporation was not stored
     pub fn get_corporation(&self, corporation_id: i64) -> Option<&EveCorporationModel> {
-        self.corporations.get(&corporation_id)
+        self.corporations_map.get(&corporation_id)
     }
 
+    /// Gets an alliance from the stored database models by alliance ID.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID
+    ///
+    /// # Returns
+    /// - `Some(&EveAllianceModel)` - Alliance database model if it was stored
+    /// - `None` - Alliance was not stored
     pub fn get_alliance(&self, alliance_id: i64) -> Option<&EveAllianceModel> {
-        self.alliances.get(&alliance_id)
+        self.alliances_map.get(&alliance_id)
     }
-
-    pub fn get_faction(&self, faction_id: i64) -> Option<&EveFactionModel> {
-        self.factions.get(&faction_id)
-    }
-
-    // Similar accessors for other types...
 }

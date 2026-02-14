@@ -19,6 +19,29 @@ use crate::server::{
     service::provider::util::effective_faction_cache_expiry,
 };
 
+/// Builder for fetching EVE Online entities from ESI with dependency resolution.
+///
+/// # Strategy
+///
+/// - **Explicitly requested IDs**: Always fetched fresh from ESI
+/// - **Dependency IDs**: Checked in database first, only fetched from ESI if missing
+///
+/// This minimizes ESI calls while ensuring all required relationships exist in the database.
+///
+/// # Example
+///
+/// ```no_run
+/// # use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+/// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
+/// // Fetch characters and their dependencies (corporations, alliances, factions)
+/// let provider = EveEntityProviderBuilder::new(db, esi)
+///     .character(123456789)
+///     .characters(vec![987654321, 111222333])
+///     .build()
+///     .await?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct EveEntityProviderBuilder<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
@@ -35,6 +58,17 @@ pub struct EveEntityProviderBuilder<'a> {
 }
 
 impl<'a> EveEntityProviderBuilder<'a> {
+    /// Creates a new instance of EveEntityProviderBuilder.
+    ///
+    /// Constructs a builder for fetching EVE Online entities from ESI with intelligent
+    /// dependency resolution.
+    ///
+    /// # Arguments
+    /// - `db` - Database connection reference
+    /// - `esi_client` - ESI API client reference
+    ///
+    /// # Returns
+    /// - `EveEntityProviderBuilder` - New builder instance with empty request sets
     pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self {
             db,
@@ -48,50 +82,129 @@ impl<'a> EveEntityProviderBuilder<'a> {
         }
     }
 
+    /// Adds a character ID to be fetched from ESI.
+    ///
+    /// The character will always be fetched fresh from ESI, and its related entities
+    /// (corporation, alliance, faction) will be added as dependencies.
+    ///
+    /// # Arguments
+    /// - `id` - EVE Online character ID
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn character(mut self, id: i64) -> Self {
         self.requested_character_ids.insert(id);
         self
     }
 
+    /// Adds multiple character IDs to be fetched from ESI.
+    ///
+    /// All characters will be fetched fresh from ESI, and their related entities
+    /// will be added as dependencies.
+    ///
+    /// # Arguments
+    /// - `ids` - Iterator of EVE Online character IDs
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn characters(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
         self.requested_character_ids.extend(ids);
         self
     }
 
+    /// Adds a corporation ID to be fetched from ESI.
+    ///
+    /// The corporation will always be fetched fresh from ESI, and its related entities
+    /// (alliance, faction) will be added as dependencies.
+    ///
+    /// # Arguments
+    /// - `id` - EVE Online corporation ID
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn corporation(mut self, id: i64) -> Self {
         self.requested_corporation_ids.insert(id);
         self
     }
 
+    /// Adds multiple corporation IDs to be fetched from ESI.
+    ///
+    /// All corporations will be fetched fresh from ESI, and their related entities
+    /// will be added as dependencies.
+    ///
+    /// # Arguments
+    /// - `ids` - Iterator of EVE Online corporation IDs
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn corporations(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
         self.requested_corporation_ids.extend(ids);
         self
     }
 
+    /// Adds an alliance ID to be fetched from ESI.
+    ///
+    /// The alliance will always be fetched fresh from ESI, and its related faction
+    /// (if any) will be added as a dependency.
+    ///
+    /// # Arguments
+    /// - `id` - EVE Online alliance ID
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn alliance(mut self, id: i64) -> Self {
         self.requested_alliance_ids.insert(id);
         self
     }
 
+    /// Adds multiple alliance IDs to be fetched from ESI.
+    ///
+    /// All alliances will be fetched fresh from ESI, and their related factions
+    /// will be added as dependencies.
+    ///
+    /// # Arguments
+    /// - `ids` - Iterator of EVE Online alliance IDs
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
     pub fn alliances(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
         self.requested_alliance_ids.extend(ids);
         self
     }
 
+    /// Builds the provider by fetching all requested entities and their dependencies.
+    ///
+    /// # Process
+    ///
+    /// 1. Fetch requested characters from ESI
+    /// 2. Check database for dependency corporations, fetch missing ones from ESI
+    /// 3. Check database for dependency alliances, fetch missing ones from ESI
+    /// 4. Check database for dependency factions, fetch if stale & missing
+    ///
+    /// # Returns
+    ///
+    /// An [`EveEntityProvider`] containing all fetched entities and database relationship mappings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - ESI requests fail
+    /// - Database queries fail
     pub async fn build(mut self) -> Result<EveEntityProvider, Error> {
         let characters_map = self.fetch_characters().await?;
 
-        let (corporation_record_id_map, missing_corporation_ids) =
+        let (corporations_record_id_map, missing_corporation_ids) =
             self.find_existing_corporations().await?;
         self.requested_corporation_ids
             .extend(missing_corporation_ids);
         let corporations_map = self.fetch_corporations().await?;
 
-        let (alliance_record_id_map, missing_alliance_ids) = self.find_existing_alliances().await?;
+        let (alliances_record_id_map, missing_alliance_ids) =
+            self.find_existing_alliances().await?;
         self.requested_alliance_ids.extend(missing_alliance_ids);
         let alliances_map = self.fetch_alliances().await?;
 
-        let (faction_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
+        let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
         let factions_map = if missing_faction_ids.len() > 0 {
             // Attempt to fetch factions if any are missing, should only occur if:
             // - First time fetching any entity related to any a faction
@@ -107,12 +220,20 @@ impl<'a> EveEntityProviderBuilder<'a> {
             alliances_map,
             corporations_map,
             characters_map,
-            faction_record_id_map,
-            alliance_record_id_map,
-            corporation_record_id_map,
+            factions_record_id_map,
+            alliances_record_id_map,
+            corporations_record_id_map,
         })
     }
 
+    /// Fetches requested character IDs from ESI and tracks dependencies.
+    ///
+    /// For each character fetched, adds their corporation to dependencies and
+    /// adds their faction to dependencies if they have one.
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, Character>)` - Map of character IDs to character data
+    /// - `Err(Error::EsiError)` - ESI request failed
     async fn fetch_characters(&mut self) -> Result<HashMap<i64, Character>, Error> {
         let character_ids: Vec<i64> = self.requested_character_ids.iter().copied().collect();
         let mut characters = Vec::new();
@@ -137,6 +258,14 @@ impl<'a> EveEntityProviderBuilder<'a> {
         Ok(characters.into_iter().collect())
     }
 
+    /// Fetches requested corporation IDs from ESI and tracks dependencies.
+    ///
+    /// For each corporation fetched, adds their alliance and faction to dependencies
+    /// if they have them.
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, Corporation>)` - Map of corporation IDs to corporation data
+    /// - `Err(Error::EsiError)` - ESI request failed
     async fn fetch_corporations(&mut self) -> Result<HashMap<i64, Corporation>, Error> {
         let mut corporations = Vec::new();
 
@@ -162,10 +291,13 @@ impl<'a> EveEntityProviderBuilder<'a> {
         Ok(corporations.into_iter().collect())
     }
 
-    /// Fetches requested alliance IDs from ESI
+    /// Fetches requested alliance IDs from ESI and tracks dependencies.
+    ///
+    /// For each alliance fetched, adds their faction to dependencies if they have one.
     ///
     /// # Returns
-    ///
+    /// - `Ok(HashMap<i64, Alliance>)` - Map of alliance IDs to alliance data
+    /// - `Err(Error::EsiError)` - ESI request failed
     async fn fetch_alliances(&mut self) -> Result<HashMap<i64, Alliance>, Error> {
         let mut alliances = Vec::new();
 
@@ -188,11 +320,13 @@ impl<'a> EveEntityProviderBuilder<'a> {
         Ok(alliances.into_iter().collect())
     }
 
-    /// Attempts to update factions if last update is was not within current cache period
+    /// Attempts to update factions if last update was not within current cache period.
     ///
     /// Factions are cached for 24 hours expiring daily at 11:05 UTC. Fetches factions if:
     /// - No factions found in the database
     /// - The last updated faction was before the cache expired
+    ///
+    /// Uses `If-Modified-Since` when existing data is present to minimize data transfer.
     async fn fetch_factions_if_stale(&self) -> Result<Option<HashMap<i64, Faction>>, Error> {
         let faction_repo = FactionRepository::new(self.db);
         let latest_faction = faction_repo.get_latest().await?;
@@ -235,14 +369,16 @@ impl<'a> EveEntityProviderBuilder<'a> {
         ))
     }
 
-    /// Finds corporations related to requested entities within the database
+    /// Finds corporations related to requested entities within the database.
+    ///
+    /// Queries the database for dependency corporations to avoid redundant ESI calls.
+    /// Returns both found corporations and IDs that need to be fetched.
     ///
     /// # Returns
-    /// - `HashMap<i64, i32>`: Maps EVE corporation IDs to their database record IDs
-    /// - `Vec<i64>`: EVE corporation IDs not found in the database
-    ///
-    /// # Errors
-    /// Returns an error if database query fails
+    /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
+    ///   - Map of EVE corporation IDs to their database record IDs
+    ///   - Vector of EVE corporation IDs not found in the database
+    /// - `Err(Error::DbErr)` - Database query failed
     async fn find_existing_corporations(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let corporation_repo = CorporationRepository::new(self.db);
 
@@ -274,14 +410,16 @@ impl<'a> EveEntityProviderBuilder<'a> {
         ))
     }
 
-    /// Finds alliances related to requested entities within the database
+    /// Finds alliances related to requested entities within the database.
+    ///
+    /// Queries the database for dependency alliances to avoid redundant ESI calls.
+    /// Returns both found alliances and IDs that need to be fetched.
     ///
     /// # Returns
-    /// - `HashMap<i64, i32>`: Maps EVE alliance IDs to their database record IDs
-    /// - `Vec<i64>`: EVE alliance IDs not found in the database
-    ///
-    /// # Errors
-    /// Returns an error if database query fails
+    /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
+    ///   - Map of EVE alliance IDs to their database record IDs
+    ///   - Vector of EVE alliance IDs not found in the database
+    /// - `Err(Error::DbErr)` - Database query failed
     async fn find_existing_alliances(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let alliance_repo = AllianceRepository::new(self.db);
 
@@ -313,14 +451,16 @@ impl<'a> EveEntityProviderBuilder<'a> {
         ))
     }
 
-    /// Finds factions related to requested entities within the database
+    /// Finds factions related to requested entities within the database.
+    ///
+    /// Queries the database for dependency factions to avoid redundant ESI calls.
+    /// Returns both found factions and IDs that need to be fetched.
     ///
     /// # Returns
-    /// - `HashMap<i64, i32>`: Maps EVE faction IDs to their database record IDs
-    /// - `Vec<i64>`: EVE faction IDs not found in the database
-    ///
-    /// # Errors
-    /// Returns an error if database query fails
+    /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
+    ///   - Map of EVE faction IDs to their database record IDs
+    ///   - Vector of EVE faction IDs not found in the database
+    /// - `Err(Error::DbErr)` - Database query failed
     async fn find_existing_factions(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let faction_repo = FactionRepository::new(self.db);
 
