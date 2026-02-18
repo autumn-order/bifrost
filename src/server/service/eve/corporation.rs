@@ -5,18 +5,11 @@
 //! and include retry logic for reliability.
 
 use eve_esi::{CacheStrategy, CachedResponse};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::corporation::CorporationRepository,
-    error::Error,
-    model::db::EveCorporationModel,
-    service::{
-        orchestrator::{
-            cache::TrackedTransaction, corporation::CorporationOrchestrator, OrchestrationCache,
-        },
-        retry::RetryContext,
-    },
+    data::eve::corporation::CorporationRepository, error::Error, model::db::EveCorporationModel,
+    service::provider::EveEntityProviderBuilder,
 };
 
 /// Service for managing EVE Online corporation operations.
@@ -68,77 +61,51 @@ impl<'a> CorporationService<'a> {
     /// - `Err(Error::EsiError)` - Failed to fetch corporation data from ESI after retries
     /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn update(&self, corporation_id: i64) -> Result<EveCorporationModel, Error> {
-        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
+        let corporation_repo = CorporationRepository::new(self.db);
 
-        let db = self.db.clone();
-        let esi_client = self.esi_client.clone();
-
-        ctx.execute_with_retry(
-            &format!("info update for corporation ID {}", corporation_id),
-            |cache| {
-                let db = db.clone();
-                let esi_client = esi_client.clone();
-
-                Box::pin(async move {
-                    let corporation_repo = CorporationRepository::new(&db);
-                    let corporation_orch = CorporationOrchestrator::new(&db, &esi_client);
-
-                    // Check if corporation already exists in database
-                    let Some(existing_corp) =
-                        corporation_repo.find_by_eve_id(corporation_id).await?
-                    else {
-                        // Corporation not in database, fetch information from ESI
-                        let esi_data = corporation_orch
-                            .fetch_corporation(corporation_id, cache)
-                            .await?;
-
-                        // Persist fetched corporation to database
-                        let txn = TrackedTransaction::begin(&db).await?;
-
-                        let created_corp = corporation_orch
-                            .persist(&txn, corporation_id, esi_data, cache)
-                            .await?;
-
-                        txn.commit().await?;
-
-                        return Ok(created_corp);
-                    };
-
-                    // Fetch corporation from ESI, returning 304 not modified if nothing changed since last fetch
-                    let CachedResponse::Fresh(fresh_corporation_info) = esi_client
-                        .corporation()
-                        .get_corporation_information(corporation_id)
-                        .send_cached(CacheStrategy::IfModifiedSince(
-                            existing_corp.info_updated_at.and_utc(),
-                        ))
-                        .await?
-                    else {
-                        // Corporation data hasn't changed (304), just update the timestamp
-                        let refreshed_corp = corporation_repo
-                            .update_info_timestamp(existing_corp.id)
-                            .await?;
-
-                        // Return corporation with updated timestamp
-                        return Ok(refreshed_corp);
-                    };
-
-                    // Ensure the corporation's dependencies (alliance, faction) exist in database
-                    corporation_orch
-                        .ensure_corporation_dependencies(&[&fresh_corporation_info.data], cache)
+        // Build entity provider using one of two strategies:
+        // 1. For existing corporations: fetch with conditional request (may return early on 304)
+        // 2. For new corporations: fetch unconditionally from ESI
+        let eve_entity_provider = match corporation_repo.find_by_eve_id(corporation_id).await? {
+            Some(existing_corporation) => {
+                // Existing corporation: use if modified since request to check for changes since last update
+                let CachedResponse::Fresh(esi_corporation) = self
+                    .esi_client
+                    .corporation()
+                    .get_corporation_information(corporation_id)
+                    .send_cached(CacheStrategy::IfModifiedSince(
+                        existing_corporation.info_updated_at.and_utc(),
+                    ))
+                    .await?
+                else {
+                    // Corporation data hasn't changed (304), just update the timestamp
+                    let refreshed_corporation = corporation_repo
+                        .update_info_timestamp(existing_corporation.id)
                         .await?;
+                    return Ok(refreshed_corporation);
+                };
 
-                    let txn = TrackedTransaction::begin(&db).await?;
+                // Build provider with pre-fetched data to avoid redundant ESI call
+                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                    .corporation_with_data(corporation_id, esi_corporation.data)
+                    .build()
+                    .await?
+            }
+            None => {
+                // New corporation: provider will fetch from ESI during build()
+                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                    .corporation(corporation_id)
+                    .build()
+                    .await?
+            }
+        };
 
-                    let updated_corp = corporation_orch
-                        .persist(&txn, corporation_id, fresh_corporation_info.data, cache)
-                        .await?;
+        // Persist corporation and all dependencies (alliance, faction) in a transaction
+        let txn = self.db.begin().await?;
+        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        txn.commit().await?;
 
-                    txn.commit().await?;
-
-                    Ok(updated_corp)
-                })
-            },
-        )
-        .await
+        let corporation = stored_eve_entities.get_corporation_or_err(corporation_id)?;
+        Ok(corporation.clone())
     }
 }

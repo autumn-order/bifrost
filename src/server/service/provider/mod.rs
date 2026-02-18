@@ -511,4 +511,27 @@ impl StoredEntities {
             ))
         })
     }
+
+    /// Gets a corporation from the stored database models by corporation ID, or returns an error.
+    ///
+    /// This is a convenience method that wraps [`get_corporation`](Self::get_corporation) and
+    /// converts `None` into a descriptive `InternalError`.
+    ///
+    /// # Arguments
+    /// - `corporation_id` - EVE Online corporation ID
+    ///
+    /// # Returns
+    /// - `Ok(&EveCorporationModel)` - Corporation database model if it was stored
+    /// - `Err(Error::InternalError)` - Corporation was not found after storing
+    pub fn get_corporation_or_err(
+        &self,
+        corporation_id: i64,
+    ) -> Result<&EveCorporationModel, Error> {
+        self.get_corporation(corporation_id).ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to retrieve information for corporation {} from database after fetching from ESI & storing.",
+                corporation_id
+            ))
+        })
+    }
 }
