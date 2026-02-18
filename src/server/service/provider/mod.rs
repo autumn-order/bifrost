@@ -27,6 +27,7 @@
 //!
 //! ```no_run
 //! use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+//! use sea_orm::{DatabaseConnection, TransactionTrait};
 //!
 //! async fn update_character_affiliations(
 //!     db: &DatabaseConnection,
@@ -46,7 +47,6 @@
 //!     Ok(())
 //! }
 //! ```
-
 mod builder;
 mod util;
 
@@ -162,7 +162,8 @@ impl EveEntityProvider {
     /// # Example
     ///
     /// ```no_run
-    /// # use bifrost::server::service::{provider::EveEntityProviderBuilder, error:Error};
+    /// # use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+    /// # use sea_orm::{DatabaseConnection, TransactionTrait};
     /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
     /// let txn = db.begin().await?;
     ///
@@ -443,7 +444,7 @@ impl EveEntityProvider {
 /// # use bifrost::server::service::provider::StoredEntities;
 /// # fn example(stored: &StoredEntities, char_id: i64) {
 /// if let Some(character) = stored.get_character(char_id) {
-///     println!("Character DB ID: {}, Updated: {}", character.id, character.updated_at);
+///     println!("Character DB ID: {}, Created: {}", character.id, character.created_at);
 /// }
 /// # }
 /// ```

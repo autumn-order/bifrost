@@ -32,6 +32,7 @@ use crate::server::{
 ///
 /// ```no_run
 /// # use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+/// # use sea_orm::DatabaseConnection;
 /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
 /// // Fetch characters and their dependencies (corporations, alliances, factions)
 /// let provider = EveEntityProviderBuilder::new(db, esi)
