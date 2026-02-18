@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::corporation::CorporationRepository, error::Error, model::db::EveCorporationModel,
-    service::provider::EveEntityProviderBuilder,
+    service::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online corporation operations.
@@ -86,14 +86,14 @@ impl<'a> CorporationService<'a> {
                 };
 
                 // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .corporation_with_data(corporation_id, esi_corporation.data)
                     .build()
                     .await?
             }
             None => {
                 // New corporation: provider will fetch from ESI during build()
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .corporation(corporation_id)
                     .build()
                     .await?

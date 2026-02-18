@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::character::CharacterRepository, error::Error, model::db::EveCharacterModel,
-    service::provider::EveEntityProviderBuilder,
+    service::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online character operations.
@@ -86,14 +86,14 @@ impl<'a> CharacterService<'a> {
                 };
 
                 // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .character_with_data(character_id, esi_character.data)
                     .build()
                     .await?
             }
             None => {
                 // New character: provider will fetch from ESI during build()
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .character(character_id)
                     .build()
                     .await?

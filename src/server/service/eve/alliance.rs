@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::alliance::AllianceRepository, error::Error, model::db::EveAllianceModel,
-    service::provider::EveEntityProviderBuilder,
+    service::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online alliance operations.
@@ -86,14 +86,14 @@ impl<'a> AllianceService<'a> {
                 };
 
                 // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .alliance_with_data(alliance_id, esi_alliance.data)
                     .build()
                     .await?
             }
             None => {
                 // New alliance: provider will fetch from ESI during build()
-                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                EveEntityProvider::builder(self.db, self.esi_client)
                     .alliance(alliance_id)
                     .build()
                     .await?

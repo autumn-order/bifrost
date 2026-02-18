@@ -6,7 +6,7 @@
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    error::Error, model::db::EveFactionModel, service::provider::EveEntityProviderBuilder,
+    error::Error, model::db::EveFactionModel, service::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online faction operations.
@@ -57,7 +57,7 @@ impl<'a> FactionService<'a> {
     pub async fn update(&self) -> Result<Vec<EveFactionModel>, Error> {
         // Build entity provider with explicit faction fetch request
         // The builder's fetch_factions_if_stale() handles the conditional request logic
-        let eve_entity_provider = EveEntityProviderBuilder::new(self.db, self.esi_client)
+        let eve_entity_provider = EveEntityProvider::builder(self.db, self.esi_client)
             .with_factions()
             .build()
             .await?;

@@ -61,7 +61,7 @@ use entity::{
 use eve_esi::model::{
     alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
 };
-use sea_orm::DatabaseTransaction;
+use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::server::{
     data::eve::{
@@ -121,6 +121,16 @@ pub struct EveEntityProvider {
 }
 
 impl EveEntityProvider {
+    /// Creates a new builder for fetching and constructing an EVE entity provider.
+    ///
+    /// This is the primary way to construct an `EveEntityProvider`.
+    pub fn builder<'a>(
+        db: &'a DatabaseConnection,
+        esi_client: &'a eve_esi::Client,
+    ) -> EveEntityProviderBuilder<'a> {
+        EveEntityProviderBuilder::new(db, esi_client)
+    }
+
     /// Gets a character from the fetched ESI data by character ID.
     ///
     /// # Arguments

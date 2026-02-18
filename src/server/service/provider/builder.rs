@@ -77,7 +77,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
     ///
     /// # Returns
     /// - `EveEntityProviderBuilder` - New builder instance with empty request sets
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub(super) fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self {
             db,
             esi_client,

@@ -12,7 +12,7 @@ use crate::server::{
     data::user::{user_character::UserCharacterRepository, UserRepository},
     error::Error,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
-    service::{provider::EveEntityProviderBuilder, user::user_character::UserCharacterService},
+    service::{provider::EveEntityProvider, user::user_character::UserCharacterService},
 };
 
 /// Represents the current user session state during OAuth callback processing.
@@ -178,11 +178,10 @@ impl<'a> CallbackService<'a> {
                     owner_hash,
                 } => {
                     let character_id = claims.character_id()?;
-                    let eve_entity_provider =
-                        EveEntityProviderBuilder::new(self.db, self.esi_client)
-                            .character(character_id)
-                            .build()
-                            .await?;
+                    let eve_entity_provider = EveEntityProvider::builder(self.db, self.esi_client)
+                        .character(character_id)
+                        .build()
+                        .await?;
 
                     let txn = self.db.begin().await?;
 
