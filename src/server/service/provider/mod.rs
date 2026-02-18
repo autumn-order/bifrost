@@ -534,4 +534,24 @@ impl StoredEntities {
             ))
         })
     }
+
+    /// Gets an alliance from the stored database models by alliance ID, or returns an error.
+    ///
+    /// This is a convenience method that wraps [`get_alliance`](Self::get_alliance) and
+    /// converts `None` into a descriptive `InternalError`.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID
+    ///
+    /// # Returns
+    /// - `Ok(&EveAllianceModel)` - Alliance database model if it was stored
+    /// - `Err(Error::InternalError)` - Alliance was not found after storing
+    pub fn get_alliance_or_err(&self, alliance_id: i64) -> Result<&EveAllianceModel, Error> {
+        self.get_alliance(alliance_id).ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to retrieve information for alliance {} from database after fetching from ESI & storing.",
+                alliance_id
+            ))
+        })
+    }
 }

@@ -5,18 +5,11 @@
 //! and include retry logic for reliability.
 
 use eve_esi::{CacheStrategy, CachedResponse};
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::alliance::AllianceRepository,
-    error::Error,
-    model::db::EveAllianceModel,
-    service::{
-        orchestrator::{
-            alliance::AllianceOrchestrator, cache::TrackedTransaction, OrchestrationCache,
-        },
-        retry::RetryContext,
-    },
+    data::eve::alliance::AllianceRepository, error::Error, model::db::EveAllianceModel,
+    service::provider::EveEntityProviderBuilder,
 };
 
 /// Service for managing EVE Online alliance operations.
@@ -68,74 +61,51 @@ impl<'a> AllianceService<'a> {
     /// - `Err(Error::EsiError)` - Failed to fetch alliance data from ESI after retries
     /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn update(&self, alliance_id: i64) -> Result<EveAllianceModel, Error> {
-        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
+        let alliance_repo = AllianceRepository::new(self.db);
 
-        let db = self.db.clone();
-        let esi_client = self.esi_client.clone();
-
-        ctx.execute_with_retry(
-            &format!("info update for alliance ID {}", alliance_id),
-            |cache| {
-                let db = db.clone();
-                let esi_client = esi_client.clone();
-
-                Box::pin(async move {
-                    let alliance_repo = AllianceRepository::new(&db);
-                    let alliance_orch = AllianceOrchestrator::new(&db, &esi_client);
-
-                    // Check if alliance already exists in database
-                    let Some(existing_alliance) = alliance_repo.find_by_eve_id(alliance_id).await?
-                    else {
-                        // Alliance not in database, fetch information from ESI
-                        let esi_data = alliance_orch.fetch_alliance(alliance_id, cache).await?;
-
-                        // Persist fetched alliance to database
-                        let txn = TrackedTransaction::begin(&db).await?;
-
-                        let created_alliance = alliance_orch
-                            .persist(&txn, alliance_id, esi_data, cache)
-                            .await?;
-
-                        txn.commit().await?;
-
-                        return Ok(created_alliance);
-                    };
-
-                    // Fetch alliance from ESI, returning 304 not modified if nothing changed since last fetch
-                    let CachedResponse::Fresh(fresh_esi_data) = esi_client
-                        .alliance()
-                        .get_alliance_information(alliance_id)
-                        .send_cached(CacheStrategy::IfModifiedSince(
-                            existing_alliance.updated_at.and_utc(),
-                        ))
-                        .await?
-                    else {
-                        // Alliance data hasn't changed (304), just update the timestamp
-                        let refreshed_alliance = alliance_repo
-                            .update_info_timestamp(existing_alliance.id)
-                            .await?;
-
-                        // Return alliance with updated timestamp
-                        return Ok(refreshed_alliance);
-                    };
-
-                    // Ensure the alliance's dependencies (faction) exist in database
-                    alliance_orch
-                        .ensure_alliance_dependencies(&[&fresh_esi_data.data], cache)
+        // Build entity provider using one of two strategies:
+        // 1. For existing alliances: fetch with conditional request (may return early on 304)
+        // 2. For new alliances: fetch unconditionally from ESI
+        let eve_entity_provider = match alliance_repo.find_by_eve_id(alliance_id).await? {
+            Some(existing_alliance) => {
+                // Existing alliance: use if modified since request to check for changes since last update
+                let CachedResponse::Fresh(esi_alliance) = self
+                    .esi_client
+                    .alliance()
+                    .get_alliance_information(alliance_id)
+                    .send_cached(CacheStrategy::IfModifiedSince(
+                        existing_alliance.updated_at.and_utc(),
+                    ))
+                    .await?
+                else {
+                    // Alliance data hasn't changed (304), just update the timestamp
+                    let refreshed_alliance = alliance_repo
+                        .update_info_timestamp(existing_alliance.id)
                         .await?;
+                    return Ok(refreshed_alliance);
+                };
 
-                    let txn = TrackedTransaction::begin(&db).await?;
+                // Build provider with pre-fetched data to avoid redundant ESI call
+                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                    .alliance_with_data(alliance_id, esi_alliance.data)
+                    .build()
+                    .await?
+            }
+            None => {
+                // New alliance: provider will fetch from ESI during build()
+                EveEntityProviderBuilder::new(self.db, self.esi_client)
+                    .alliance(alliance_id)
+                    .build()
+                    .await?
+            }
+        };
 
-                    let updated_alliance = alliance_orch
-                        .persist(&txn, alliance_id, fresh_esi_data.data, cache)
-                        .await?;
+        // Persist alliance and all dependencies (faction) in a transaction
+        let txn = self.db.begin().await?;
+        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        txn.commit().await?;
 
-                    txn.commit().await?;
-
-                    Ok(updated_alliance)
-                })
-            },
-        )
-        .await
+        let alliance = stored_eve_entities.get_alliance_or_err(alliance_id)?;
+        Ok(alliance.clone())
     }
 }

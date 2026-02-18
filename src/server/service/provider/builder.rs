@@ -61,6 +61,8 @@ pub struct EveEntityProviderBuilder<'a> {
     characters_map: HashMap<i64, Character>,
     // Corporation data we have already fetched which we just need stored and dependencies resolved
     corporations_map: HashMap<i64, Corporation>,
+    // Alliance data we have already fetched which we just need stored and dependencies resolved
+    alliances_map: HashMap<i64, Alliance>,
 }
 
 impl<'a> EveEntityProviderBuilder<'a> {
@@ -87,6 +89,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             dependency_faction_ids: Default::default(),
             characters_map: Default::default(),
             corporations_map: Default::default(),
+            alliances_map: Default::default(),
         }
     }
 
@@ -221,6 +224,28 @@ impl<'a> EveEntityProviderBuilder<'a> {
         self
     }
 
+    /// Adds an alliance with pre-fetched ESI data.
+    ///
+    /// This method is used when you already have alliance data from ESI and want to avoid
+    /// fetching it again. The alliance's related entities (faction)
+    /// will be added as dependencies to be resolved.
+    ///
+    /// # Arguments
+    /// - `alliance_id` - EVE Online alliance ID
+    /// - `esi_alliance` - Pre-fetched alliance data from ESI
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn alliance_with_data(mut self, alliance_id: i64, esi_alliance: Alliance) -> Self {
+        if let Some(faction_id) = esi_alliance.faction_id {
+            self.dependency_faction_ids.insert(faction_id);
+        }
+
+        self.alliances_map.insert(alliance_id, esi_alliance);
+
+        self
+    }
+
     /// Adds multiple alliance IDs to be fetched from ESI.
     ///
     /// All alliances will be fetched fresh from ESI, and their related factions
@@ -270,7 +295,9 @@ impl<'a> EveEntityProviderBuilder<'a> {
         let (alliances_record_id_map, missing_alliance_ids) =
             self.find_existing_alliances().await?;
         self.requested_alliance_ids.extend(missing_alliance_ids);
-        let alliances_map = self.fetch_alliances().await?;
+        let fetched_alliances = self.fetch_alliances().await?;
+
+        self.alliances_map.extend(fetched_alliances);
 
         let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
         let factions_map = if missing_faction_ids.len() > 0 {
@@ -285,7 +312,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
 
         Ok(EveEntityProvider {
             factions_map,
-            alliances_map,
+            alliances_map: self.alliances_map,
             corporations_map: self.corporations_map,
             characters_map: self.characters_map,
             factions_record_id_map,
