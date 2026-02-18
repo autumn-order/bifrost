@@ -56,6 +56,9 @@ pub struct EveEntityProviderBuilder<'a> {
     dependency_corporation_ids: HashSet<i64>,
     dependency_alliance_ids: HashSet<i64>,
     dependency_faction_ids: HashSet<i64>,
+
+    // Character data we have already fetched which we just need stored and dependencies resolved
+    characters_map: HashMap<i64, Character>,
 }
 
 impl<'a> EveEntityProviderBuilder<'a> {
@@ -80,6 +83,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             dependency_corporation_ids: Default::default(),
             dependency_alliance_ids: Default::default(),
             dependency_faction_ids: Default::default(),
+            characters_map: Default::default(),
         }
     }
 
@@ -95,6 +99,31 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - `Self` - Builder instance for method chaining
     pub fn character(mut self, id: i64) -> Self {
         self.requested_character_ids.insert(id);
+        self
+    }
+
+    /// Adds a character with pre-fetched ESI data.
+    ///
+    /// This method is used when you already have character data from ESI and want to avoid
+    /// fetching it again. The character's related entities (corporation, alliance, faction)
+    /// will be added as dependencies to be resolved.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID
+    /// - `esi_character` - Pre-fetched character data from ESI
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn character_with_data(mut self, character_id: i64, esi_character: Character) -> Self {
+        self.dependency_corporation_ids
+            .insert(esi_character.corporation_id);
+
+        if let Some(faction_id) = esi_character.faction_id {
+            self.dependency_faction_ids.insert(faction_id);
+        }
+
+        self.characters_map.insert(character_id, esi_character);
+
         self
     }
 
@@ -192,7 +221,9 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - ESI requests fail
     /// - Database queries fail
     pub async fn build(mut self) -> Result<EveEntityProvider, Error> {
-        let characters_map = self.fetch_characters().await?;
+        let fetched_characters = self.fetch_characters().await?;
+
+        self.characters_map.extend(fetched_characters);
 
         let (corporations_record_id_map, missing_corporation_ids) =
             self.find_existing_corporations().await?;
@@ -220,7 +251,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             factions_map,
             alliances_map,
             corporations_map,
-            characters_map,
+            characters_map: self.characters_map,
             factions_record_id_map,
             alliances_record_id_map,
             corporations_record_id_map,

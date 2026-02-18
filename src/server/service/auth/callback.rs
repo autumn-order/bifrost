@@ -171,104 +171,108 @@ impl<'a> CallbackService<'a> {
             None => Session::NotLoggedIn,
         };
 
-        let (user_id, ownership, txn) = match Self::determine_character_action(
-            session,
-            character_record,
-            &claims,
-        ) {
-            CharacterAction::FetchAndLink {
-                to_user_id,
-                owner_hash,
-            } => {
-                let character_id = claims.character_id()?;
-                let eve_entity_provider = EveEntityProviderBuilder::new(self.db, self.esi_client)
-                    .character(character_id)
-                    .build()
-                    .await?;
+        let (user_id, ownership, txn) =
+            match Self::determine_character_action(session, character_record, &claims) {
+                CharacterAction::FetchAndLink {
+                    to_user_id,
+                    owner_hash,
+                } => {
+                    let character_id = claims.character_id()?;
+                    let eve_entity_provider =
+                        EveEntityProviderBuilder::new(self.db, self.esi_client)
+                            .character(character_id)
+                            .build()
+                            .await?;
 
-                let txn = self.db.begin().await?;
-
-                let stored_eve_entities = eve_entity_provider.store(&txn).await?;
-                let Some(character) = stored_eve_entities.get_character(character_id) else {
-                    return Err(Error::InternalError(format!(
-                        "Failed to retrieve information for character {} from database after fetching from ESI & storing.",
-                        character_id
-                    ))
-                    .into());
-                };
-
-                let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
-
-                // Use link_character method to assign newly created character to logged in user
-                let ownership =
-                    UserCharacterService::link_character(&txn, character.id, user_id, &owner_hash)
-                        .await?;
-
-                (user_id, ownership, txn)
-            }
-            CharacterAction::LinkUnownedToUser {
-                to_user_id,
-                character,
-                owner_hash,
-            } => {
-                let txn = self.db.begin().await?;
-
-                let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
-
-                // Use link_character method to assign newly created character to logged in user
-                let ownership =
-                    UserCharacterService::link_character(&txn, character.id, user_id, &owner_hash)
-                        .await?;
-
-                (user_id, ownership, txn)
-            }
-            CharacterAction::TransferOwnership {
-                to_user_id,
-                character,
-                owner_hash,
-            } => {
-                let txn = self.db.begin().await?;
-
-                let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
-
-                // Transfer the character from previous user to currently logged in user
-                let ownership = UserCharacterService::transfer_character(
-                    &txn,
-                    character.id,
-                    user_id,
-                    &owner_hash,
-                )
-                .await?;
-
-                (user_id, ownership, txn)
-            }
-            CharacterAction::UpdateOwnerHash {
-                user_id,
-                character,
-                owner_hash,
-            } => {
-                let txn = self.db.begin().await?;
-
-                // Update owner hash via the link_character method which will upsert the hash
-                let ownership =
-                    UserCharacterService::link_character(&txn, character.id, user_id, &owner_hash)
-                        .await?;
-
-                (user_id, ownership, txn)
-            }
-            CharacterAction::AlreadyOwned { user_id, ownership } => {
-                // Handle change_main for AlreadyOwned case and return early
-                if change_main.unwrap_or(false) {
                     let txn = self.db.begin().await?;
 
-                    UserCharacterService::set_main_character(&txn, user_id, ownership).await?;
+                    let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+                    let character = stored_eve_entities.get_character_or_err(character_id)?;
 
-                    txn.commit().await?;
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
+
+                    // Use link_character method to assign newly created character to logged in user
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
                 }
+                CharacterAction::LinkUnownedToUser {
+                    to_user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
 
-                return Ok(user_id);
-            }
-        };
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
+
+                    // Use link_character method to assign newly created character to logged in user
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::TransferOwnership {
+                    to_user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
+
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
+
+                    // Transfer the character from previous user to currently logged in user
+                    let ownership = UserCharacterService::transfer_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::UpdateOwnerHash {
+                    user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
+
+                    // Update owner hash via the link_character method which will upsert the hash
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::AlreadyOwned { user_id, ownership } => {
+                    // Handle change_main for AlreadyOwned case and return early
+                    if change_main.unwrap_or(false) {
+                        let txn = self.db.begin().await?;
+
+                        UserCharacterService::set_main_character(&txn, user_id, ownership).await?;
+
+                        txn.commit().await?;
+                    }
+
+                    return Ok(user_id);
+                }
+            };
 
         // Handle change_main within the same transaction for atomicity
         if change_main.unwrap_or(false) {

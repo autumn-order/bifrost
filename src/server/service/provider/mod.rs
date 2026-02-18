@@ -491,4 +491,24 @@ impl StoredEntities {
     pub fn get_alliance(&self, alliance_id: i64) -> Option<&EveAllianceModel> {
         self.alliances_map.get(&alliance_id)
     }
+
+    /// Gets a character from the stored database models by character ID, or returns an error.
+    ///
+    /// This is a convenience method that wraps [`get_character`](Self::get_character) and
+    /// converts `None` into a descriptive `InternalError`.
+    ///
+    /// # Arguments
+    /// - `character_id` - EVE Online character ID
+    ///
+    /// # Returns
+    /// - `Ok(&EveCharacterModel)` - Character database model if it was stored
+    /// - `Err(Error::InternalError)` - Character was not found after storing
+    pub fn get_character_or_err(&self, character_id: i64) -> Result<&EveCharacterModel, Error> {
+        self.get_character(character_id).ok_or_else(|| {
+            Error::InternalError(format!(
+                "Failed to retrieve information for character {} from database after fetching from ESI & storing.",
+                character_id
+            ))
+        })
+    }
 }
