@@ -2,14 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::Utc;
 use eve_esi::{
-    model::{
-        alliance::Alliance, character::Character, corporation::Corporation, universe::Faction,
-    },
+    model::{alliance::Alliance, character::Character, corporation::Corporation},
     CacheStrategy, CachedResponse,
 };
 use sea_orm::DatabaseConnection;
 
-use super::EveEntityProvider;
+use super::{EveEntityProvider, FactionFetchState};
 use crate::server::{
     data::eve::{
         alliance::AllianceRepository, corporation::CorporationRepository,
@@ -51,6 +49,8 @@ pub struct EveEntityProviderBuilder<'a> {
     requested_character_ids: HashSet<i64>,
     requested_corporation_ids: HashSet<i64>,
     requested_alliance_ids: HashSet<i64>,
+    // Explicitly request faction fetch (for periodic faction updates)
+    requested_faction_update: bool,
 
     // Dependency IDs - check DB first, fetch if missing
     dependency_corporation_ids: HashSet<i64>,
@@ -87,6 +87,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             dependency_corporation_ids: Default::default(),
             dependency_alliance_ids: Default::default(),
             dependency_faction_ids: Default::default(),
+            requested_faction_update: false,
             characters_map: Default::default(),
             corporations_map: Default::default(),
             alliances_map: Default::default(),
@@ -261,6 +262,21 @@ impl<'a> EveEntityProviderBuilder<'a> {
         self
     }
 
+    /// Explicitly request all factions to be fetched and updated.
+    ///
+    /// This is used for periodic faction updates where no specific entities are being
+    /// fetched, but we want to ensure all faction data is current. The method will:
+    /// - Check if factions are stale (based on cache expiry)
+    /// - Use If-Modified-Since for efficient updates (304 handling)
+    /// - Update timestamps or full data as appropriate
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn with_factions(mut self) -> Self {
+        self.requested_faction_update = true;
+        self
+    }
+
     /// Builds the provider by fetching all requested entities and their dependencies.
     ///
     /// # Process
@@ -300,18 +316,18 @@ impl<'a> EveEntityProviderBuilder<'a> {
         self.alliances_map.extend(fetched_alliances);
 
         let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
-        let factions_map = if missing_faction_ids.len() > 0 {
-            // Attempt to fetch factions if any are missing, should only occur if:
-            // - First time fetching any entity related to any a faction
-            // - A new faction was added to the game before faction update task was ran
+        let factions = if self.requested_faction_update || missing_faction_ids.len() > 0 {
+            // Fetch factions if:
+            // - Explicitly requested via with_factions() (periodic update)
+            // - Any entity references a faction we don't have (dependency resolution)
             self.fetch_factions_if_stale().await?
         } else {
-            // No factions to store later
-            None
+            // No factions to fetch
+            FactionFetchState::NotFetched
         };
 
         Ok(EveEntityProvider {
-            factions_map,
+            factions,
             alliances_map: self.alliances_map,
             corporations_map: self.corporations_map,
             characters_map: self.characters_map,
@@ -422,7 +438,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - The last updated faction was before the cache expired
     ///
     /// Uses `If-Modified-Since` when existing data is present to minimize data transfer.
-    async fn fetch_factions_if_stale(&self) -> Result<Option<HashMap<i64, Faction>>, Error> {
+    async fn fetch_factions_if_stale(&self) -> Result<FactionFetchState, Error> {
         let faction_repo = FactionRepository::new(self.db);
         let latest_faction = faction_repo.get_latest().await?;
 
@@ -431,7 +447,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
                 // Check if has already updated since last cache expiry
                 if latest.updated_at < effective_faction_cache_expiry(Utc::now())? {
                     // Faction already up to date, nothing to do
-                    return Ok(None);
+                    return Ok(FactionFetchState::NotFetched);
                 }
 
                 // Fetch factions from ESI with If-Modified-Since since we have existing data
@@ -443,9 +459,9 @@ impl<'a> EveEntityProviderBuilder<'a> {
                     .await?;
 
                 let CachedResponse::Fresh(fresh_data) = esi_response else {
-                    // Factions have not changed since last request
-                    // TODO: update last updated timestamps since all info is currently up to date
-                    return Ok(None);
+                    // Factions have not changed since last request (304)
+                    // Timestamps will be updated in store() within a transaction
+                    return Ok(FactionFetchState::NotModified);
                 };
 
                 fresh_data.data
@@ -456,7 +472,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             }
         };
 
-        Ok(Some(
+        Ok(FactionFetchState::Fresh(
             fetched_factions
                 .into_iter()
                 .map(|f| (f.faction_id, f))

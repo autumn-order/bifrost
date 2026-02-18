@@ -72,6 +72,21 @@ use crate::server::{
 
 pub use builder::EveEntityProviderBuilder;
 
+/// Result of fetching factions from ESI.
+///
+/// This enum prevents illegal states by ensuring factions can only be in one of three valid states:
+/// - Fresh data was fetched and needs to be stored
+/// - ESI returned 304 Not Modified (timestamp update needed)
+/// - No fetch was needed (data not stale yet)
+pub(super) enum FactionFetchState {
+    /// Fresh faction data was fetched from ESI and should be stored
+    Fresh(HashMap<i64, Faction>),
+    /// ESI returned 304 Not Modified - only timestamp update needed
+    NotModified,
+    /// Factions are not stale - no action needed
+    NotFetched,
+}
+
 /// Provides EVE Entities fetched from ESI via the [`EveEntityProviderBuilder`].
 ///
 /// Contains fetched ESI data and database relationship mappings needed to store
@@ -91,7 +106,7 @@ pub use builder::EveEntityProviderBuilder;
 /// 4. Characters (references corporations and factions)
 pub struct EveEntityProvider {
     // ESI data (what was fetched)
-    factions_map: Option<HashMap<i64, Faction>>,
+    factions: FactionFetchState,
     alliances_map: HashMap<i64, Alliance>,
     corporations_map: HashMap<i64, Corporation>,
     characters_map: HashMap<i64, Character>,
@@ -183,14 +198,29 @@ impl EveEntityProvider {
     /// # }
     /// ```
     pub async fn store(mut self, txn: &DatabaseTransaction) -> Result<StoredEntities, Error> {
-        if let Some(factions_map) = self.factions_map.take() {
-            let stored_factions_record_map = self.store_factions(txn, factions_map).await?;
-            self.factions_record_id_map.extend(
+        let factions = std::mem::replace(&mut self.factions, FactionFetchState::NotFetched);
+        let stored_factions_record_map = match factions {
+            FactionFetchState::Fresh(factions_map) => {
+                let stored_factions_record_map = self.store_factions(txn, factions_map).await?;
+                self.factions_record_id_map.extend(
+                    stored_factions_record_map
+                        .iter()
+                        .map(|(faction_id, faction)| (*faction_id, faction.id.clone())),
+                );
+
                 stored_factions_record_map
-                    .iter()
-                    .map(|(faction_id, faction)| (*faction_id, faction.id.clone())),
-            );
-        }
+            }
+            FactionFetchState::NotModified => {
+                // Factions returned 304 Not Modified - update timestamps to indicate data is still current
+                let faction_repo = FactionRepository::new(txn);
+                faction_repo.update_all_timestamps().await?;
+                Default::default()
+            }
+            FactionFetchState::NotFetched => {
+                // Factions are not stale - no action needed
+                Default::default()
+            }
+        };
 
         let stored_alliances_record_map = if self.alliances_map.len() > 0 {
             let alliances_map = std::mem::take(&mut self.alliances_map);
@@ -229,6 +259,7 @@ impl EveEntityProvider {
         };
 
         Ok(StoredEntities {
+            factions_map: stored_factions_record_map,
             alliances_map: stored_alliances_record_map,
             corporations_map: stored_corporations_record_map,
             characters_map: stored_characters_record_map,
@@ -450,6 +481,7 @@ impl EveEntityProvider {
 /// ```
 pub struct StoredEntities {
     // Maps EVE ID -> DB Model
+    factions_map: HashMap<i64, EveFactionModel>,
     alliances_map: HashMap<i64, EveAllianceModel>,
     corporations_map: HashMap<i64, EveCorporationModel>,
     characters_map: HashMap<i64, EveCharacterModel>,
@@ -553,5 +585,18 @@ impl StoredEntities {
                 alliance_id
             ))
         })
+    }
+
+    /// Gets all factions from the stored database models.
+    ///
+    /// Returns all faction models that were stored. Useful for bulk faction operations.
+    ///
+    /// # Returns
+    /// - `Vec<EveFactionModel>` - All stored faction database models, or empty vec if:
+    ///   - Factions returned 304 Not Modified (only timestamps were updated)
+    ///   - Factions were not stale (no fetch was needed)
+    ///   - No factions were requested in the builder
+    pub fn get_all_factions(&self) -> Vec<EveFactionModel> {
+        self.factions_map.values().cloned().collect()
     }
 }

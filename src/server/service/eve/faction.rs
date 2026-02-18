@@ -1,27 +1,17 @@
 //! Faction service for EVE Online faction data operations.
 //!
 //! This module provides the `FactionService` for fetching NPC faction information from ESI
-//! and persisting it to the database. Operations use orchestrators to handle dependencies
-//! and include retry logic for reliability.
+//! and persisting it to the database.
 
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::faction::FactionRepository,
-    error::Error,
-    model::db::EveFactionModel,
-    service::{
-        orchestrator::{
-            cache::TrackedTransaction, faction::FactionOrchestrator, OrchestrationCache,
-        },
-        retry::RetryContext,
-    },
+    error::Error, model::db::EveFactionModel, service::provider::EveEntityProviderBuilder,
 };
 
 /// Service for managing EVE Online faction operations.
 ///
 /// Provides methods for fetching NPC faction data from ESI and persisting it to the database.
-/// Uses orchestrators to handle dependency resolution and automatic retry logic for transient failures.
 pub struct FactionService<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
@@ -58,47 +48,29 @@ impl<'a> FactionService<'a> {
     /// Unlike individual entity services (character/corporation/alliance), this method operates
     /// on all factions at once since ESI only provides a bulk faction endpoint.
     ///
-    /// The method uses retry logic to handle transient ESI or database failures automatically.
     /// All database operations are performed within transactions to ensure consistency.
     ///
     /// # Returns
     /// - `Ok(Vec<EveFactionModel>)` - The created or updated faction database records (empty if 304)
-    /// - `Err(Error::EsiError)` - Failed to fetch faction data from ESI after retries
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
+    /// - `Err(Error::EsiError)` - Failed to fetch faction data from ESI
+    /// - `Err(Error::DbErr)` - Database operation failed
     pub async fn update(&self) -> Result<Vec<EveFactionModel>, Error> {
-        let mut ctx: RetryContext<OrchestrationCache> = RetryContext::new();
+        // Build entity provider with explicit faction fetch request
+        // The builder's fetch_factions_if_stale() handles the conditional request logic
+        let eve_entity_provider = EveEntityProviderBuilder::new(self.db, self.esi_client)
+            .with_factions()
+            .build()
+            .await?;
 
-        let db = self.db.clone();
-        let esi_client = self.esi_client.clone();
+        // Always call store() within a transaction
+        // - If fresh data: stores faction data
+        // - If 304: updates timestamps only
+        // - If not stale: no-op
+        let txn = self.db.begin().await?;
+        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        txn.commit().await?;
 
-        ctx.execute_with_retry("faction info update", |cache| {
-            let db = db.clone();
-            let esi_client = esi_client.clone();
-
-            Box::pin(async move {
-                let faction_repo = FactionRepository::new(&db);
-                let faction_orch = FactionOrchestrator::new(&db, &esi_client);
-
-                // Fetch factions from ESI using the If-Modified-Since within orchestrator
-                let Some(fetched_factions) = faction_orch.fetch_factions(cache).await? else {
-                    // ESI returned 304 Not Modified, just update all timestamps
-                    faction_repo.update_all_timestamps().await?;
-
-                    return Ok(Vec::new());
-                };
-
-                // Fresh data received, persist all factions
-                let txn = TrackedTransaction::begin(&db).await?;
-
-                let faction_models = faction_orch
-                    .persist_factions(&txn, fetched_factions, cache)
-                    .await?;
-
-                txn.commit().await?;
-
-                Ok(faction_models)
-            })
-        })
-        .await
+        // Return stored factions (empty vec if 304 or not stale)
+        Ok(stored_eve_entities.get_all_factions())
     }
 }
