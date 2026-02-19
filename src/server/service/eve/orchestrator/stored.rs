@@ -7,7 +7,7 @@ use entity::{
 
 use crate::server::error::Error;
 
-/// Database models of entities stored by [`EveEntityProvider`].
+/// Database models of entities stored by [`EveEntityOrchestrator`].
 ///
 /// Provides access to the persisted database records with their generated IDs
 /// and timestamps. Maps EVE Online IDs to both full database models and record IDs.
@@ -20,7 +20,7 @@ use crate::server::error::Error;
 /// # Example
 ///
 /// ```no_run
-/// # use bifrost::server::service::provider::StoredEntities;
+/// # use bifrost::server::service::eve::orchestrator::StoredEntities;
 /// # fn example(stored: &StoredEntities, char_id: i64) {
 /// if let Some(character) = stored.get_character(&char_id) {
 ///     println!("Character DB ID: {}, Created: {}", character.id, character.created_at);
@@ -170,7 +170,7 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Some(i32)` - Database record ID if the character exists in the database
-    /// - `None` - Character was not involved in this provider operation
+    /// - `None` - Character was not involved in this orchestrator operation
     pub fn get_character_record_id(&self, character_id: &i64) -> Option<i32> {
         self.characters_record_id_map.get(character_id).copied()
     }
@@ -185,7 +185,7 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Some(i32)` - Database record ID if the corporation exists in the database
-    /// - `None` - Corporation was not involved in this provider operation
+    /// - `None` - Corporation was not involved in this orchestrator operation
     pub fn get_corporation_record_id(&self, corporation_id: &i64) -> Option<i32> {
         self.corporations_record_id_map.get(corporation_id).copied()
     }
@@ -200,7 +200,7 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Some(i32)` - Database record ID if the alliance exists in the database
-    /// - `None` - Alliance was not involved in this provider operation
+    /// - `None` - Alliance was not involved in this orchestrator operation
     pub fn get_alliance_record_id(&self, alliance_id: &i64) -> Option<i32> {
         self.alliances_record_id_map.get(alliance_id).copied()
     }
@@ -215,7 +215,7 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Some(i32)` - Database record ID if the faction exists in the database
-    /// - `None` - Faction was not involved in this provider operation
+    /// - `None` - Faction was not involved in this orchestrator operation
     pub fn get_faction_record_id(&self, faction_id: &i64) -> Option<i32> {
         self.factions_record_id_map.get(faction_id).copied()
     }

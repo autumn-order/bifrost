@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::alliance::AllianceRepository, error::Error, model::db::EveAllianceModel,
-    service::eve::provider::EveEntityProvider,
+    service::eve::orchestrator::EveEntityOrchestrator,
 };
 
 /// Service for managing EVE Online alliance operations.
@@ -66,7 +66,7 @@ impl<'a> AllianceService<'a> {
         // Build entity provider using one of two strategies:
         // 1. For existing alliances: fetch with conditional request (may return early on 304)
         // 2. For new alliances: fetch unconditionally from ESI
-        let eve_entity_provider = match alliance_repo.find_by_eve_id(alliance_id).await? {
+        let eve_entity_orchestrator = match alliance_repo.find_by_eve_id(alliance_id).await? {
             Some(existing_alliance) => {
                 // Existing alliance: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_alliance) = self
@@ -85,15 +85,15 @@ impl<'a> AllianceService<'a> {
                     return Ok(refreshed_alliance);
                 };
 
-                // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // Build orchestrator with pre-fetched data to avoid redundant ESI call
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .alliance_with_data(alliance_id, esi_alliance.data)
                     .build()
                     .await?
             }
             None => {
-                // New alliance: provider will fetch from ESI during build()
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // New alliance: orchestrator will fetch from ESI during build()
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .alliance(alliance_id)
                     .build()
                     .await?
@@ -102,7 +102,7 @@ impl<'a> AllianceService<'a> {
 
         // Persist alliance and all dependencies (faction) in a transaction
         let txn = self.db.begin().await?;
-        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        let stored_eve_entities = eve_entity_orchestrator.store(&txn).await?;
         txn.commit().await?;
 
         let alliance = stored_eve_entities.get_alliance_or_err(&alliance_id)?;

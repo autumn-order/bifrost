@@ -1,14 +1,14 @@
-//! # EVE Online Entity Orchestration Provider
+//! # EVE Online Entity Orchestrator
 //!
 //! This module provides a two-phase system for fetching EVE Online entities from ESI
 //! and persisting them to the database with proper relationship handling.
 //!
 //! ## Overview
 //!
-//! The provider system consists of two main components:
+//! The orchestrator system consists of two main components:
 //!
-//! - [`EveEntityProviderBuilder`]: Fetches entities from ESI and resolves database relationships
-//! - [`EveEntityProvider`]: Stores fetched entities to the database with relationship integrity
+//! - [`EveEntityOrchestratorBuilder`]: Fetches entities from ESI and resolves database relationships
+//! - [`EveEntityOrchestrator`]: Stores fetched entities to the database with relationship integrity
 //!
 //! ## Workflow
 //!
@@ -26,7 +26,7 @@
 //! ## Example
 //!
 /// ```no_run
-/// use bifrost::server::{service::provider::EveEntityProvider, error::Error};
+/// use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
 /// use sea_orm::{DatabaseConnection, TransactionTrait};
 ///
 /// async fn update_character_affiliations(
@@ -36,12 +36,12 @@
 /// ) -> Result<(), Error> {
 ///     let txn = db.begin().await?;
 ///
-///     let provider = EveEntityProvider::builder(db, esi_client)
+///     let orchestrator = EveEntityOrchestrator::builder(db, esi_client)
 ///         .characters(character_ids)
 ///         .build()
 ///         .await?;
 ///
-///     let stored = provider.store(&txn).await?;
+///     let stored = orchestrator.store(&txn).await?;
 ///     txn.commit().await?;
 ///
 ///     Ok(())
@@ -71,7 +71,7 @@ use crate::server::{
     error::Error,
 };
 
-pub use builder::EveEntityProviderBuilder;
+pub use builder::EveEntityOrchestratorBuilder;
 pub use stored::StoredEntities;
 
 /// Result of fetching factions from ESI.
@@ -92,7 +92,7 @@ pub(super) enum FactionFetchState {
     NotRequested,
 }
 
-/// Provides EVE Entities fetched from ESI via the [`EveEntityProviderBuilder`].
+/// Orchestrates EVE Entities fetched from ESI via the [`EveEntityOrchestratorBuilder`].
 ///
 /// Contains fetched ESI data and database relationship mappings needed to store
 /// entities with proper foreign key references.
@@ -100,7 +100,7 @@ pub(super) enum FactionFetchState {
 /// # Usage
 ///
 /// After building, call [`store()`](Self::store) within a database transaction to persist all entities.
-/// The provider consumes itself during storage to prevent reuse.
+/// The orchestrator consumes itself during storage to prevent reuse.
 ///
 /// # Relationship Integrity
 ///
@@ -109,7 +109,7 @@ pub(super) enum FactionFetchState {
 /// 2. Alliances (references factions)
 /// 3. Corporations (references alliances and factions)
 /// 4. Characters (references corporations and factions)
-pub struct EveEntityProvider {
+pub struct EveEntityOrchestrator {
     // Entities fetched from ESI
     factions: FactionFetchState,
     alliances_map: HashMap<i64, Alliance>,
@@ -125,15 +125,15 @@ pub struct EveEntityProvider {
     characters_record_id_map: HashMap<i64, i32>,
 }
 
-impl EveEntityProvider {
-    /// Creates a new builder for fetching and constructing an EVE entity provider.
+impl EveEntityOrchestrator {
+    /// Creates a new builder for fetching and constructing an EVE entity orchestrator.
     ///
-    /// This is the primary way to construct an `EveEntityProvider`.
+    /// This is the primary way to construct an `EveEntityOrchestrator`.
     pub fn builder<'a>(
         db: &'a DatabaseConnection,
         esi_client: &'a eve_esi::Client,
-    ) -> EveEntityProviderBuilder<'a> {
-        EveEntityProviderBuilder::new(db, esi_client)
+    ) -> EveEntityOrchestratorBuilder<'a> {
+        EveEntityOrchestratorBuilder::new(db, esi_client)
     }
 
     /// Gets a character from the fetched ESI data by character ID.
@@ -175,7 +175,7 @@ impl EveEntityProvider {
     /// Stores all fetched entities to the database within the provided transaction.
     ///
     /// Entities are stored in dependency order to maintain referential integrity.
-    /// This method consumes the provider to prevent double-storage.
+    /// This method consumes the orchestrator to prevent double-storage.
     ///
     /// # Arguments
     ///
@@ -194,17 +194,17 @@ impl EveEntityProvider {
     /// # Example
     ///
     /// ```no_run
-    /// # use bifrost::server::{service::provider::EveEntityProvider, error::Error};
+    /// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
     /// # use sea_orm::{DatabaseConnection, TransactionTrait};
     /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
     /// let txn = db.begin().await?;
     ///
-    /// let provider = EveEntityProvider::builder(db, esi)
+    /// let orchestrator = EveEntityOrchestrator::builder(db, esi)
     ///     .character(123456789)
     ///     .build()
     ///     .await?;
     ///
-    /// let stored = provider.store(&txn).await?;
+    /// let stored = orchestrator.store(&txn).await?;
     ///
     /// if let Some(character) = stored.get_character(&123456789) {
     ///     println!("Stored character with DB ID: {}", character.id);

@@ -9,4 +9,4 @@ pub mod alliance;
 pub mod character;
 pub mod corporation;
 pub mod faction;
-pub mod provider;
+pub mod orchestrator;

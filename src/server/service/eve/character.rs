@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::character::CharacterRepository, error::Error, model::db::EveCharacterModel,
-    service::eve::provider::EveEntityProvider,
+    service::eve::orchestrator::EveEntityOrchestrator,
 };
 
 /// Service for managing EVE Online character operations.
@@ -66,7 +66,7 @@ impl<'a> CharacterService<'a> {
         // Build entity provider using one of two strategies:
         // 1. For existing characters: fetch with conditional request (may return early on 304)
         // 2. For new characters: fetch unconditionally from ESI
-        let eve_entity_provider = match character_repo.find_by_eve_id(character_id).await? {
+        let eve_entity_orchestrator = match character_repo.find_by_eve_id(character_id).await? {
             Some(existing_character) => {
                 // Existing character: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_character) = self
@@ -85,15 +85,15 @@ impl<'a> CharacterService<'a> {
                     return Ok(refreshed_character);
                 };
 
-                // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // Build orchestrator with pre-fetched data to avoid redundant ESI call
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .character_with_data(character_id, esi_character.data)
                     .build()
                     .await?
             }
             None => {
-                // New character: provider will fetch from ESI during build()
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // New character: orchestrator will fetch from ESI during build()
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .character(character_id)
                     .build()
                     .await?
@@ -102,7 +102,7 @@ impl<'a> CharacterService<'a> {
 
         // Persist character and all dependencies (corporation, alliance, faction) in a transaction
         let txn = self.db.begin().await?;
-        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        let stored_eve_entities = eve_entity_orchestrator.store(&txn).await?;
         txn.commit().await?;
 
         let character = stored_eve_entities.get_character_or_err(&character_id)?;

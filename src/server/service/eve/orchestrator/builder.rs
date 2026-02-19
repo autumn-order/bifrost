@@ -7,7 +7,7 @@ use eve_esi::{
 };
 use sea_orm::DatabaseConnection;
 
-use super::{util::effective_faction_cache_expiry, EveEntityProvider, FactionFetchState};
+use super::{util::effective_faction_cache_expiry, EveEntityOrchestrator, FactionFetchState};
 use crate::server::{
     data::eve::{
         alliance::AllianceRepository, character::CharacterRepository,
@@ -28,11 +28,11 @@ use crate::server::{
 /// # Example
 ///
 /// ```no_run
-/// # use bifrost::server::{service::provider::EveEntityProvider, error::Error};
+/// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
 /// # use sea_orm::DatabaseConnection;
 /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
 /// // Fetch characters and their dependencies (corporations, alliances, factions)
-/// let provider = EveEntityProvider::builder(db, esi)
+/// let orchestrator = EveEntityOrchestrator::builder(db, esi)
 ///     .character(123456789)
 ///     .characters(vec![987654321, 111222333])
 ///     .build()
@@ -40,7 +40,7 @@ use crate::server::{
 /// # Ok(())
 /// # }
 /// ```
-pub struct EveEntityProviderBuilder<'a> {
+pub struct EveEntityOrchestratorBuilder<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 
@@ -65,8 +65,8 @@ pub struct EveEntityProviderBuilder<'a> {
     alliances_map: HashMap<i64, Alliance>,
 }
 
-impl<'a> EveEntityProviderBuilder<'a> {
-    /// Creates a new instance of EveEntityProviderBuilder.
+impl<'a> EveEntityOrchestratorBuilder<'a> {
+    /// Creates a new instance of EveEntityOrchestratorBuilder.
     ///
     /// Constructs a builder for fetching EVE Online entities from ESI with intelligent
     /// dependency resolution.
@@ -76,7 +76,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - `esi_client` - ESI API client reference
     ///
     /// # Returns
-    /// - `EveEntityProviderBuilder` - New builder instance with empty request sets
+    /// - `EveEntityOrchestratorBuilder` - New builder instance with empty request sets
     pub(super) fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
         Self {
             db,
@@ -374,7 +374,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// Returns an error if:
     /// - ESI requests fail
     /// - Database queries fail
-    pub async fn build(mut self) -> Result<EveEntityProvider, Error> {
+    pub async fn build(mut self) -> Result<EveEntityOrchestrator, Error> {
         let (characters_record_id_map, missing_character_ids) =
             self.find_existing_characters().await?;
         self.requested_character_ids.extend(missing_character_ids);
@@ -408,7 +408,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             FactionFetchState::NotRequested
         };
 
-        Ok(EveEntityProvider {
+        Ok(EveEntityOrchestrator {
             factions,
             alliances_map: self.alliances_map,
             corporations_map: self.corporations_map,

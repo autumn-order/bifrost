@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::corporation::CorporationRepository, error::Error, model::db::EveCorporationModel,
-    service::eve::provider::EveEntityProvider,
+    service::eve::orchestrator::EveEntityOrchestrator,
 };
 
 /// Service for managing EVE Online corporation operations.
@@ -66,7 +66,7 @@ impl<'a> CorporationService<'a> {
         // Build entity provider using one of two strategies:
         // 1. For existing corporations: fetch with conditional request (may return early on 304)
         // 2. For new corporations: fetch unconditionally from ESI
-        let eve_entity_provider = match corporation_repo.find_by_eve_id(corporation_id).await? {
+        let eve_entity_orchestrator = match corporation_repo.find_by_eve_id(corporation_id).await? {
             Some(existing_corporation) => {
                 // Existing corporation: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_corporation) = self
@@ -85,15 +85,15 @@ impl<'a> CorporationService<'a> {
                     return Ok(refreshed_corporation);
                 };
 
-                // Build provider with pre-fetched data to avoid redundant ESI call
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // Build orchestrator with pre-fetched data to avoid redundant ESI call
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .corporation_with_data(corporation_id, esi_corporation.data)
                     .build()
                     .await?
             }
             None => {
-                // New corporation: provider will fetch from ESI during build()
-                EveEntityProvider::builder(self.db, self.esi_client)
+                // New corporation: orchestrator will fetch from ESI during build()
+                EveEntityOrchestrator::builder(self.db, self.esi_client)
                     .corporation(corporation_id)
                     .build()
                     .await?
@@ -102,7 +102,7 @@ impl<'a> CorporationService<'a> {
 
         // Persist corporation and all dependencies (alliance, faction) in a transaction
         let txn = self.db.begin().await?;
-        let stored_eve_entities = eve_entity_provider.store(&txn).await?;
+        let stored_eve_entities = eve_entity_orchestrator.store(&txn).await?;
         txn.commit().await?;
 
         let corporation = stored_eve_entities.get_corporation_or_err(&corporation_id)?;

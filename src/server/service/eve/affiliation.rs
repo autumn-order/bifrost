@@ -13,7 +13,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 use crate::server::{
     data::eve::{character::CharacterRepository, corporation::CorporationRepository},
     error::Error,
-    service::eve::provider::{EveEntityProvider, StoredEntities},
+    service::eve::orchestrator::{EveEntityOrchestrator, StoredEntities},
     util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
 
@@ -146,7 +146,7 @@ impl<'a> AffiliationService<'a> {
             faction_ids.len()
         );
 
-        let eve_entity_provider = EveEntityProvider::builder(self.db, self.esi_client)
+        let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_client)
             .ensure_characters_exist(character_ids.clone())
             .ensure_corporations_exist(corporation_ids.clone())
             .ensure_alliances_exist(alliance_ids.clone())
@@ -156,7 +156,7 @@ impl<'a> AffiliationService<'a> {
 
         // Persist any newly fetched entities in a transaction
         let txn = self.db.begin().await?;
-        let stored_entities = eve_entity_provider.store(&txn).await?;
+        let stored_entities = eve_entity_orchestrator.store(&txn).await?;
 
         // Update the affiliation relationships
         Self::update_affiliation_relationships(&txn, &affiliations, stored_entities).await?;
