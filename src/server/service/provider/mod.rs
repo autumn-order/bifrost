@@ -25,28 +25,28 @@
 //!
 //! ## Example
 //!
-//! ```no_run
-//! use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
-//! use sea_orm::{DatabaseConnection, TransactionTrait};
-//!
-//! async fn update_character_affiliations(
-//!     db: &DatabaseConnection,
-//!     esi_client: &eve_esi::Client,
-//!     character_ids: Vec<i64>,
-//! ) -> Result<(), Error> {
-//!     let txn = db.begin().await?;
-//!
-//!     let provider = EveEntityProviderBuilder::new(db, esi_client)
-//!         .characters(character_ids)
-//!         .build()
-//!         .await?;
-//!
-//!     let stored = provider.store(&txn).await?;
-//!     txn.commit().await?;
-//!
-//!     Ok(())
-//! }
-//! ```
+/// ```no_run
+/// use bifrost::server::{service::provider::EveEntityProvider, error::Error};
+/// use sea_orm::{DatabaseConnection, TransactionTrait};
+///
+/// async fn update_character_affiliations(
+///     db: &DatabaseConnection,
+///     esi_client: &eve_esi::Client,
+///     character_ids: Vec<i64>,
+/// ) -> Result<(), Error> {
+///     let txn = db.begin().await?;
+///
+///     let provider = EveEntityProvider::builder(db, esi_client)
+///         .characters(character_ids)
+///         .build()
+///         .await?;
+///
+///     let stored = provider.store(&txn).await?;
+///     txn.commit().await?;
+///
+///     Ok(())
+/// }
+/// ```
 mod builder;
 mod stored;
 mod util;
@@ -194,12 +194,12 @@ impl EveEntityProvider {
     /// # Example
     ///
     /// ```no_run
-    /// # use bifrost::server::{service::provider::EveEntityProviderBuilder, error::Error};
+    /// # use bifrost::server::{service::provider::EveEntityProvider, error::Error};
     /// # use sea_orm::{DatabaseConnection, TransactionTrait};
     /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
     /// let txn = db.begin().await?;
     ///
-    /// let provider = EveEntityProviderBuilder::new(db, esi)
+    /// let provider = EveEntityProvider::builder(db, esi)
     ///     .character(123456789)
     ///     .build()
     ///     .await?;

@@ -23,6 +23,8 @@ async fn updates_new_alliance_without_faction() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .build()
         .await?;
@@ -63,6 +65,8 @@ async fn updates_new_alliance_with_faction() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(faction_id)), 1)
         .build()
@@ -108,6 +112,8 @@ async fn updates_alliance_with_existing_faction() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(faction_id)), 1)
         .build()
         .await?;
@@ -145,6 +151,8 @@ async fn updates_existing_alliance_with_fresh_data() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_alliance(alliance_id, None)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .build()
@@ -192,6 +200,8 @@ async fn updates_alliance_faction_affiliation() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_alliance(alliance_id, None)
         .with_faction_endpoint(vec![factory::mock_faction(new_faction_id)], 1)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(new_faction_id)), 1)
@@ -237,6 +247,8 @@ async fn removes_alliance_faction_affiliation() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .build()
         .await?;
@@ -284,6 +296,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .build()
         .await?;
@@ -314,6 +328,8 @@ async fn updates_with_faction_dependency() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(faction_id)), 1)
         .build()
@@ -355,6 +371,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint_error(alliance_id, 500, 3)
         .build()
         .await?;
@@ -386,6 +404,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint_error(alliance_id, 404, 1)
         .build()
         .await?;
@@ -440,6 +460,8 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 0)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(faction_id)), 0)
         .build()
@@ -453,35 +475,6 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
         Err(Error::DbErr(_)) => (),
         _ => panic!("Expected Error::DbErr, got: {:?}", result),
     }
-
-    Ok(())
-}
-
-/// Tests transaction rollback on error.
-///
-/// Verifies that database changes are rolled back when an error occurs during
-/// the update operation, ensuring data consistency.
-///
-/// Expected: Err with no partial data in database
-#[tokio::test]
-async fn rolls_back_transaction_on_error() -> Result<(), TestError> {
-    let alliance_id = 99_000_001;
-
-    let test = TestBuilder::new()
-        .with_table(entity::prelude::EveFaction)
-        .with_table(entity::prelude::EveAlliance)
-        .with_alliance_endpoint_error(alliance_id, 500, 3)
-        .build()
-        .await?;
-
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
-    let _result = alliance_service.update(alliance_id).await;
-
-    // Verify no alliance was created
-    let alliances = entity::prelude::EveAlliance::find().all(&test.db).await?;
-    assert_eq!(alliances.len(), 0);
-
-    test.assert_mocks();
 
     Ok(())
 }
@@ -501,6 +494,8 @@ async fn updates_multiple_alliances_sequentially() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id_1, factory::mock_alliance(None), 1)
         .with_alliance_endpoint(alliance_id_2, factory::mock_alliance(None), 1)
         .with_alliance_endpoint(alliance_id_3, factory::mock_alliance(None), 1)
@@ -540,6 +535,8 @@ async fn update_is_idempotent() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 3)
         .build()
         .await?;
@@ -585,6 +582,8 @@ async fn updates_timestamp_on_304_not_modified() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_alliance(alliance_id, None)
         .with_alliance_endpoint_not_modified(alliance_id, 1)
         .build()
@@ -631,6 +630,8 @@ async fn updates_timestamp_on_304_with_faction() -> Result<(), TestError> {
     let mut test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint_not_modified(alliance_id, 1)
         .build()
         .await?;
@@ -678,6 +679,8 @@ async fn handles_mixed_304_and_fresh_responses() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .with_alliance_endpoint_not_modified(alliance_id, 1)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)

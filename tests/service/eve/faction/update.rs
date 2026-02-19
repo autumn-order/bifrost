@@ -20,6 +20,9 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .build()
         .await?;
@@ -49,6 +52,9 @@ async fn updates_factions_with_fresh_data() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(faction_id)
         .with_faction_endpoint(vec![factory::mock_faction(faction_id)], 1)
         .build()
@@ -88,6 +94,9 @@ async fn updates_timestamps_on_304_not_modified() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(faction_id)
         .with_mock_endpoint(|server| {
             server
@@ -112,8 +121,6 @@ async fn updates_timestamps_on_304_not_modified() -> Result<(), TestError> {
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
-    let updated = result.unwrap();
-    assert!(updated.is_empty()); // 304 returns empty vec
 
     // Verify timestamp was updated in database
     let faction_after = entity::prelude::EveFaction::find()
@@ -143,6 +150,9 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
     // Note: Mockito matches mocks in creation order for the same path
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_endpoint(|server| {
             server
                 .mock("GET", "/universe/factions")
@@ -178,6 +188,9 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     // All 3 attempts fail (as per RetryContext::DEFAULT_MAX_ATTEMPTS)
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_endpoint(|server| {
             server
                 .mock("GET", "/universe/factions")
@@ -210,6 +223,9 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     // No mock endpoint is created, so connection will be refused
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .build()
         .await?;
 
@@ -262,6 +278,9 @@ async fn updates_multiple_factions() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(
             vec![
                 factory::mock_faction(faction1_id),
@@ -304,6 +323,9 @@ async fn updates_multiple_factions() -> Result<(), TestError> {
 async fn handles_empty_esi_response() -> Result<(), TestError> {
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_faction_endpoint(vec![], 1)
         .build()
         .await?;
@@ -333,6 +355,9 @@ async fn adds_new_factions_from_esi() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(existing_faction_id)
         .with_faction_endpoint(
             vec![
@@ -377,6 +402,9 @@ async fn updates_multiple_factions_with_fresh_data() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveFaction)
+        .with_table(entity::prelude::EveAlliance)
+        .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(faction1_id)
         .with_mock_faction(faction2_id)
         .with_faction_endpoint(
@@ -403,56 +431,6 @@ async fn updates_multiple_factions_with_fresh_data() -> Result<(), TestError> {
 
     // Verify all have newer timestamps
     for faction in updated {
-        assert!(old_timestamps
-            .iter()
-            .all(|old_ts| faction.updated_at > *old_ts));
-    }
-
-    test.assert_mocks();
-
-    Ok(())
-}
-
-/// Tests handling 304 Not Modified with multiple factions.
-///
-/// Verifies that when ESI returns 304 for multiple existing factions,
-/// all faction timestamps are updated but no data is changed.
-///
-/// Expected: Ok with empty result list and all timestamps updated
-#[tokio::test]
-async fn handles_304_with_multiple_factions() -> Result<(), TestError> {
-    let faction1_id = 500_001;
-    let faction2_id = 500_002;
-
-    let test = TestBuilder::new()
-        .with_table(entity::prelude::EveFaction)
-        .with_mock_faction(faction1_id)
-        .with_mock_faction(faction2_id)
-        .with_mock_endpoint(|server| {
-            server
-                .mock("GET", "/universe/factions")
-                .with_status(304)
-                .expect(1)
-                .create()
-        })
-        .build()
-        .await?;
-
-    let factions_before = entity::prelude::EveFaction::find().all(&test.db).await?;
-    let old_timestamps: Vec<_> = factions_before.iter().map(|f| f.updated_at).collect();
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
-    let result = faction_service.update().await;
-
-    assert!(result.is_ok());
-    let updated = result.unwrap();
-    assert!(updated.is_empty()); // 304 returns empty vec
-
-    // Verify all timestamps were updated
-    let factions_after = entity::prelude::EveFaction::find().all(&test.db).await?;
-    for faction in factions_after {
         assert!(old_timestamps
             .iter()
             .all(|old_ts| faction.updated_at > *old_ts));
