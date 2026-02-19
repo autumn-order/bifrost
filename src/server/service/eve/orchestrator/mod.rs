@@ -174,8 +174,15 @@ impl EveEntityOrchestrator {
 
     /// Stores all fetched entities to the database within the provided transaction.
     ///
-    /// Entities are stored in dependency order to maintain referential integrity.
-    /// This method consumes the orchestrator to prevent double-storage.
+    /// Entities are stored in dependency order to maintain referential integrity:
+    /// 1. Factions (handled by fetch state)
+    /// 2. Alliances (references factions)
+    /// 3. Corporations (references alliances and factions)
+    /// 4. Characters (references corporations and factions)
+    ///
+    /// Each storage method handles its own empty-check logic, so the orchestrator
+    /// simply delegates to each method unconditionally. This method consumes the
+    /// orchestrator to prevent accidental reuse.
     ///
     /// # Arguments
     ///
@@ -216,79 +223,26 @@ impl EveEntityOrchestrator {
     /// ```
     pub async fn store(mut self, txn: &DatabaseTransaction) -> Result<StoredEntities, Error> {
         let factions_state = std::mem::replace(&mut self.factions, FactionFetchState::NotRequested);
-        let stored_factions = match factions_state {
-            FactionFetchState::Fresh(factions_map) => {
-                // Store & return updated faction information fetched from ESI
-                self.store_factions(txn, factions_map).await?
-            }
-            FactionFetchState::NotModified => {
-                // Update timestamps for revalidated data (304 Not Modified)
-                let faction_repo = FactionRepository::new(txn);
-                faction_repo.update_all_timestamps().await?;
-                faction_repo.get_all().await?
-            }
-            FactionFetchState::UpToDate => {
-                // Factions are up-to-date, load existing from DB
-                FactionRepository::new(txn).get_all().await?
-            }
-            FactionFetchState::NotRequested => {
-                // No factions needed at all
-                Vec::new()
-            }
-        };
+        let (stored_factions_record_map, factions_record_id_map) =
+            self.store_factions(txn, factions_state).await?;
+        self.factions_record_id_map.extend(factions_record_id_map);
 
-        self.factions_record_id_map.extend(
-            stored_factions
-                .iter()
-                .map(|faction| (faction.faction_id, faction.id)),
-        );
-        let stored_factions_record_map = stored_factions
-            .into_iter()
-            .map(|faction| (faction.faction_id, faction))
-            .collect();
+        let alliances_map = std::mem::take(&mut self.alliances_map);
+        let (stored_alliances_record_map, alliances_record_id_map) =
+            self.store_alliances(txn, alliances_map).await?;
+        self.alliances_record_id_map.extend(alliances_record_id_map);
 
-        let stored_alliances_record_map = if self.alliances_map.len() > 0 {
-            let alliances_map = std::mem::take(&mut self.alliances_map);
-            let stored_alliances_record_map = self.store_alliances(txn, alliances_map).await?;
-            self.alliances_record_id_map.extend(
-                stored_alliances_record_map
-                    .iter()
-                    .map(|(alliance_id, alliance)| (*alliance_id, alliance.id.clone())),
-            );
+        let corporations_map = std::mem::take(&mut self.corporations_map);
+        let (stored_corporations_record_map, corporations_record_id_map) =
+            self.store_corporations(txn, corporations_map).await?;
+        self.corporations_record_id_map
+            .extend(corporations_record_id_map);
 
-            stored_alliances_record_map
-        } else {
-            Default::default()
-        };
-
-        let stored_corporations_record_map = if self.corporations_map.len() > 0 {
-            let corporations_map = std::mem::take(&mut self.corporations_map);
-            let stored_corporations_record_map =
-                self.store_corporations(txn, corporations_map).await?;
-            self.corporations_record_id_map.extend(
-                stored_corporations_record_map
-                    .iter()
-                    .map(|(corporation_id, corporation)| (*corporation_id, corporation.id.clone())),
-            );
-
-            stored_corporations_record_map
-        } else {
-            Default::default()
-        };
-
-        let stored_characters_record_map = if self.characters_map.len() > 0 {
-            let characters_map = std::mem::take(&mut self.characters_map);
-            let stored_characters_record_map = self.store_characters(txn, characters_map).await?;
-            self.characters_record_id_map.extend(
-                stored_characters_record_map
-                    .iter()
-                    .map(|(character_id, character)| (*character_id, character.id.clone())),
-            );
-
-            stored_characters_record_map
-        } else {
-            Default::default()
-        };
+        let characters_map = std::mem::take(&mut self.characters_map);
+        let (stored_characters_record_map, characters_record_id_map) =
+            self.store_characters(txn, characters_map).await?;
+        self.characters_record_id_map
+            .extend(characters_record_id_map);
 
         Ok(StoredEntities {
             factions_map: stored_factions_record_map,
@@ -302,53 +256,94 @@ impl EveEntityOrchestrator {
         })
     }
 
-    /// Stores faction entities to the database.
+    /// Handles faction storage based on fetch state.
     ///
-    /// Upserts all fetched factions, updating existing records or creating new ones.
+    /// Encapsulates all faction storage logic, processing entities according to their fetch state:
+    /// - `Fresh`: Upserts new faction data from ESI
+    /// - `NotModified`: Updates timestamps for revalidated data (304 Not Modified)
+    /// - `UpToDate`: Loads existing factions from database
+    /// - `NotRequested`: Returns empty maps without database operations
     ///
     /// # Arguments
     /// - `txn` - Database transaction to use
-    /// - `factions_map` - Map of faction IDs to faction ESI data
+    /// - `factions_state` - The fetch state determining how to handle factions
     ///
     /// # Returns
-    /// - `Ok(Vec<EveFactionModel>)` - Vector of stored faction database models
+    /// - `Ok((entity_map, record_id_map))` - Tuple containing:
+    ///   - `HashMap<i64, EveFactionModel>` - Map of EVE faction IDs to stored database models
+    ///   - `HashMap<i64, i32>` - Map of EVE faction IDs to database record IDs
     /// - `Err(Error::DbErr)` - Database operation failed
     async fn store_factions(
         &self,
         txn: &DatabaseTransaction,
-        factions_map: HashMap<i64, Faction>,
-    ) -> Result<Vec<EveFactionModel>, Error> {
+        factions_state: FactionFetchState,
+    ) -> Result<(HashMap<i64, EveFactionModel>, HashMap<i64, i32>), Error> {
         let faction_repo = FactionRepository::new(txn);
 
-        let stored_factions = faction_repo
-            .upsert_many(
-                factions_map
-                    .into_iter()
-                    .map(|(_, faction)| faction)
-                    .collect(),
-            )
-            .await?;
+        let stored_factions = match factions_state {
+            FactionFetchState::Fresh(factions_map) => {
+                // Store & return updated faction information fetched from ESI
+                faction_repo
+                    .upsert_many(
+                        factions_map
+                            .into_iter()
+                            .map(|(_, faction)| faction)
+                            .collect(),
+                    )
+                    .await?
+            }
+            FactionFetchState::NotModified => {
+                // Update timestamps for revalidated data (304 Not Modified)
+                faction_repo.update_all_timestamps().await?;
+                faction_repo.get_all().await?
+            }
+            FactionFetchState::UpToDate => {
+                // Factions are up-to-date, load existing from DB
+                faction_repo.get_all().await?
+            }
+            FactionFetchState::NotRequested => {
+                // No factions needed at all
+                return Ok((HashMap::new(), HashMap::new()));
+            }
+        };
 
-        Ok(stored_factions)
+        let record_id_map = stored_factions
+            .iter()
+            .map(|faction| (faction.faction_id, faction.id))
+            .collect();
+
+        let factions_map = stored_factions
+            .into_iter()
+            .map(|faction| (faction.faction_id, faction))
+            .collect();
+
+        Ok((factions_map, record_id_map))
     }
 
     /// Stores alliance entities to the database with faction relationships.
     ///
     /// Upserts all fetched alliances, linking them to their factions if present.
+    /// Returns empty maps immediately if no alliances are provided.
     /// Logs warnings for alliances with faction IDs that couldn't be resolved.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to use
-    /// - `alliances_map` - Map of alliance IDs to alliance ESI data
+    /// - `alliances_map` - Map of alliance IDs to alliance ESI data (may be empty)
     ///
     /// # Returns
-    /// - `Ok(HashMap<i64, EveAllianceModel>)` - Map of alliance IDs to stored database models
+    /// - `Ok((entity_map, record_id_map))` - Tuple containing:
+    ///   - `HashMap<i64, EveAllianceModel>` - Map of EVE alliance IDs to stored database models
+    ///   - `HashMap<i64, i32>` - Map of EVE alliance IDs to database record IDs
     /// - `Err(Error::DbErr)` - Database operation failed
     async fn store_alliances(
         &self,
         txn: &DatabaseTransaction,
         alliances_map: HashMap<i64, Alliance>,
-    ) -> Result<HashMap<i64, EveAllianceModel>, Error> {
+    ) -> Result<(HashMap<i64, EveAllianceModel>, HashMap<i64, i32>), Error> {
+        if alliances_map.is_empty() {
+            return Ok((HashMap::new(), HashMap::new()));
+        }
+
         let alliance_repo = AllianceRepository::new(txn);
 
         let alliance_relations = alliances_map.into_iter().map(|(alliance_id, alliance)| {
@@ -371,29 +366,43 @@ impl EveEntityOrchestrator {
 
         let stored_alliances = alliance_repo.upsert_many(alliance_relations).await?;
 
-        Ok(stored_alliances
+        let record_id_map = stored_alliances
+            .iter()
+            .map(|a| (a.alliance_id, a.id))
+            .collect();
+
+        let alliances_map = stored_alliances
             .into_iter()
             .map(|a| (a.alliance_id, a))
-            .collect())
+            .collect();
+
+        Ok((alliances_map, record_id_map))
     }
 
     /// Stores corporation entities to the database with alliance and faction relationships.
     ///
     /// Upserts all fetched corporations, linking them to their alliances and factions if present.
+    /// Returns empty maps immediately if no corporations are provided.
     /// Logs warnings for corporations with alliance or faction IDs that couldn't be resolved.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to use
-    /// - `corporations_map` - Map of corporation IDs to corporation ESI data
+    /// - `corporations_map` - Map of corporation IDs to corporation ESI data (may be empty)
     ///
     /// # Returns
-    /// - `Ok(HashMap<i64, EveCorporationModel>)` - Map of corporation IDs to stored database models
+    /// - `Ok((entity_map, record_id_map))` - Tuple containing:
+    ///   - `HashMap<i64, EveCorporationModel>` - Map of EVE corporation IDs to stored database models
+    ///   - `HashMap<i64, i32>` - Map of EVE corporation IDs to database record IDs
     /// - `Err(Error::DbErr)` - Database operation failed
     async fn store_corporations(
         &self,
         txn: &DatabaseTransaction,
         corporations_map: HashMap<i64, Corporation>,
-    ) -> Result<HashMap<i64, EveCorporationModel>, Error> {
+    ) -> Result<(HashMap<i64, EveCorporationModel>, HashMap<i64, i32>), Error> {
+        if corporations_map.is_empty() {
+            return Ok((HashMap::new(), HashMap::new()));
+        }
+
         let corporation_repo = CorporationRepository::new(txn);
 
         let corporation_relations = corporations_map.into_iter().map(|(corporation_id, corporation)| {
@@ -430,30 +439,44 @@ impl EveEntityOrchestrator {
 
         let stored_corporations = corporation_repo.upsert_many(corporation_relations).await?;
 
-        Ok(stored_corporations
+        let record_id_map = stored_corporations
+            .iter()
+            .map(|c| (c.corporation_id, c.id))
+            .collect();
+
+        let corporations_map = stored_corporations
             .into_iter()
             .map(|c| (c.corporation_id, c))
-            .collect())
+            .collect();
+
+        Ok((corporations_map, record_id_map))
     }
 
     /// Stores character entities to the database with corporation and faction relationships.
     ///
     /// Upserts all fetched characters, linking them to their corporations and factions if present.
+    /// Returns empty maps immediately if no characters are provided.
     /// Characters without resolvable corporations are skipped with error logs, as corporations
     /// are required for character records.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to use
-    /// - `characters_map` - Map of character IDs to character ESI data
+    /// - `characters_map` - Map of character IDs to character ESI data (may be empty)
     ///
     /// # Returns
-    /// - `Ok(HashMap<i64, EveCharacterModel>)` - Map of character IDs to stored database models
+    /// - `Ok((entity_map, record_id_map))` - Tuple containing:
+    ///   - `HashMap<i64, EveCharacterModel>` - Map of EVE character IDs to stored database models
+    ///   - `HashMap<i64, i32>` - Map of EVE character IDs to database record IDs
     /// - `Err(Error::DbErr)` - Database operation failed
     async fn store_characters(
         &self,
         txn: &DatabaseTransaction,
         characters_map: HashMap<i64, Character>,
-    ) -> Result<HashMap<i64, EveCharacterModel>, Error> {
+    ) -> Result<(HashMap<i64, EveCharacterModel>, HashMap<i64, i32>), Error> {
+        if characters_map.is_empty() {
+            return Ok((HashMap::new(), HashMap::new()));
+        }
+
         let character_repo = CharacterRepository::new(txn);
 
         let character_relations = characters_map.into_iter().filter_map(|(character_id, character)| {
@@ -490,9 +513,16 @@ impl EveEntityOrchestrator {
 
         let stored_characters = character_repo.upsert_many(character_relations).await?;
 
-        Ok(stored_characters
+        let record_id_map = stored_characters
+            .iter()
+            .map(|c| (c.character_id, c.id))
+            .collect();
+
+        let characters_map = stored_characters
             .into_iter()
             .map(|c| (c.character_id, c))
-            .collect())
+            .collect();
+
+        Ok((characters_map, record_id_map))
     }
 }
