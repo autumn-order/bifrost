@@ -105,7 +105,7 @@ impl<'a> CharacterService<'a> {
         let stored_eve_entities = eve_entity_provider.store(&txn).await?;
         txn.commit().await?;
 
-        let character = stored_eve_entities.get_character_or_err(character_id)?;
+        let character = stored_eve_entities.get_character_or_err(&character_id)?;
         Ok(character.clone())
     }
 }

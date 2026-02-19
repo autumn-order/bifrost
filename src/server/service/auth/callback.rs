@@ -186,7 +186,7 @@ impl<'a> CallbackService<'a> {
                     let txn = self.db.begin().await?;
 
                     let stored_eve_entities = eve_entity_provider.store(&txn).await?;
-                    let character = stored_eve_entities.get_character_or_err(character_id)?;
+                    let character = stored_eve_entities.get_character_or_err(&character_id)?;
 
                     let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
 

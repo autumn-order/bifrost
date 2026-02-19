@@ -10,8 +10,8 @@ use sea_orm::DatabaseConnection;
 use super::{EveEntityProvider, FactionFetchState};
 use crate::server::{
     data::eve::{
-        alliance::AllianceRepository, corporation::CorporationRepository,
-        faction::FactionRepository,
+        alliance::AllianceRepository, character::CharacterRepository,
+        corporation::CorporationRepository, faction::FactionRepository,
     },
     error::Error,
     service::provider::util::effective_faction_cache_expiry,
@@ -53,6 +53,7 @@ pub struct EveEntityProviderBuilder<'a> {
     requested_faction_update: bool,
 
     // Dependency IDs - check DB first, fetch if missing
+    dependency_character_ids: HashSet<i64>,
     dependency_corporation_ids: HashSet<i64>,
     dependency_alliance_ids: HashSet<i64>,
     dependency_faction_ids: HashSet<i64>,
@@ -84,6 +85,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             requested_character_ids: Default::default(),
             requested_corporation_ids: Default::default(),
             requested_alliance_ids: Default::default(),
+            dependency_character_ids: Default::default(),
             dependency_corporation_ids: Default::default(),
             dependency_alliance_ids: Default::default(),
             dependency_faction_ids: Default::default(),
@@ -277,14 +279,92 @@ impl<'a> EveEntityProviderBuilder<'a> {
         self
     }
 
+    /// Ensures characters exist in the database as dependencies.
+    ///
+    /// Adds character IDs to the dependency tracking. During build(), the provider will:
+    /// - Check which characters already exist in the database
+    /// - Only fetch missing characters from ESI
+    ///
+    /// This is more efficient than `characters()` for bulk operations where most
+    /// characters may already exist in the database.
+    ///
+    /// # Arguments
+    /// - `ids` - Character IDs that must exist as dependencies
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn ensure_characters_exist(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
+        self.dependency_character_ids.extend(ids);
+        self
+    }
+
+    /// Ensures corporations exist in the database as dependencies.
+    ///
+    /// Adds corporation IDs to the dependency tracking. During build(), the provider will:
+    /// - Check which corporations already exist in the database
+    /// - Only fetch missing corporations from ESI
+    ///
+    /// This is the recommended method for ensuring corporations exist when processing
+    /// bulk affiliation updates or other operations where corporations are dependencies.
+    ///
+    /// # Arguments
+    /// - `ids` - Corporation IDs that must exist as dependencies
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn ensure_corporations_exist(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
+        self.dependency_corporation_ids.extend(ids);
+        self
+    }
+
+    /// Ensures alliances exist in the database as dependencies.
+    ///
+    /// Adds alliance IDs to the dependency tracking. During build(), the provider will:
+    /// - Check which alliances already exist in the database
+    /// - Only fetch missing alliances from ESI
+    ///
+    /// This is the recommended method for ensuring alliances exist when processing
+    /// bulk affiliation updates or other operations where alliances are dependencies.
+    ///
+    /// # Arguments
+    /// - `ids` - Alliance IDs that must exist as dependencies
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn ensure_alliances_exist(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
+        self.dependency_alliance_ids.extend(ids);
+        self
+    }
+
+    /// Ensures factions exist in the database as dependencies.
+    ///
+    /// Adds faction IDs to the dependency tracking. During build(), the provider will:
+    /// - Check which factions already exist in the database
+    /// - Only fetch missing factions from ESI
+    ///
+    /// Note: This is different from `with_factions()` which is used for periodic
+    /// faction updates. Use this method when you need specific factions to exist
+    /// as dependencies for foreign key relationships.
+    ///
+    /// # Arguments
+    /// - `ids` - Faction IDs that must exist as dependencies
+    ///
+    /// # Returns
+    /// - `Self` - Builder instance for method chaining
+    pub fn ensure_factions_exist(mut self, ids: impl IntoIterator<Item = i64>) -> Self {
+        self.dependency_faction_ids.extend(ids);
+        self
+    }
+
     /// Builds the provider by fetching all requested entities and their dependencies.
     ///
     /// # Process
     ///
-    /// 1. Fetch requested characters from ESI
-    /// 2. Check database for dependency corporations, fetch missing ones from ESI
-    /// 3. Check database for dependency alliances, fetch missing ones from ESI
-    /// 4. Check database for dependency factions, fetch if stale & missing
+    /// 1. Check database for dependency characters, fetch missing ones from ESI
+    /// 2. Fetch requested characters from ESI
+    /// 3. Check database for dependency corporations, fetch missing ones from ESI
+    /// 4. Check database for dependency alliances, fetch missing ones from ESI
+    /// 5. Check database for dependency factions, fetch if stale & missing
     ///
     /// # Returns
     ///
@@ -296,6 +376,9 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - ESI requests fail
     /// - Database queries fail
     pub async fn build(mut self) -> Result<EveEntityProvider, Error> {
+        let (characters_record_id_map, missing_character_ids) =
+            self.find_existing_characters().await?;
+        self.requested_character_ids.extend(missing_character_ids);
         let fetched_characters = self.fetch_characters().await?;
 
         self.characters_map.extend(fetched_characters);
@@ -322,8 +405,8 @@ impl<'a> EveEntityProviderBuilder<'a> {
             // - Any entity references a faction we don't have (dependency resolution)
             self.fetch_factions_if_stale().await?
         } else {
-            // No factions to fetch
-            FactionFetchState::NotFetched
+            // No factions requested
+            FactionFetchState::NotRequested
         };
 
         Ok(EveEntityProvider {
@@ -334,6 +417,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
             factions_record_id_map,
             alliances_record_id_map,
             corporations_record_id_map,
+            characters_record_id_map,
         })
     }
 
@@ -438,6 +522,12 @@ impl<'a> EveEntityProviderBuilder<'a> {
     /// - The last updated faction was before the cache expired
     ///
     /// Uses `If-Modified-Since` when existing data is present to minimize data transfer.
+    ///
+    /// # Returns
+    /// - `Ok(FactionFetchState::Fresh)` - New faction data fetched from ESI
+    /// - `Ok(FactionFetchState::NotModified)` - ESI returned 304, data unchanged
+    /// - `Ok(FactionFetchState::UpToDate)` - Database factions still within cache period
+    /// - `Err(Error)` - ESI request or database query failed
     async fn fetch_factions_if_stale(&self) -> Result<FactionFetchState, Error> {
         let faction_repo = FactionRepository::new(self.db);
         let latest_faction = faction_repo.get_latest().await?;
@@ -447,7 +537,7 @@ impl<'a> EveEntityProviderBuilder<'a> {
                 // Check if has already updated since last cache expiry
                 if latest.updated_at < effective_faction_cache_expiry(Utc::now())? {
                     // Faction already up to date, nothing to do
-                    return Ok(FactionFetchState::NotFetched);
+                    return Ok(FactionFetchState::UpToDate);
                 }
 
                 // Fetch factions from ESI with If-Modified-Since since we have existing data
@@ -477,6 +567,47 @@ impl<'a> EveEntityProviderBuilder<'a> {
                 .into_iter()
                 .map(|f| (f.faction_id, f))
                 .collect(),
+        ))
+    }
+
+    /// Finds characters related to requested entities within the database.
+    ///
+    /// Queries the database for dependency characters to avoid redundant ESI calls.
+    /// Returns both found characters and IDs that need to be fetched.
+    ///
+    /// # Returns
+    /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
+    ///   - Map of EVE character IDs to their database record IDs
+    ///   - Vector of EVE character IDs not found in the database
+    /// - `Err(Error::DbErr)` - Database query failed
+    async fn find_existing_characters(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
+        let character_repo = CharacterRepository::new(self.db);
+
+        let dependency_character_ids: Vec<i64> =
+            self.dependency_character_ids.iter().copied().collect();
+        let character_record_ids = character_repo
+            .get_record_ids_by_character_ids(&dependency_character_ids)
+            .await?;
+
+        let existing_character_ids: HashSet<i64> = character_record_ids
+            .iter()
+            .map(|(_, character_id)| *character_id)
+            .collect();
+
+        let mut missing_character_ids = Vec::new();
+
+        for &dep_char_id in &dependency_character_ids {
+            if !existing_character_ids.contains(&dep_char_id) {
+                missing_character_ids.push(dep_char_id);
+            }
+        }
+
+        Ok((
+            character_record_ids
+                .into_iter()
+                .map(|(record_id, character_id)| (character_id, record_id))
+                .collect(),
+            missing_character_ids,
         ))
     }
 

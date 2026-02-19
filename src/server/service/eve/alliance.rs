@@ -105,7 +105,7 @@ impl<'a> AllianceService<'a> {
         let stored_eve_entities = eve_entity_provider.store(&txn).await?;
         txn.commit().await?;
 
-        let alliance = stored_eve_entities.get_alliance_or_err(alliance_id)?;
+        let alliance = stored_eve_entities.get_alliance_or_err(&alliance_id)?;
         Ok(alliance.clone())
     }
 }

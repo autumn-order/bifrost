@@ -105,7 +105,7 @@ impl<'a> CorporationService<'a> {
         let stored_eve_entities = eve_entity_provider.store(&txn).await?;
         txn.commit().await?;
 
-        let corporation = stored_eve_entities.get_corporation_or_err(corporation_id)?;
+        let corporation = stored_eve_entities.get_corporation_or_err(&corporation_id)?;
         Ok(corporation.clone())
     }
 }
