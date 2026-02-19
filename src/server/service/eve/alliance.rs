@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::alliance::AllianceRepository, error::Error, model::db::EveAllianceModel,
-    service::provider::EveEntityProvider,
+    service::eve::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online alliance operations.

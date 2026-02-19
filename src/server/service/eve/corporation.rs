@@ -9,7 +9,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::corporation::CorporationRepository, error::Error, model::db::EveCorporationModel,
-    service::provider::EveEntityProvider,
+    service::eve::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online corporation operations.

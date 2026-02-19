@@ -13,7 +13,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 use crate::server::{
     data::eve::{character::CharacterRepository, corporation::CorporationRepository},
     error::Error,
-    service::provider::{EveEntityProvider, StoredEntities},
+    service::eve::provider::{EveEntityProvider, StoredEntities},
     util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
 

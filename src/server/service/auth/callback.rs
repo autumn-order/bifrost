@@ -12,7 +12,7 @@ use crate::server::{
     data::user::{user_character::UserCharacterRepository, UserRepository},
     error::Error,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
-    service::{provider::EveEntityProvider, user::user_character::UserCharacterService},
+    service::{eve::provider::EveEntityProvider, user::user_character::UserCharacterService},
 };
 
 /// Represents the current user session state during OAuth callback processing.

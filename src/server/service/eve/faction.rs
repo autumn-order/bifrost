@@ -6,7 +6,7 @@
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    error::Error, model::db::EveFactionModel, service::provider::EveEntityProvider,
+    error::Error, model::db::EveFactionModel, service::eve::provider::EveEntityProvider,
 };
 
 /// Service for managing EVE Online faction operations.

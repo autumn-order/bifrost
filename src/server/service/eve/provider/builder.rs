@@ -7,14 +7,13 @@ use eve_esi::{
 };
 use sea_orm::DatabaseConnection;
 
-use super::{EveEntityProvider, FactionFetchState};
+use super::{util::effective_faction_cache_expiry, EveEntityProvider, FactionFetchState};
 use crate::server::{
     data::eve::{
         alliance::AllianceRepository, character::CharacterRepository,
         corporation::CorporationRepository, faction::FactionRepository,
     },
     error::Error,
-    service::provider::util::effective_faction_cache_expiry,
 };
 
 /// Builder for fetching EVE Online entities from ESI with dependency resolution.
