@@ -59,7 +59,6 @@ pub struct EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Constructor =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Creates a new instance of EveEntityOrchestratorBuilder.
     ///
@@ -92,7 +91,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Character Methods =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Adds a character ID to be fetched from ESI.
     ///
@@ -126,7 +124,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Corporation Methods =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Adds a corporation ID to be fetched from ESI.
     ///
@@ -160,7 +157,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Alliance Methods =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Adds an alliance ID to be fetched from ESI.
     ///
@@ -194,7 +190,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Pre-fetched Data Methods =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Adds a character with pre-fetched ESI data.
     ///
@@ -254,7 +249,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Faction Methods =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Explicitly request all factions to be fetched and updated.
     ///
@@ -273,7 +267,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Dependency Resolution =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Ensures characters exist in the database as dependencies.
     ///
@@ -354,7 +347,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 }
 
 // ===== Build =====
-
 impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Builds the provider by fetching all requested entities and their dependencies.
     ///
