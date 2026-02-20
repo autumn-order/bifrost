@@ -5,14 +5,22 @@ use eve_esi::{
     model::{alliance::Alliance, character::Character, corporation::Corporation},
     CacheStrategy, CachedResponse,
 };
+use futures::stream::{self, StreamExt};
 
 use super::{
     super::util::effective_faction_cache_expiry, EveEntityOrchestratorBuilder, FactionFetchState,
 };
 use crate::server::{data::eve::faction::FactionRepository, error::Error};
 
+/// Maximum number of concurrent ESI requests to make at once.
+/// This balances throughput with respect to ESI rate limits and connection pools.
+const MAX_CONCURRENT_ESI_REQUESTS: usize = 20;
+
 impl<'a> EveEntityOrchestratorBuilder<'a> {
-    /// Fetches character IDs from ESI.
+    /// Fetches character IDs from ESI concurrently.
+    ///
+    /// Performs concurrent HTTP requests with a limit to respect ESI rate limits.
+    /// Stops on first error encountered.
     ///
     /// # Arguments
     /// - `character_ids` - IDs of characters to fetch from ESI
@@ -24,23 +32,30 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         &self,
         character_ids: Vec<i64>,
     ) -> Result<HashMap<i64, Character>, Error> {
-        let mut characters = Vec::new();
+        let characters: Vec<(i64, Character)> = stream::iter(character_ids)
+            .map(|character_id| async move {
+                let character = self
+                    .esi_client
+                    .character()
+                    .get_character_public_information(character_id)
+                    .send()
+                    .await?;
 
-        for character_id in character_ids {
-            let character = self
-                .esi_client
-                .character()
-                .get_character_public_information(character_id)
-                .send()
-                .await?;
-
-            characters.push((character_id, character.data))
-        }
+                Ok::<_, Error>((character_id, character.data))
+            })
+            .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, Error>>()?;
 
         Ok(characters.into_iter().collect())
     }
 
-    /// Fetches corporation IDs from ESI.
+    /// Fetches corporation IDs from ESI concurrently.
+    ///
+    /// Performs concurrent HTTP requests with a limit to respect ESI rate limits.
+    /// Stops on first error encountered.
     ///
     /// # Arguments
     /// - `corporation_ids` - IDs of corporations to fetch from ESI
@@ -52,22 +67,30 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         &self,
         corporation_ids: Vec<i64>,
     ) -> Result<HashMap<i64, Corporation>, Error> {
-        let mut corporations = Vec::new();
-        for corporation_id in corporation_ids {
-            let corporation = self
-                .esi_client
-                .corporation()
-                .get_corporation_information(corporation_id)
-                .send()
-                .await?;
+        let corporations: Vec<(i64, Corporation)> = stream::iter(corporation_ids)
+            .map(|corporation_id| async move {
+                let corporation = self
+                    .esi_client
+                    .corporation()
+                    .get_corporation_information(corporation_id)
+                    .send()
+                    .await?;
 
-            corporations.push((corporation_id, corporation.data))
-        }
+                Ok::<_, Error>((corporation_id, corporation.data))
+            })
+            .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, Error>>()?;
 
         Ok(corporations.into_iter().collect())
     }
 
-    /// Fetches alliance IDs from ESI.
+    /// Fetches alliance IDs from ESI concurrently.
+    ///
+    /// Performs concurrent HTTP requests with a limit to respect ESI rate limits.
+    /// Stops on first error encountered.
     ///
     /// # Arguments
     /// - `alliance_ids` - IDs of alliances to fetch from ESI
@@ -79,17 +102,22 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         &self,
         alliance_ids: Vec<i64>,
     ) -> Result<HashMap<i64, Alliance>, Error> {
-        let mut alliances = Vec::new();
-        for alliance_id in alliance_ids {
-            let alliance = self
-                .esi_client
-                .alliance()
-                .get_alliance_information(alliance_id)
-                .send()
-                .await?;
+        let alliances: Vec<(i64, Alliance)> = stream::iter(alliance_ids)
+            .map(|alliance_id| async move {
+                let alliance = self
+                    .esi_client
+                    .alliance()
+                    .get_alliance_information(alliance_id)
+                    .send()
+                    .await?;
 
-            alliances.push((alliance_id, alliance.data))
-        }
+                Ok::<_, Error>((alliance_id, alliance.data))
+            })
+            .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, Error>>()?;
 
         Ok(alliances.into_iter().collect())
     }
