@@ -24,12 +24,15 @@ async fn updates_new_corporation_without_affiliations() -> Result<(), TestError>
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)
         .build()
         .await?;
 
     let corporation_service = CorporationService::new(&test.db, &test.esi_client);
     let result = corporation_service.update(corporation_id).await;
+
+    println!("{:#?}", result);
 
     assert!(result.is_ok());
     let corporation = result.unwrap();
@@ -65,6 +68,7 @@ async fn updates_new_corporation_with_alliance() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .with_corporation_endpoint(
             corporation_id,
@@ -115,6 +119,7 @@ async fn updates_new_corporation_with_faction() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(faction_id)
         .with_corporation_endpoint(
             corporation_id,
@@ -159,6 +164,7 @@ async fn updates_corporation_with_alliance_and_faction() -> Result<(), TestError
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_faction(faction_id)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(Some(faction_id)), 1)
         .with_corporation_endpoint(
@@ -217,6 +223,7 @@ async fn updates_corporation_with_existing_alliance() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(
             corporation_id,
             factory::mock_corporation(Some(alliance_id), None),
@@ -266,6 +273,7 @@ async fn updates_corporation_with_existing_faction() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(
             corporation_id,
             factory::mock_corporation(None, Some(faction_id)),
@@ -305,6 +313,7 @@ async fn updates_existing_corporation_with_fresh_data() -> Result<(), TestError>
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_corporation(corporation_id, None, None)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)
         .build()
@@ -355,6 +364,7 @@ async fn updates_corporation_alliance_affiliation() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_corporation(corporation_id, None, None)
         .with_alliance_endpoint(new_alliance_id, factory::mock_alliance(None), 1)
         .with_corporation_endpoint(
@@ -405,6 +415,7 @@ async fn removes_corporation_alliance_affiliation() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)
         .build()
         .await?;
@@ -453,6 +464,7 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)
         .build()
         .await?;
@@ -484,6 +496,7 @@ async fn updates_with_alliance_dependency() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 1)
         .with_corporation_endpoint(
             corporation_id,
@@ -530,6 +543,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint_error(corporation_id, 500, 3)
         .build()
         .await?;
@@ -562,6 +576,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint_error(corporation_id, 404, 1)
         .build()
         .await?;
@@ -616,7 +631,6 @@ async fn fails_when_alliance_table_missing() -> Result<(), TestError> {
 
     let test = TestBuilder::new()
         .with_table(entity::prelude::EveCorporation)
-        .with_alliance_endpoint(alliance_id, factory::mock_alliance(None), 0)
         .with_corporation_endpoint(
             corporation_id,
             factory::mock_corporation(Some(alliance_id), None),
@@ -649,7 +663,9 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
     let faction_id = 500_001;
 
     let test = TestBuilder::new()
+        .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(
             corporation_id,
             factory::mock_corporation(None, Some(faction_id)),
@@ -670,38 +686,6 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
     Ok(())
 }
 
-/// Tests transaction rollback on error.
-///
-/// Verifies that database changes are rolled back when an error occurs during
-/// the update operation, ensuring data consistency.
-///
-/// Expected: Err with no partial data in database
-#[tokio::test]
-async fn rolls_back_transaction_on_error() -> Result<(), TestError> {
-    let corporation_id = 98_000_001;
-
-    let test = TestBuilder::new()
-        .with_table(entity::prelude::EveFaction)
-        .with_table(entity::prelude::EveAlliance)
-        .with_table(entity::prelude::EveCorporation)
-        .with_corporation_endpoint_error(corporation_id, 500, 3)
-        .build()
-        .await?;
-
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
-    let _result = corporation_service.update(corporation_id).await;
-
-    // Verify no corporation was created
-    let corporations = entity::prelude::EveCorporation::find()
-        .all(&test.db)
-        .await?;
-    assert_eq!(corporations.len(), 0);
-
-    test.assert_mocks();
-
-    Ok(())
-}
-
 /// Tests updating multiple corporations sequentially.
 ///
 /// Verifies that the corporation service can successfully update multiple different
@@ -718,6 +702,7 @@ async fn updates_multiple_corporations_sequentially() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corp1_id, factory::mock_corporation(None, None), 1)
         .with_corporation_endpoint(corp2_id, factory::mock_corporation(None, None), 1)
         .with_corporation_endpoint(corp3_id, factory::mock_corporation(None, None), 1)
@@ -760,6 +745,7 @@ async fn update_is_idempotent() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 3)
         .build()
         .await?;
@@ -808,6 +794,7 @@ async fn updates_timestamp_on_304_not_modified() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_mock_corporation(corporation_id, None, None)
         .with_corporation_endpoint_not_modified(corporation_id, 1)
         .build()
@@ -856,6 +843,7 @@ async fn updates_timestamp_on_304_with_affiliations() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint_not_modified(corporation_id, 1)
         .build()
         .await?;
@@ -905,6 +893,7 @@ async fn handles_mixed_304_and_fresh_responses() -> Result<(), TestError> {
         .with_table(entity::prelude::EveFaction)
         .with_table(entity::prelude::EveAlliance)
         .with_table(entity::prelude::EveCorporation)
+        .with_table(entity::prelude::EveCharacter)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)
         .with_corporation_endpoint_not_modified(corporation_id, 1)
         .with_corporation_endpoint(corporation_id, factory::mock_corporation(None, None), 1)

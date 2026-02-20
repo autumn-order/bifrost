@@ -85,6 +85,19 @@ impl<'a, C: ConnectionTrait> FactionRepository<'a, C> {
             .await
     }
 
+    /// Retrieves all faction records from the database.
+    ///
+    /// Fetches all faction records without any filtering. Useful for loading
+    /// all factions when they're determined to be up-to-date or after a 304
+    /// Not Modified response from ESI.
+    ///
+    /// # Returns
+    /// - `Ok(Vec<EveFactionModel>)` - All faction records in the database
+    /// - `Err(DbErr)` - Database query failed
+    pub async fn get_all(&self) -> Result<Vec<EveFactionModel>, DbErr> {
+        entity::prelude::EveFaction::find().all(self.db).await
+    }
+
     /// Retrieves internal database record IDs for EVE faction IDs.
     ///
     /// Maps EVE Online faction IDs to their corresponding internal database record IDs.

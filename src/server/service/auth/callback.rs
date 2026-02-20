@@ -6,32 +6,16 @@
 
 use eve_esi::model::oauth2::EveJwtClaims;
 use oauth2::TokenResponse;
-use sea_orm::DatabaseConnection;
+use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
 use crate::server::{
     data::user::{user_character::UserCharacterRepository, UserRepository},
     error::Error,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
     service::{
-        orchestrator::{
-            cache::TrackedTransaction, character::CharacterOrchestrator, OrchestrationCache,
-        },
-        retry::RetryContext,
-        user::user_character::UserCharacterService,
+        eve::orchestrator::EveEntityOrchestrator, user::user_character::UserCharacterService,
     },
 };
-
-/// Cache for callback operations to support retry logic.
-///
-/// This cache holds both JWT claims and orchestration data across retry attempts,
-/// preventing redundant authentication and ESI fetches.
-#[derive(Clone, Default, Debug)]
-struct CallbackCache {
-    /// Cached JWT claims from successful authentication
-    pub jwt_claims: Option<EveJwtClaims>,
-    /// Orchestration cache for character/corporation/alliance/faction data
-    pub orchestration: OrchestrationCache,
-}
 
 /// Represents the current user session state during OAuth callback processing.
 pub(super) enum Session {
@@ -178,164 +162,128 @@ impl<'a> CallbackService<'a> {
         user_id: Option<i32>,
         change_main: Option<bool>,
     ) -> Result<i32, Error> {
-        let mut ctx: RetryContext<CallbackCache> = RetryContext::new();
+        let claims =
+            Self::authenticate_and_get_claims(self.esi_client, &authorization_code).await?;
 
-        let db = self.db.clone();
-        let esi_client = self.esi_client.clone();
-        let authorization_code = authorization_code.to_string();
+        let character_record =
+            Self::get_character_ownership_status(self.db, claims.character_id()?).await?;
 
-        ctx.execute_with_retry("OAuth callback", |cache| {
-            let db = db.clone();
-            let esi_client = esi_client.clone();
-            let authorization_code = authorization_code.clone();
+        let session = match user_id {
+            Some(uid) => Session::LoggedIn(uid),
+            None => Session::NotLoggedIn,
+        };
 
-            Box::pin(async move {
-                // Check if JWT claims are already cached from a previous retry attempt
-                let claims = if let Some(cached_claims) = cache.jwt_claims.as_ref() {
-                    cached_claims.clone()
-                } else {
-                    // First attempt - authenticate and cache the claims
-                    let claims =
-                        Self::authenticate_and_get_claims(&esi_client, &authorization_code).await?;
-                    cache.jwt_claims = Some(claims.clone());
-                    claims
-                };
-
-                let character_record =
-                    Self::get_character_ownership_status(&db, claims.character_id()?).await?;
-
-                let session = match user_id {
-                    Some(uid) => Session::LoggedIn(uid),
-                    None => Session::NotLoggedIn,
-                };
-
-                let (user_id, ownership, txn) =
-                    match Self::determine_character_action(session, character_record, &claims) {
-                        CharacterAction::FetchAndLink {
-                            to_user_id,
-                            owner_hash,
-                        } => {
-                            let character_orch = CharacterOrchestrator::new(&db, &esi_client);
-
-                            let character_id = claims.character_id()?;
-                            let fetched_character = character_orch
-                                .fetch_character(character_id, &mut cache.orchestration)
-                                .await?;
-
-                            let txn = TrackedTransaction::begin(&db).await?;
-
-                            let character = character_orch
-                                .persist(
-                                    &txn,
-                                    character_id,
-                                    fetched_character,
-                                    &mut cache.orchestration,
-                                )
-                                .await?;
-
-                            let user_id =
-                                Self::get_or_create_user(&txn, to_user_id, character.id).await?;
-
-                            // Use link_character method to assign newly created character to logged in user
-                            let ownership = UserCharacterService::link_character(
-                                txn.as_ref(),
-                                character.id,
-                                user_id,
-                                &owner_hash,
-                            )
+        let (user_id, ownership, txn) =
+            match Self::determine_character_action(session, character_record, &claims) {
+                CharacterAction::FetchAndLink {
+                    to_user_id,
+                    owner_hash,
+                } => {
+                    let character_id = claims.character_id()?;
+                    let eve_entity_orchestrator =
+                        EveEntityOrchestrator::builder(self.db, self.esi_client)
+                            .character(character_id)
+                            .build()
                             .await?;
 
-                            (user_id, ownership, txn)
-                        }
-                        CharacterAction::LinkUnownedToUser {
-                            to_user_id,
-                            character,
-                            owner_hash,
-                        } => {
-                            let txn = TrackedTransaction::begin(&db).await?;
+                    let txn = self.db.begin().await?;
 
-                            let user_id =
-                                Self::get_or_create_user(&txn, to_user_id, character.id).await?;
+                    let stored_eve_entities = eve_entity_orchestrator.store(&txn).await?;
+                    let character = stored_eve_entities.get_character_or_err(&character_id)?;
 
-                            // Use link_character method to assign newly created character to logged in user
-                            let ownership = UserCharacterService::link_character(
-                                txn.as_ref(),
-                                character.id,
-                                user_id,
-                                &owner_hash,
-                            )
-                            .await?;
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
 
-                            (user_id, ownership, txn)
-                        }
-                        CharacterAction::TransferOwnership {
-                            to_user_id,
-                            character,
-                            owner_hash,
-                        } => {
-                            let txn = TrackedTransaction::begin(&db).await?;
+                    // Use link_character method to assign newly created character to logged in user
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
 
-                            let user_id =
-                                Self::get_or_create_user(&txn, to_user_id, character.id).await?;
-
-                            // Transfer the character from previous user to currently logged in user
-                            let ownership = UserCharacterService::transfer_character(
-                                txn.as_ref(),
-                                character.id,
-                                user_id,
-                                &owner_hash,
-                            )
-                            .await?;
-
-                            (user_id, ownership, txn)
-                        }
-                        CharacterAction::UpdateOwnerHash {
-                            user_id,
-                            character,
-                            owner_hash,
-                        } => {
-                            let txn = TrackedTransaction::begin(&db).await?;
-
-                            // Update owner hash via the link_character method which will upsert the hash
-                            let ownership = UserCharacterService::link_character(
-                                txn.as_ref(),
-                                character.id,
-                                user_id,
-                                &owner_hash,
-                            )
-                            .await?;
-
-                            (user_id, ownership, txn)
-                        }
-                        CharacterAction::AlreadyOwned { user_id, ownership } => {
-                            // Handle change_main for AlreadyOwned case and return early
-                            if change_main.unwrap_or(false) {
-                                let txn = TrackedTransaction::begin(&db).await?;
-                                UserCharacterService::set_main_character(
-                                    txn.as_ref(),
-                                    user_id,
-                                    ownership,
-                                )
-                                .await?;
-                                txn.commit().await?;
-                            }
-
-                            return Ok(user_id);
-                        }
-                    };
-
-                // Handle change_main within the same transaction for atomicity
-                if change_main.unwrap_or(false) {
-                    UserCharacterService::set_main_character(txn.as_ref(), user_id, ownership)
-                        .await?;
+                    (user_id, ownership, txn)
                 }
+                CharacterAction::LinkUnownedToUser {
+                    to_user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
 
-                txn.commit().await?;
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
 
-                Ok(user_id)
-            })
-        })
-        .await
+                    // Use link_character method to assign newly created character to logged in user
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::TransferOwnership {
+                    to_user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
+
+                    let user_id = Self::get_or_create_user(&txn, to_user_id, character.id).await?;
+
+                    // Transfer the character from previous user to currently logged in user
+                    let ownership = UserCharacterService::transfer_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::UpdateOwnerHash {
+                    user_id,
+                    character,
+                    owner_hash,
+                } => {
+                    let txn = self.db.begin().await?;
+
+                    // Update owner hash via the link_character method which will upsert the hash
+                    let ownership = UserCharacterService::link_character(
+                        &txn,
+                        character.id,
+                        user_id,
+                        &owner_hash,
+                    )
+                    .await?;
+
+                    (user_id, ownership, txn)
+                }
+                CharacterAction::AlreadyOwned { user_id, ownership } => {
+                    // Handle change_main for AlreadyOwned case and return early
+                    if change_main.unwrap_or(false) {
+                        let txn = self.db.begin().await?;
+
+                        UserCharacterService::set_main_character(&txn, user_id, ownership).await?;
+
+                        txn.commit().await?;
+                    }
+
+                    return Ok(user_id);
+                }
+            };
+
+        // Handle change_main within the same transaction for atomicity
+        if change_main.unwrap_or(false) {
+            UserCharacterService::set_main_character(&txn, user_id, ownership).await?;
+        }
+
+        txn.commit().await?;
+
+        Ok(user_id)
     }
 
     /// Exchanges an authorization code for an access token and validates it.
@@ -406,14 +354,14 @@ impl<'a> CallbackService<'a> {
     /// - `Ok(i32)` - The user ID (either existing or newly created)
     /// - `Err(Error::DbError)` - Database error when creating a new user
     pub async fn get_or_create_user(
-        txn: &TrackedTransaction,
+        txn: &DatabaseTransaction,
         to_user_id: Option<i32>,
         character_id: i32,
     ) -> Result<i32, Error> {
         match to_user_id {
             Some(uid) => Ok(uid),
             None => {
-                let user_repo = UserRepository::new(txn.as_ref());
+                let user_repo = UserRepository::new(txn);
                 Ok(user_repo.create(character_id).await?.id)
             }
         }

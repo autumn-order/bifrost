@@ -4,11 +4,9 @@
 //! including returning existing user IDs when provided and creating
 //! new users when no user ID is specified.
 
-use bifrost::server::{
-    error::Error,
-    service::{auth::callback::CallbackService, orchestrator::cache::TrackedTransaction},
-};
+use bifrost::server::{error::Error, service::auth::callback::CallbackService};
 use bifrost_test_utils::prelude::*;
+use sea_orm::TransactionTrait;
 
 /// Tests returning an existing user ID when provided.
 ///
@@ -23,7 +21,7 @@ async fn returns_existing_user_id_when_provided() -> Result<(), TestError> {
     let existing_user_id = 42;
     let character_id = 1;
 
-    let txn = TrackedTransaction::begin(&test.db).await?;
+    let txn = test.db.begin().await?;
 
     let result =
         CallbackService::get_or_create_user(&txn, Some(existing_user_id), character_id).await;
@@ -51,7 +49,7 @@ async fn creates_new_user_when_none_provided() -> Result<(), TestError> {
         .insert_mock_character(character_id_eve, 1, None, None)
         .await?;
 
-    let txn = TrackedTransaction::begin(&test.db).await?;
+    let txn = test.db.begin().await?;
 
     let result = CallbackService::get_or_create_user(&txn, None, character_model.id)
         .await
@@ -106,21 +104,21 @@ async fn creates_multiple_users_with_unique_ids() -> Result<(), TestError> {
         .await?;
 
     // Create first user
-    let txn1 = TrackedTransaction::begin(&test.db).await?;
+    let txn1 = test.db.begin().await?;
     let user_id_1 = CallbackService::get_or_create_user(&txn1, None, char_model_1.id)
         .await
         .map_err(|e| TestError::DbErr(sea_orm::DbErr::Custom(e.to_string())))?;
     txn1.commit().await?;
 
     // Create second user
-    let txn2 = TrackedTransaction::begin(&test.db).await?;
+    let txn2 = test.db.begin().await?;
     let user_id_2 = CallbackService::get_or_create_user(&txn2, None, char_model_2.id)
         .await
         .map_err(|e| TestError::DbErr(sea_orm::DbErr::Custom(e.to_string())))?;
     txn2.commit().await?;
 
     // Create third user
-    let txn3 = TrackedTransaction::begin(&test.db).await?;
+    let txn3 = test.db.begin().await?;
     let user_id_3 = CallbackService::get_or_create_user(&txn3, None, char_model_3.id)
         .await
         .map_err(|e| TestError::DbErr(sea_orm::DbErr::Custom(e.to_string())))?;
@@ -154,7 +152,7 @@ async fn user_not_persisted_on_transaction_rollback() -> Result<(), TestError> {
         .insert_mock_character(character_id_eve, 1, None, None)
         .await?;
 
-    let txn = TrackedTransaction::begin(&test.db).await?;
+    let txn = test.db.begin().await?;
 
     let result = CallbackService::get_or_create_user(&txn, None, character_model.id).await;
 
@@ -186,7 +184,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
     let character_id = 1;
 
-    let txn = TrackedTransaction::begin(&test.db).await?;
+    let txn = test.db.begin().await?;
 
     let result = CallbackService::get_or_create_user(&txn, None, character_id).await;
 
@@ -218,7 +216,7 @@ async fn does_not_create_user_when_id_provided() -> Result<(), TestError> {
         .insert_mock_character(character_id_eve, 2, None, None)
         .await?;
 
-    let txn = TrackedTransaction::begin(&test.db).await?;
+    let txn = test.db.begin().await?;
 
     // Call with Some(user_id) - should not create a new user
     let result =

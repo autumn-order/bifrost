@@ -10,9 +10,9 @@ members = [".", "bifrost-test-utils", "entity", "migration"]
 
 [workspace.dependencies]
 base64 = "0.22.1"
-chrono = "0.4.42"
+chrono = "0.4.43"
 entity = { path = "entity" }
-eve_esi = { version = "0.5.0-rc.1" }
+eve_esi = { git = "https://github.com/autumn-order/eve_esi" }
 jsonwebtoken = "9.3.1"
 mockito = "1.7.0"
 oauth2 = "5.0.0"
