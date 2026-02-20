@@ -10,7 +10,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::{
     model::user::UserDto,
-    server::{data::user::UserRepository, error::Error, service::retry::RetryContext},
+    server::{data::user::UserRepository, error::Error},
 };
 
 /// Service for managing user account operations.
@@ -49,37 +49,27 @@ impl<'a> UserService<'a> {
     /// - `Err(Error::DbErr)` - Database operation failed after retries
     /// - `Err(Error::InternalError)` - Main character record not found (FK constraint violation)
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
-        let mut ctx: RetryContext<()> = RetryContext::new();
+        let user_repo = UserRepository::new(self.db);
 
-        let db = self.db.clone();
+        match user_repo.get_by_id(user_id).await? {
+            None => Ok(None),
+            Some((user, maybe_main_character)) => {
+                let main_character = maybe_main_character.ok_or_else(|| {
+                    // Would only occur if the foreign key constraint requiring
+                    // main character to exist in database for the user is not properly enforced
+                    Error::InternalError(format!(
+                        "Failed to find main character information for user ID {} \
+                         with main character ID {}",
+                        user.id, user.main_character_id
+                    ))
+                })?;
 
-        ctx.execute_with_retry(&format!("get user ID {}", user_id), |_| {
-            let db = db.clone();
-
-            Box::pin(async move {
-                let user_repo = UserRepository::new(&db);
-
-                match user_repo.get_by_id(user_id).await? {
-                    None => Ok(None),
-                    Some((user, maybe_main_character)) => {
-                        let main_character = maybe_main_character.ok_or_else(|| {
-                            // Would only occur if the foreign key constraint requiring main character to exist in
-                            // database for the user is not properly enforced
-                            Error::InternalError(format!(
-                                "Failed to find main character information for user ID {} with main character ID {}",
-                                user.id, user.main_character_id
-                            ))
-                        })?;
-
-                        Ok(Some(UserDto {
-                            id: user.id,
-                            character_id: main_character.character_id,
-                            character_name: main_character.name,
-                        }))
-                    }
-                }
-            })
-        })
-        .await
+                Ok(Some(UserDto {
+                    id: user.id,
+                    character_id: main_character.character_id,
+                    character_name: main_character.name,
+                }))
+            }
+        }
     }
 }
