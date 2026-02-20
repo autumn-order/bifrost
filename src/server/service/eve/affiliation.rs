@@ -166,16 +166,15 @@ impl<'a> AffiliationService<'a> {
         Ok(())
     }
 
-    /// Updates affiliation relationships in the database.
+    /// Orchestrates affiliation relationship updates in the database.
     ///
-    /// Processes ESI affiliation data and updates the database relationships between characters,
-    /// corporations, and alliances. Uses the entity record IDs to map EVE IDs to internal
-    /// database record IDs. Logs warnings for any missing IDs.
+    /// Processes ESI affiliation data and coordinates updates for both corporation and character
+    /// affiliations. Uses the entity record IDs to map EVE IDs to internal database record IDs.
     ///
     /// # Arguments
     /// - `txn` - Database transaction to execute updates within
     /// - `affiliations` - ESI affiliation data containing character/corporation/alliance/faction relationships
-    /// - `entity_record_ids` - Maps of EVE IDs to database record IDs
+    /// - `stored_entities` - Maps of EVE IDs to database record IDs
     ///
     /// # Returns
     /// - `Ok(())` - All relationship updates completed successfully
@@ -185,7 +184,29 @@ impl<'a> AffiliationService<'a> {
         affiliations: &[CharacterAffiliation],
         stored_entities: StoredEntities,
     ) -> Result<(), Error> {
-        // Update corporation affiliations (corporation -> alliance)
+        Self::update_corporation_affiliations(txn, affiliations, &stored_entities).await?;
+        Self::update_character_affiliations(txn, affiliations, &stored_entities).await?;
+        Ok(())
+    }
+
+    /// Updates corporation affiliations (corporation -> alliance).
+    ///
+    /// Processes ESI affiliation data to update corporation-to-alliance relationships.
+    /// Maps EVE IDs to database record IDs and logs warnings for any missing IDs.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to execute updates within
+    /// - `affiliations` - ESI affiliation data containing corporation/alliance relationships
+    /// - `stored_entities` - Maps of EVE IDs to database record IDs
+    ///
+    /// # Returns
+    /// - `Ok(())` - Corporation affiliation updates completed successfully
+    /// - `Err(Error::DbErr)` - Database update operation failed
+    async fn update_corporation_affiliations(
+        txn: &sea_orm::DatabaseTransaction,
+        affiliations: &[CharacterAffiliation],
+        stored_entities: &StoredEntities,
+    ) -> Result<(), Error> {
         let corporation_updates: Vec<(i64, Option<i64>)> = affiliations
             .iter()
             .map(|a| (a.corporation_id, a.alliance_id))
@@ -206,16 +227,15 @@ impl<'a> AffiliationService<'a> {
 
                 let alliance_db_id = match alliance_id {
                     Some(alliance_id) => {
-                        let db_id = stored_entities.get_alliance_record_id(&alliance_id);
-                        if db_id.is_none() {
+                        let Some(db_id) = stored_entities.get_alliance_record_id(&alliance_id) else {
                             tracing::warn!(
                                 corporation_id = corp_id,
                                 alliance_id = alliance_id,
                                 "Alliance ID not found in database; skipping corporation affiliation update"
                             );
                             return None;
-                        }
-                        Some(db_id.unwrap())
+                        };
+                        Some(db_id)
                     }
                     None => None,
                 };
@@ -230,7 +250,27 @@ impl<'a> AffiliationService<'a> {
                 .await?;
         }
 
-        // Update character affiliations (character -> corporation, faction)
+        Ok(())
+    }
+
+    /// Updates character affiliations (character -> corporation, faction).
+    ///
+    /// Processes ESI affiliation data to update character-to-corporation and character-to-faction
+    /// relationships. Maps EVE IDs to database record IDs and logs warnings for any missing IDs.
+    ///
+    /// # Arguments
+    /// - `txn` - Database transaction to execute updates within
+    /// - `affiliations` - ESI affiliation data containing character/corporation/faction relationships
+    /// - `stored_entities` - Maps of EVE IDs to database record IDs
+    ///
+    /// # Returns
+    /// - `Ok(())` - Character affiliation updates completed successfully
+    /// - `Err(Error::DbErr)` - Database update operation failed
+    async fn update_character_affiliations(
+        txn: &sea_orm::DatabaseTransaction,
+        affiliations: &[CharacterAffiliation],
+        stored_entities: &StoredEntities,
+    ) -> Result<(), Error> {
         let character_db_updates: Vec<(i32, i32, Option<i32>)> = affiliations
             .iter()
             .filter_map(|a| {
@@ -251,20 +291,17 @@ impl<'a> AffiliationService<'a> {
                     return None;
                 };
 
-                let faction_db_id = match a.faction_id {
-                    Some(faction_id) => {
-                        let db_id = stored_entities.get_faction_record_id(&faction_id);
-                        if db_id.is_none() {
-                            tracing::warn!(
-                                character_id = a.character_id,
-                                faction_id = faction_id,
-                                "Faction ID not found in database; setting character's faction to None"
-                            );
-                        }
-                        db_id
+                let faction_db_id = a.faction_id.and_then(|faction_id| {
+                    let db_id = stored_entities.get_faction_record_id(&faction_id);
+                    if db_id.is_none() {
+                        tracing::warn!(
+                            character_id = a.character_id,
+                            faction_id = faction_id,
+                            "Faction ID not found in database; setting character's faction to None"
+                        );
                     }
-                    None => None,
-                };
+                    db_id
+                });
 
                 Some((char_db_id, corp_db_id, faction_db_id))
             })
