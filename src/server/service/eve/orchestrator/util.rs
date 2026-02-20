@@ -20,7 +20,7 @@ use crate::server::error::Error;
 /// # Returns
 /// - `Ok(NaiveDateTime)` - The effective faction cache expiry timestamp (either today or yesterday at 11:05 UTC)
 /// - `Err(Error::ParseError)` - Failed to calculate yesterday's date or construct the expiry timestamp
-pub fn effective_faction_cache_expiry(now: DateTime<Utc>) -> Result<NaiveDateTime, Error> {
+pub(super) fn effective_faction_cache_expiry(now: DateTime<Utc>) -> Result<NaiveDateTime, Error> {
     let today = now.date_naive();
     let yesterday = today.checked_sub_signed(Duration::days(1)).ok_or_else(|| {
         Error::ParseError(

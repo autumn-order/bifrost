@@ -46,6 +46,7 @@ pub struct StoredEntities {
     pub(super) characters_record_id_map: HashMap<i64, i32>,
 }
 
+// ===== Entity Getters =====
 impl StoredEntities {
     /// Gets a character from the stored database models by character ID.
     ///
@@ -83,6 +84,23 @@ impl StoredEntities {
         self.alliances_map.get(alliance_id)
     }
 
+    /// Gets all factions from the stored database models.
+    ///
+    /// Returns all faction models that were stored. Useful for bulk faction operations.
+    ///
+    /// # Returns
+    /// - `Vec<EveFactionModel>` - All stored faction database models, or empty vec if:
+    ///   - No factions were requested in the builder
+    ///
+    /// Note: This returns factions even if they were loaded due to being up-to-date
+    /// or returned 304 Not Modified
+    pub fn get_all_factions(&self) -> Vec<EveFactionModel> {
+        self.factions_map.values().cloned().collect()
+    }
+}
+
+// ===== Entity Getters (Fallible) =====
+impl StoredEntities {
     /// Gets a character from the stored database models by character ID, or returns an error.
     ///
     /// This is a convenience method that wraps [`get_character`](Self::get_character) and
@@ -145,21 +163,10 @@ impl StoredEntities {
             ))
         })
     }
+}
 
-    /// Gets all factions from the stored database models.
-    ///
-    /// Returns all faction models that were stored. Useful for bulk faction operations.
-    ///
-    /// # Returns
-    /// - `Vec<EveFactionModel>` - All stored faction database models, or empty vec if:
-    ///   - No factions were requested in the builder
-    ///
-    /// Note: This returns factions even if they were loaded due to being up-to-date
-    /// or returned 304 Not Modified
-    pub fn get_all_factions(&self) -> Vec<EveFactionModel> {
-        self.factions_map.values().cloned().collect()
-    }
-
+// ===== Record ID Getters =====
+impl StoredEntities {
     /// Gets a character's database record ID by character ID.
     ///
     /// Returns the database record ID for characters that were either fetched and stored,
