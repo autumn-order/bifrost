@@ -375,10 +375,15 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok(HashMap<i64, i32>)` - Map of character IDs to database record IDs
     /// - `Err(Error)` - Database or ESI error occurred
     async fn orchestrate_characters(&mut self) -> Result<HashMap<i64, i32>, Error> {
-        let (characters_record_id_map, missing_character_ids) =
-            self.find_existing_characters().await?;
+        let dependency_character_ids: Vec<i64> =
+            self.dependency_character_ids.iter().copied().collect();
+        let (characters_record_id_map, missing_character_ids) = self
+            .find_existing_characters(&dependency_character_ids)
+            .await?;
         self.requested_character_ids.extend(missing_character_ids);
-        let fetched_characters = self.fetch_characters().await?;
+
+        let character_ids: Vec<i64> = self.requested_character_ids.iter().copied().collect();
+        let fetched_characters = self.fetch_characters(character_ids).await?;
 
         self.characters_map.extend(fetched_characters);
 
@@ -401,11 +406,16 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok(HashMap<i64, i32>)` - Map of corporation IDs to database record IDs
     /// - `Err(Error)` - Database or ESI error occurred
     async fn orchestrate_corporations(&mut self) -> Result<HashMap<i64, i32>, Error> {
-        let (corporations_record_id_map, missing_corporation_ids) =
-            self.find_existing_corporations().await?;
+        let dependency_corporation_ids: Vec<i64> =
+            self.dependency_corporation_ids.iter().copied().collect();
+        let (corporations_record_id_map, missing_corporation_ids) = self
+            .find_existing_corporations(&dependency_corporation_ids)
+            .await?;
         self.requested_corporation_ids
             .extend(missing_corporation_ids);
-        let fetched_corporations = self.fetch_corporations().await?;
+
+        let corporation_ids: Vec<i64> = self.requested_corporation_ids.iter().copied().collect();
+        let fetched_corporations = self.fetch_corporations(corporation_ids).await?;
 
         self.corporations_map.extend(fetched_corporations);
 
@@ -429,10 +439,15 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok(HashMap<i64, i32>)` - Map of alliance IDs to database record IDs
     /// - `Err(Error)` - Database or ESI error occurred
     async fn orchestrate_alliances(&mut self) -> Result<HashMap<i64, i32>, Error> {
-        let (alliances_record_id_map, missing_alliance_ids) =
-            self.find_existing_alliances().await?;
+        let dependency_alliance_ids: Vec<i64> =
+            self.dependency_alliance_ids.iter().copied().collect();
+        let (alliances_record_id_map, missing_alliance_ids) = self
+            .find_existing_alliances(&dependency_alliance_ids)
+            .await?;
         self.requested_alliance_ids.extend(missing_alliance_ids);
-        let fetched_alliances = self.fetch_alliances().await?;
+
+        let alliance_ids: Vec<i64> = self.requested_alliance_ids.iter().copied().collect();
+        let fetched_alliances = self.fetch_alliances(alliance_ids).await?;
 
         self.alliances_map.extend(fetched_alliances);
 
@@ -458,7 +473,10 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///   - Faction fetch state indicating what action was taken
     /// - `Err(Error)` - Database or ESI error occurred
     async fn orchestrate_factions(&self) -> Result<(HashMap<i64, i32>, FactionFetchState), Error> {
-        let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
+        let dependency_faction_ids: Vec<i64> =
+            self.dependency_faction_ids.iter().copied().collect();
+        let (factions_record_id_map, missing_faction_ids) =
+            self.find_existing_factions(&dependency_faction_ids).await?;
 
         let factions = if self.requested_faction_update || missing_faction_ids.len() > 0 {
             // Fetch factions if:
@@ -473,16 +491,18 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         Ok((factions_record_id_map, factions))
     }
 
-    /// Fetches requested character IDs from ESI and tracks dependencies.
+    /// Fetches character IDs from ESI.
     ///
-    /// For each character fetched, adds their corporation to dependencies and
-    /// adds their faction to dependencies if they have one.
+    /// # Arguments
+    /// - `character_ids` - IDs of characters to fetch from ESI
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Character>)` - Map of character IDs to character data
     /// - `Err(Error::EsiError)` - ESI request failed
-    async fn fetch_characters(&mut self) -> Result<HashMap<i64, Character>, Error> {
-        let character_ids: Vec<i64> = self.requested_character_ids.iter().copied().collect();
+    async fn fetch_characters(
+        &self,
+        character_ids: Vec<i64>,
+    ) -> Result<HashMap<i64, Character>, Error> {
         let mut characters = Vec::new();
 
         for character_id in character_ids {
@@ -493,30 +513,25 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                 .send()
                 .await?;
 
-            self.dependency_corporation_ids
-                .insert(character.corporation_id);
-            if let Some(faction_id) = character.faction_id {
-                self.dependency_faction_ids.insert(faction_id);
-            }
-
             characters.push((character_id, character.data))
         }
 
         Ok(characters.into_iter().collect())
     }
 
-    /// Fetches requested corporation IDs from ESI and tracks dependencies.
+    /// Fetches corporation IDs from ESI.
     ///
-    /// For each corporation fetched, adds their alliance and faction to dependencies
-    /// if they have them.
+    /// # Arguments
+    /// - `corporation_ids` - IDs of corporations to fetch from ESI
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Corporation>)` - Map of corporation IDs to corporation data
     /// - `Err(Error::EsiError)` - ESI request failed
-    async fn fetch_corporations(&mut self) -> Result<HashMap<i64, Corporation>, Error> {
+    async fn fetch_corporations(
+        &self,
+        corporation_ids: Vec<i64>,
+    ) -> Result<HashMap<i64, Corporation>, Error> {
         let mut corporations = Vec::new();
-
-        let corporation_ids: Vec<i64> = self.requested_corporation_ids.iter().copied().collect();
         for corporation_id in corporation_ids {
             let corporation = self
                 .esi_client
@@ -525,30 +540,25 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                 .send()
                 .await?;
 
-            if let Some(alliance_id) = corporation.alliance_id {
-                self.dependency_alliance_ids.insert(alliance_id);
-            }
-            if let Some(faction_id) = corporation.faction_id {
-                self.dependency_faction_ids.insert(faction_id);
-            }
-
             corporations.push((corporation_id, corporation.data))
         }
 
         Ok(corporations.into_iter().collect())
     }
 
-    /// Fetches requested alliance IDs from ESI and tracks dependencies.
+    /// Fetches alliance IDs from ESI.
     ///
-    /// For each alliance fetched, adds their faction to dependencies if they have one.
+    /// # Arguments
+    /// - `alliance_ids` - IDs of alliances to fetch from ESI
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Alliance>)` - Map of alliance IDs to alliance data
     /// - `Err(Error::EsiError)` - ESI request failed
-    async fn fetch_alliances(&mut self) -> Result<HashMap<i64, Alliance>, Error> {
+    async fn fetch_alliances(
+        &self,
+        alliance_ids: Vec<i64>,
+    ) -> Result<HashMap<i64, Alliance>, Error> {
         let mut alliances = Vec::new();
-
-        let alliance_ids: Vec<i64> = self.requested_alliance_ids.iter().copied().collect();
         for alliance_id in alliance_ids {
             let alliance = self
                 .esi_client
@@ -556,10 +566,6 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                 .get_alliance_information(alliance_id)
                 .send()
                 .await?;
-
-            if let Some(faction_id) = alliance.faction_id {
-                self.dependency_faction_ids.insert(faction_id);
-            }
 
             alliances.push((alliance_id, alliance.data))
         }
@@ -627,18 +633,22 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Queries the database for dependency characters to avoid redundant ESI calls.
     /// Returns both found characters and IDs that need to be fetched.
     ///
+    /// # Arguments
+    /// - `dependency_character_ids` - IDs of characters to check in the database
+    ///
     /// # Returns
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE character IDs to their database record IDs
     ///   - Vector of EVE character IDs not found in the database
     /// - `Err(Error::DbErr)` - Database query failed
-    async fn find_existing_characters(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
+    async fn find_existing_characters(
+        &self,
+        dependency_character_ids: &[i64],
+    ) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let character_repo = CharacterRepository::new(self.db);
 
-        let dependency_character_ids: Vec<i64> =
-            self.dependency_character_ids.iter().copied().collect();
         let character_record_ids = character_repo
-            .get_record_ids_by_character_ids(&dependency_character_ids)
+            .get_record_ids_by_character_ids(dependency_character_ids)
             .await?;
 
         let existing_character_ids: HashSet<i64> = character_record_ids
@@ -648,7 +658,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 
         let mut missing_character_ids = Vec::new();
 
-        for &dep_char_id in &dependency_character_ids {
+        for &dep_char_id in dependency_character_ids {
             if !existing_character_ids.contains(&dep_char_id) {
                 missing_character_ids.push(dep_char_id);
             }
@@ -668,18 +678,22 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Queries the database for dependency corporations to avoid redundant ESI calls.
     /// Returns both found corporations and IDs that need to be fetched.
     ///
+    /// # Arguments
+    /// - `dependency_corporation_ids` - IDs of corporations to check in the database
+    ///
     /// # Returns
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE corporation IDs to their database record IDs
     ///   - Vector of EVE corporation IDs not found in the database
     /// - `Err(Error::DbErr)` - Database query failed
-    async fn find_existing_corporations(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
+    async fn find_existing_corporations(
+        &self,
+        dependency_corporation_ids: &[i64],
+    ) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let corporation_repo = CorporationRepository::new(self.db);
 
-        let dependency_corporation_ids: Vec<i64> =
-            self.dependency_corporation_ids.iter().copied().collect();
         let corporation_record_ids = corporation_repo
-            .get_record_ids_by_corporation_ids(&dependency_corporation_ids)
+            .get_record_ids_by_corporation_ids(dependency_corporation_ids)
             .await?;
 
         let existing_corporation_ids: HashSet<i64> = corporation_record_ids
@@ -689,7 +703,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 
         let mut missing_corporation_ids = Vec::new();
 
-        for &dep_corp_id in &dependency_corporation_ids {
+        for &dep_corp_id in dependency_corporation_ids {
             if !existing_corporation_ids.contains(&dep_corp_id) {
                 missing_corporation_ids.push(dep_corp_id);
             }
@@ -709,18 +723,22 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Queries the database for dependency alliances to avoid redundant ESI calls.
     /// Returns both found alliances and IDs that need to be fetched.
     ///
+    /// # Arguments
+    /// - `dependency_alliance_ids` - IDs of alliances to check in the database
+    ///
     /// # Returns
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE alliance IDs to their database record IDs
     ///   - Vector of EVE alliance IDs not found in the database
     /// - `Err(Error::DbErr)` - Database query failed
-    async fn find_existing_alliances(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
+    async fn find_existing_alliances(
+        &self,
+        dependency_alliance_ids: &[i64],
+    ) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let alliance_repo = AllianceRepository::new(self.db);
 
-        let dependency_alliance_ids: Vec<i64> =
-            self.dependency_alliance_ids.iter().copied().collect();
         let alliance_record_ids = alliance_repo
-            .get_record_ids_by_alliance_ids(&dependency_alliance_ids)
+            .get_record_ids_by_alliance_ids(dependency_alliance_ids)
             .await?;
 
         let existing_alliance_ids: HashSet<i64> = alliance_record_ids
@@ -730,7 +748,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 
         let mut missing_alliance_ids = Vec::new();
 
-        for &dep_alliance_id in &dependency_alliance_ids {
+        for &dep_alliance_id in dependency_alliance_ids {
             if !existing_alliance_ids.contains(&dep_alliance_id) {
                 missing_alliance_ids.push(dep_alliance_id);
             }
@@ -750,18 +768,22 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Queries the database for dependency factions to avoid redundant ESI calls.
     /// Returns both found factions and IDs that need to be fetched.
     ///
+    /// # Arguments
+    /// - `dependency_faction_ids` - IDs of factions to check in the database
+    ///
     /// # Returns
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE faction IDs to their database record IDs
     ///   - Vector of EVE faction IDs not found in the database
     /// - `Err(Error::DbErr)` - Database query failed
-    async fn find_existing_factions(&self) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
+    async fn find_existing_factions(
+        &self,
+        dependency_faction_ids: &[i64],
+    ) -> Result<(HashMap<i64, i32>, Vec<i64>), Error> {
         let faction_repo = FactionRepository::new(self.db);
 
-        let dependency_faction_ids: Vec<i64> =
-            self.dependency_faction_ids.iter().copied().collect();
         let faction_record_ids = faction_repo
-            .get_record_ids_by_faction_ids(&dependency_faction_ids)
+            .get_record_ids_by_faction_ids(dependency_faction_ids)
             .await?;
 
         let existing_faction_ids: HashSet<i64> = faction_record_ids
@@ -771,7 +793,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 
         let mut missing_faction_ids = Vec::new();
 
-        for &dep_faction_id in &dependency_faction_ids {
+        for &dep_faction_id in dependency_faction_ids {
             if !existing_faction_ids.contains(&dep_faction_id) {
                 missing_faction_ids.push(dep_faction_id);
             }
