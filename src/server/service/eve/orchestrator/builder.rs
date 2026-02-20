@@ -44,12 +44,13 @@ pub struct EveEntityOrchestratorBuilder<'a> {
     db: &'a DatabaseConnection,
     esi_client: &'a eve_esi::Client,
 
+    // Explicitly request faction fetch (for periodic faction updates)
+    requested_faction_update: bool,
+
     // Explicitly requested IDs - always fetch from ESI
     requested_character_ids: HashSet<i64>,
     requested_corporation_ids: HashSet<i64>,
     requested_alliance_ids: HashSet<i64>,
-    // Explicitly request faction fetch (for periodic faction updates)
-    requested_faction_update: bool,
 
     // Dependency IDs - check DB first, fetch if missing
     dependency_character_ids: HashSet<i64>,
@@ -57,11 +58,9 @@ pub struct EveEntityOrchestratorBuilder<'a> {
     dependency_alliance_ids: HashSet<i64>,
     dependency_faction_ids: HashSet<i64>,
 
-    // Character data we have already fetched which we just need stored and dependencies resolved
+    // ESI data we have already fetched which we just need stored and dependencies resolved
     characters_map: HashMap<i64, Character>,
-    // Corporation data we have already fetched which we just need stored and dependencies resolved
     corporations_map: HashMap<i64, Corporation>,
-    // Alliance data we have already fetched which we just need stored and dependencies resolved
     alliances_map: HashMap<i64, Alliance>,
 }
 
@@ -123,15 +122,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// # Returns
     /// - `Self` - Builder instance for method chaining
     pub fn character_with_data(mut self, character_id: i64, esi_character: Character) -> Self {
-        self.dependency_corporation_ids
-            .insert(esi_character.corporation_id);
-
-        if let Some(faction_id) = esi_character.faction_id {
-            self.dependency_faction_ids.insert(faction_id);
-        }
-
         self.characters_map.insert(character_id, esi_character);
-
         self
     }
 
@@ -182,17 +173,8 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         corporation_id: i64,
         esi_corporation: Corporation,
     ) -> Self {
-        if let Some(alliance_id) = esi_corporation.alliance_id {
-            self.dependency_alliance_ids.insert(alliance_id);
-        }
-
-        if let Some(faction_id) = esi_corporation.faction_id {
-            self.dependency_faction_ids.insert(faction_id);
-        }
-
         self.corporations_map
             .insert(corporation_id, esi_corporation);
-
         self
     }
 
@@ -239,12 +221,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// # Returns
     /// - `Self` - Builder instance for method chaining
     pub fn alliance_with_data(mut self, alliance_id: i64, esi_alliance: Alliance) -> Self {
-        if let Some(faction_id) = esi_alliance.faction_id {
-            self.dependency_faction_ids.insert(faction_id);
-        }
-
         self.alliances_map.insert(alliance_id, esi_alliance);
-
         self
     }
 
@@ -375,38 +352,10 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - ESI requests fail
     /// - Database queries fail
     pub async fn build(mut self) -> Result<EveEntityOrchestrator, Error> {
-        let (characters_record_id_map, missing_character_ids) =
-            self.find_existing_characters().await?;
-        self.requested_character_ids.extend(missing_character_ids);
-        let fetched_characters = self.fetch_characters().await?;
-
-        self.characters_map.extend(fetched_characters);
-
-        let (corporations_record_id_map, missing_corporation_ids) =
-            self.find_existing_corporations().await?;
-        self.requested_corporation_ids
-            .extend(missing_corporation_ids);
-        let fetched_corporations = self.fetch_corporations().await?;
-
-        self.corporations_map.extend(fetched_corporations);
-
-        let (alliances_record_id_map, missing_alliance_ids) =
-            self.find_existing_alliances().await?;
-        self.requested_alliance_ids.extend(missing_alliance_ids);
-        let fetched_alliances = self.fetch_alliances().await?;
-
-        self.alliances_map.extend(fetched_alliances);
-
-        let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
-        let factions = if self.requested_faction_update || missing_faction_ids.len() > 0 {
-            // Fetch factions if:
-            // - Explicitly requested via with_factions() (periodic update)
-            // - Any entity references a faction we don't have (dependency resolution)
-            self.fetch_factions_if_stale().await?
-        } else {
-            // No factions requested
-            FactionFetchState::NotRequested
-        };
+        let characters_record_id_map = self.orchestrate_characters().await?;
+        let corporations_record_id_map = self.orchestrate_corporations().await?;
+        let alliances_record_id_map = self.orchestrate_alliances().await?;
+        let (factions_record_id_map, factions) = self.orchestrate_factions().await?;
 
         Ok(EveEntityOrchestrator {
             factions,
@@ -418,6 +367,110 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
             corporations_record_id_map,
             characters_record_id_map,
         })
+    }
+
+    /// Orchestrates the complete character workflow: find existing, fetch missing, extract dependencies.
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, i32>)` - Map of character IDs to database record IDs
+    /// - `Err(Error)` - Database or ESI error occurred
+    async fn orchestrate_characters(&mut self) -> Result<HashMap<i64, i32>, Error> {
+        let (characters_record_id_map, missing_character_ids) =
+            self.find_existing_characters().await?;
+        self.requested_character_ids.extend(missing_character_ids);
+        let fetched_characters = self.fetch_characters().await?;
+
+        self.characters_map.extend(fetched_characters);
+
+        // Extract dependencies from all characters in the map
+        for character in self.characters_map.values() {
+            self.dependency_corporation_ids
+                .insert(character.corporation_id);
+
+            if let Some(faction_id) = character.faction_id {
+                self.dependency_faction_ids.insert(faction_id);
+            }
+        }
+
+        Ok(characters_record_id_map)
+    }
+
+    /// Orchestrates the complete corporation workflow: find existing, fetch missing, extract dependencies.
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, i32>)` - Map of corporation IDs to database record IDs
+    /// - `Err(Error)` - Database or ESI error occurred
+    async fn orchestrate_corporations(&mut self) -> Result<HashMap<i64, i32>, Error> {
+        let (corporations_record_id_map, missing_corporation_ids) =
+            self.find_existing_corporations().await?;
+        self.requested_corporation_ids
+            .extend(missing_corporation_ids);
+        let fetched_corporations = self.fetch_corporations().await?;
+
+        self.corporations_map.extend(fetched_corporations);
+
+        // Extract dependencies from all corporations in the map
+        for corporation in self.corporations_map.values() {
+            if let Some(alliance_id) = corporation.alliance_id {
+                self.dependency_alliance_ids.insert(alliance_id);
+            }
+
+            if let Some(faction_id) = corporation.faction_id {
+                self.dependency_faction_ids.insert(faction_id);
+            }
+        }
+
+        Ok(corporations_record_id_map)
+    }
+
+    /// Orchestrates the complete alliance workflow: find existing, fetch missing, extract dependencies.
+    ///
+    /// # Returns
+    /// - `Ok(HashMap<i64, i32>)` - Map of alliance IDs to database record IDs
+    /// - `Err(Error)` - Database or ESI error occurred
+    async fn orchestrate_alliances(&mut self) -> Result<HashMap<i64, i32>, Error> {
+        let (alliances_record_id_map, missing_alliance_ids) =
+            self.find_existing_alliances().await?;
+        self.requested_alliance_ids.extend(missing_alliance_ids);
+        let fetched_alliances = self.fetch_alliances().await?;
+
+        self.alliances_map.extend(fetched_alliances);
+
+        // Extract dependencies from all alliances in the map
+        for alliance in self.alliances_map.values() {
+            if let Some(faction_id) = alliance.faction_id {
+                self.dependency_faction_ids.insert(faction_id);
+            }
+        }
+
+        Ok(alliances_record_id_map)
+    }
+
+    /// Orchestrates the complete faction workflow: find existing, fetch if needed.
+    ///
+    /// Unlike other entities, factions are only fetched if:
+    /// - Explicitly requested via `with_factions()` (periodic update)
+    /// - Any entity references a faction we don't have (dependency resolution)
+    ///
+    /// # Returns
+    /// - `Ok((HashMap<i64, i32>, FactionFetchState))` - Tuple of:
+    ///   - Map of faction IDs to database record IDs
+    ///   - Faction fetch state indicating what action was taken
+    /// - `Err(Error)` - Database or ESI error occurred
+    async fn orchestrate_factions(&self) -> Result<(HashMap<i64, i32>, FactionFetchState), Error> {
+        let (factions_record_id_map, missing_faction_ids) = self.find_existing_factions().await?;
+
+        let factions = if self.requested_faction_update || missing_faction_ids.len() > 0 {
+            // Fetch factions if:
+            // - Explicitly requested via with_factions() (periodic update)
+            // - Any entity references a faction we don't have (dependency resolution)
+            self.fetch_factions_if_stale().await?
+        } else {
+            // No factions requested
+            FactionFetchState::NotRequested
+        };
+
+        Ok((factions_record_id_map, factions))
     }
 
     /// Fetches requested character IDs from ESI and tracks dependencies.
