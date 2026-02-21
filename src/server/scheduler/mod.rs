@@ -12,7 +12,7 @@ use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
-use crate::server::{error::Error, worker::WorkerQueue};
+use crate::server::{error::AppError, worker::WorkerQueue};
 
 pub mod config;
 pub mod entity_refresh;
@@ -94,12 +94,12 @@ impl Scheduler {
     ///
     /// # Returns
     /// - `Ok(Scheduler)` - Successfully created scheduler instance
-    /// - `Err(Error)` - Failed to initialize the underlying job scheduler
+    /// - `Err(AppError)` - Failed to initialize the underlying job scheduler
     pub async fn new(
         db: DatabaseConnection,
         queue: WorkerQueue,
         offset_for_esi_downtime: bool,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, AppError> {
         let sched = JobScheduler::new().await?;
         let state = SchedulerState {
             db,
@@ -125,8 +125,8 @@ impl Scheduler {
     ///
     /// # Returns
     /// - `Ok(())` - All jobs successfully registered and scheduler started
-    /// - `Err(Error)` - Failed to register a job or start the scheduler
-    pub async fn start(mut self) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to register a job or start the scheduler
+    pub async fn start(mut self) -> Result<(), AppError> {
         self.schedule_job(
             faction_config::CRON_EXPRESSION,
             "faction info",
@@ -186,16 +186,16 @@ impl Scheduler {
     ///
     /// # Returns
     /// - `Ok(())` - Job successfully registered with the scheduler
-    /// - `Err(Error)` - Failed to create or add the job (invalid cron expression or scheduler error)
+    /// - `Err(AppError)` - Failed to create or add the job (invalid cron expression or scheduler error)
     pub async fn schedule_job<F, Fut>(
         &mut self,
         cron: &str,
         name: &str,
         function: F,
-    ) -> Result<(), Error>
+    ) -> Result<(), AppError>
     where
         F: Fn(SchedulerState) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = Result<usize, Error>> + Send + 'static,
+        Fut: Future<Output = Result<usize, AppError>> + Send + 'static,
     {
         let state = self.state.clone();
         let name = name.to_string();

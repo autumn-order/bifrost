@@ -17,7 +17,7 @@ use tokio::task::JoinHandle;
 
 use crate::server::model::worker::ScheduledWorkerJob;
 use crate::server::worker::handler::WorkerJobHandler;
-use crate::server::{error::Error, worker::queue::WorkerQueue};
+use crate::server::{error::AppError, worker::queue::WorkerQueue};
 
 /// Worker pool for processing jobs from the WorkerQueue.
 ///
@@ -83,8 +83,8 @@ impl WorkerPool {
     ///
     /// # Returns
     /// - `Ok(())` - Pool started successfully (or already running)
-    /// - `Err(Error)` - Failed to start pool
-    pub async fn start(&self) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to start pool
+    pub async fn start(&self) -> Result<(), AppError> {
         let mut handles = self.inner.dispatcher_handles.write().await;
 
         if !handles.is_empty() {
@@ -267,12 +267,12 @@ impl WorkerPool {
     ///
     /// # Returns
     /// - `Ok(())` - Pool stopped successfully (or already stopped)
-    /// - `Err(Error)` - Failed to stop pool
+    /// - `Err(AppError)` - Failed to stop pool
     ///
     /// # Note
     /// Call this method before dropping the WorkerPool to ensure clean shutdown.
     /// Dropping without calling stop() may leave orphaned tasks.
-    pub async fn stop(&self) -> Result<(), Error> {
+    pub async fn stop(&self) -> Result<(), AppError> {
         // Check if already stopped (idempotent)
         if !self.is_running().await {
             tracing::debug!("Worker pool is already stopped");

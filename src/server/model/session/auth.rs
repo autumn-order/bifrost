@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
-use crate::server::error::{auth::AuthError, Error};
+use crate::server::error::{auth::AuthError, AppError};
 
 /// Session key for storing CSRF state token.
 ///
@@ -40,8 +40,8 @@ impl SessionAuthCsrf {
     ///
     /// # Returns
     /// - `Ok(())` - CSRF token successfully stored in session
-    /// - `Err(Error)` - Session storage failed (Redis error, serialization error)
-    pub async fn insert(session: &Session, state: &str) -> Result<(), Error> {
+    /// - `Err(AppError)` - Session storage failed (Redis error, serialization error)
+    pub async fn insert(session: &Session, state: &str) -> Result<(), AppError> {
         session
             .insert(SESSION_AUTH_CSRF_KEY, SessionAuthCsrf(state.to_string()))
             .await?;
@@ -60,9 +60,9 @@ impl SessionAuthCsrf {
     ///
     /// # Returns
     /// - `Ok(String)` - CSRF token found and retrieved successfully
-    /// - `Err(Error::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
-    /// - `Err(Error)` - Session retrieval failed (Redis error)
-    pub async fn get(session: &Session) -> Result<String, Error> {
+    /// - `Err(AppError::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
+    /// - `Err(AppError)` - Session retrieval failed (Redis error)
+    pub async fn get(session: &Session) -> Result<String, AppError> {
         match session.get(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
             None => Err(AuthError::CsrfMissingValue.into()),
@@ -80,9 +80,9 @@ impl SessionAuthCsrf {
     ///
     /// # Returns
     /// - `Ok(Some(String))` - CSRF token found, removed, and returned
-    /// - `Err(Error::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
-    /// - `Err(Error)` - Session operation failed (Redis error)
-    pub async fn remove(session: &Session) -> Result<Option<String>, Error> {
+    /// - `Err(AppError::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
+    /// - `Err(AppError)` - Session operation failed (Redis error)
+    pub async fn remove(session: &Session) -> Result<Option<String>, AppError> {
         match session.remove(SESSION_AUTH_CSRF_KEY).await? {
             Some(csrf) => Ok(csrf),
             None => Err(AuthError::CsrfMissingValue.into()),
@@ -181,7 +181,7 @@ mod tests {
 
     mod get {
         use super::*;
-        use crate::server::error::{auth::AuthError, Error};
+        use crate::server::error::{auth::AuthError, AppError};
         use bifrost_test_utils::prelude::*;
 
         /// Tests successful retrieval of CSRF token from session.
@@ -221,7 +221,7 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(
                 result,
-                Err(Error::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::AuthError(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -230,7 +230,7 @@ mod tests {
 
     mod remove {
         use super::*;
-        use crate::server::error::{auth::AuthError, Error};
+        use crate::server::error::{auth::AuthError, AppError};
         use bifrost_test_utils::prelude::*;
 
         /// Tests successful removal of CSRF token from session.
@@ -295,7 +295,7 @@ mod tests {
             assert!(get_result.is_err());
             assert!(matches!(
                 get_result,
-                Err(Error::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::AuthError(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -321,7 +321,7 @@ mod tests {
             assert!(second_remove.is_err());
             assert!(matches!(
                 second_remove,
-                Err(Error::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::AuthError(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -343,7 +343,7 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(
                 result,
-                Err(Error::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::AuthError(AuthError::CsrfMissingValue))
             ));
 
             Ok(())

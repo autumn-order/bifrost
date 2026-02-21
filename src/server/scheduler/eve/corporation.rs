@@ -8,6 +8,7 @@
 use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
+    error::AppError,
     model::worker::WorkerJob,
     scheduler::{
         config::eve::corporation::{CACHE_DURATION, SCHEDULE_INTERVAL},
@@ -49,10 +50,8 @@ impl SchedulableEntity for CorporationInfo {
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of corporation refresh jobs successfully scheduled (excludes duplicates)
-/// - `Err(Error)` - Database query failed or job scheduling failed
-pub async fn schedule_corporation_info_update(
-    state: SchedulerState,
-) -> Result<usize, crate::server::error::Error> {
+/// - `Err(AppError)` - Database query failed or job scheduling failed
+pub async fn schedule_corporation_info_update(state: SchedulerState) -> Result<usize, AppError> {
     let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find corporations that need updating (returns corporation_ids)

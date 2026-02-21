@@ -10,7 +10,7 @@ use sea_orm::{DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
 use crate::server::{
     data::user::{user_character::UserCharacterRepository, UserRepository},
-    error::Error,
+    error::AppError,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
     service::{
         eve::orchestrator::EveEntityOrchestrator, user::user_character::UserCharacterService,
@@ -150,18 +150,18 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(i32)` - The user ID after successful authentication and processing
-    /// - `Err(Error::EsiError)` - Failed to fetch or validate OAuth2 token
-    /// - `Err(Error::ParseError)` - Failed to parse character ID from JWT claims
-    /// - `Err(Error::DbErr)` - Database operation failed
-    /// - `Err(Error::AuthError(AuthError::UserNotInDatabase))` - User not found during character transfer
-    /// - `Err(Error::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Attempted to set main character owned by different user
-    /// - `Err(Error::InternalError)` - Character persistence failed unexpectedly
+    /// - `Err(AppError::EsiError)` - Failed to fetch or validate OAuth2 token
+    /// - `Err(AppError::ParseError)` - Failed to parse character ID from JWT claims
+    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::AuthError(AuthError::UserNotInDatabase))` - User not found during character transfer
+    /// - `Err(AppError::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Attempted to set main character owned by different user
+    /// - `Err(AppError::InternalError)` - Character persistence failed unexpectedly
     pub async fn handle_callback(
         &self,
         authorization_code: &str,
         user_id: Option<i32>,
         change_main: Option<bool>,
-    ) -> Result<i32, Error> {
+    ) -> Result<i32, AppError> {
         let claims =
             Self::authenticate_and_get_claims(self.esi_client, &authorization_code).await?;
 
@@ -297,11 +297,11 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveJwtClaims)` - Validated JWT claims containing character ID and owner hash
-    /// - `Err(Error::EsiError)` - Failed to fetch token or validate JWT
+    /// - `Err(AppError::EsiError)` - Failed to fetch token or validate JWT
     pub async fn authenticate_and_get_claims(
         esi_client: &eve_esi::Client,
         authorization_code: &str,
-    ) -> Result<EveJwtClaims, Error> {
+    ) -> Result<EveJwtClaims, AppError> {
         let token = esi_client.oauth2().get_token(authorization_code).await?;
         let claims = esi_client
             .oauth2()
@@ -323,11 +323,11 @@ impl<'a> CallbackService<'a> {
     /// - `Ok(CharacterRecord::NotFound)` - Character does not exist in database
     /// - `Ok(CharacterRecord::Unowned)` - Character exists but has no owner
     /// - `Ok(CharacterRecord::Owned)` - Character exists and is owned by a user
-    /// - `Err(Error::DbErr)` - Database query failed
+    /// - `Err(AppError::DbErr)` - Database query failed
     pub async fn get_character_ownership_status(
         db: &DatabaseConnection,
         character_id: i64,
-    ) -> Result<CharacterRecord, Error> {
+    ) -> Result<CharacterRecord, AppError> {
         let user_character_repo = UserCharacterRepository::new(db);
 
         match user_character_repo
@@ -352,12 +352,12 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(i32)` - The user ID (either existing or newly created)
-    /// - `Err(Error::DbError)` - Database error when creating a new user
+    /// - `Err(AppError::DbError)` - Database error when creating a new user
     pub async fn get_or_create_user(
         txn: &DatabaseTransaction,
         to_user_id: Option<i32>,
         character_id: i32,
-    ) -> Result<i32, Error> {
+    ) -> Result<i32, AppError> {
         match to_user_id {
             Some(uid) => Ok(uid),
             None => {

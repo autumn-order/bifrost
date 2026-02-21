@@ -5,7 +5,7 @@
 //! and main character updates across various scenarios.
 
 use bifrost::server::{
-    data::user::UserRepository, error::Error, service::auth::callback::CallbackService,
+    data::user::UserRepository, error::AppError, service::auth::callback::CallbackService,
 };
 use bifrost_test_utils::prelude::*;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -441,7 +441,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let result = service.handle_callback("auth_code", None, None).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), Error::EsiError(_)));
+    assert!(matches!(result.unwrap_err(), AppError::EsiError(_)));
 
     Ok(())
 }
@@ -467,7 +467,7 @@ async fn fails_when_database_tables_missing() -> Result<(), TestError> {
     let result = service.handle_callback("auth_code", None, None).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), Error::DbErr(_)));
+    assert!(matches!(result.unwrap_err(), AppError::DbErr(_)));
 
     Ok(())
 }

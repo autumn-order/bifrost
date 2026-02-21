@@ -9,6 +9,7 @@
 use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
+    error::AppError,
     model::worker::WorkerJob,
     scheduler::{
         config::eve::character_affiliation::{CACHE_DURATION, SCHEDULE_INTERVAL},
@@ -52,10 +53,10 @@ impl SchedulableEntity for CharacterAffiliation {
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of affiliation refresh jobs successfully scheduled (excludes duplicates)
-/// - `Err(Error)` - Database query failed or job scheduling failed
+/// - `Err(AppError)` - Database query failed or job scheduling failed
 pub async fn schedule_character_affiliation_update(
     state: SchedulerState,
-) -> Result<usize, crate::server::error::Error> {
+) -> Result<usize, AppError> {
     let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need affiliation updates (returns character_ids)

@@ -4,7 +4,7 @@
 //! a new main character for a user, validating ownership, preventing unauthorized
 //! changes, and transaction handling.
 
-use bifrost::server::{error::Error, service::user::user_character::UserCharacterService};
+use bifrost::server::{error::AppError, service::user::user_character::UserCharacterService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::{EntityTrait, TransactionTrait};
 
@@ -109,7 +109,7 @@ async fn fails_when_character_owned_by_different_user() -> Result<(), TestError>
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        Error::AuthError(err) => {
+        AppError::AuthError(err) => {
             assert_eq!(
                 format!("{:?}", err),
                 format!(
@@ -448,7 +448,7 @@ async fn returns_error_for_nonexistent_user() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        Error::AuthError(_) => {
+        AppError::AuthError(_) => {
             // Expected - ownership check happens first
         }
         _ => panic!("Expected AuthError"),
@@ -525,7 +525,7 @@ async fn prevents_cross_user_main_character_assignment() -> Result<(), TestError
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        Error::AuthError(_) => {
+        AppError::AuthError(_) => {
             // Expected error
         }
         _ => panic!("Expected AuthError"),

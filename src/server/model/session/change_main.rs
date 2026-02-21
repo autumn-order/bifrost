@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 /// Session key for storing the change main character flag.
 ///
@@ -42,8 +42,8 @@ impl SessionUserChangeMain {
     ///
     /// # Returns
     /// - `Ok(())` - Flag successfully stored in session
-    /// - `Err(Error)` - Session storage failed (Redis error, serialization error)
-    pub async fn insert(session: &Session, change_main: bool) -> Result<(), Error> {
+    /// - `Err(AppError)` - Session storage failed (Redis error, serialization error)
+    pub async fn insert(session: &Session, change_main: bool) -> Result<(), AppError> {
         session
             .insert(
                 SESSION_USER_CHANGE_MAIN_KEY,
@@ -69,8 +69,8 @@ impl SessionUserChangeMain {
     /// - `Ok(Some(true))` - Change main flag was set, should update main character
     /// - `Ok(Some(false))` - Flag was set to false (unlikely but valid)
     /// - `Ok(None)` - No flag present, normal authentication flow
-    /// - `Err(Error)` - Session operation failed (Redis error)
-    pub async fn remove(session: &Session) -> Result<Option<bool>, Error> {
+    /// - `Err(AppError)` - Session operation failed (Redis error)
+    pub async fn remove(session: &Session) -> Result<Option<bool>, AppError> {
         Ok(session.remove(SESSION_USER_CHANGE_MAIN_KEY).await?)
     }
 }

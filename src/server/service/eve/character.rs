@@ -8,7 +8,7 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::character::CharacterRepository, error::Error, model::db::EveCharacterModel,
+    data::eve::character::CharacterRepository, error::AppError, model::db::EveCharacterModel,
     service::eve::orchestrator::EveEntityOrchestrator,
 };
 
@@ -58,9 +58,9 @@ impl<'a> CharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveCharacterModel)` - The created or updated character database record
-    /// - `Err(Error::EsiError)` - Failed to fetch character data from ESI after retries
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn update(&self, character_id: i64) -> Result<EveCharacterModel, Error> {
+    /// - `Err(AppError::EsiError)` - Failed to fetch character data from ESI after retries
+    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    pub async fn update(&self, character_id: i64) -> Result<EveCharacterModel, AppError> {
         let character_repo = CharacterRepository::new(self.db);
 
         // Build entity provider using one of two strategies:

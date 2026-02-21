@@ -4,7 +4,7 @@
 //! including successful token exchange, JWT validation, and error handling
 //! for invalid authorization codes.
 
-use bifrost::server::{error::Error, service::auth::callback::CallbackService};
+use bifrost::server::{error::AppError, service::auth::callback::CallbackService};
 use bifrost_test_utils::prelude::*;
 
 /// Tests successful authentication and JWT claims extraction.
@@ -108,7 +108,7 @@ async fn fails_when_token_endpoint_unavailable() -> Result<(), TestError> {
         CallbackService::authenticate_and_get_claims(&test.esi_client, authorization_code).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), Error::EsiError(_)));
+    assert!(matches!(result.unwrap_err(), AppError::EsiError(_)));
 
     Ok(())
 }

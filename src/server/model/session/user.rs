@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use tower_sessions::Session;
 
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 /// Session key for storing user ID.
 ///
@@ -39,8 +39,8 @@ impl SessionUserId {
     ///
     /// # Returns
     /// - `Ok(())` - User ID successfully stored in session
-    /// - `Err(Error)` - Session storage failed (Redis error, serialization error)
-    pub async fn insert(session: &Session, user_id: i32) -> Result<(), Error> {
+    /// - `Err(AppError)` - Session storage failed (Redis error, serialization error)
+    pub async fn insert(session: &Session, user_id: i32) -> Result<(), AppError> {
         session
             .insert(SESSION_USER_ID_KEY, SessionUserId(user_id.to_string()))
             .await?;
@@ -61,15 +61,15 @@ impl SessionUserId {
     /// # Returns
     /// - `Ok(Some(user_id))` - User ID found and successfully parsed
     /// - `Ok(None)` - No user ID present in session (not authenticated)
-    /// - `Err(Error::ParseError)` - User ID present but cannot be parsed as i32
-    /// - `Err(Error)` - Session retrieval failed (Redis error)
-    pub async fn get(session: &Session) -> Result<Option<i32>, Error> {
+    /// - `Err(AppError::ParseError)` - User ID present but cannot be parsed as i32
+    /// - `Err(AppError)` - Session retrieval failed (Redis error)
+    pub async fn get(session: &Session) -> Result<Option<i32>, AppError> {
         session
             .get::<SessionUserId>(SESSION_USER_ID_KEY)
             .await?
             .map(|SessionUserId(id_str)| {
                 id_str.parse::<i32>().map_err(|e| {
-                    Error::ParseError(format!("Failed to parse session user id: {}", e))
+                    AppError::ParseError(format!("Failed to parse session user id: {}", e))
                 })
             })
             .transpose()
@@ -302,7 +302,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(Error::ParseError(_))));
+            assert!(matches!(result, Err(AppError::ParseError(_))));
 
             Ok(())
         }
@@ -325,7 +325,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(Error::ParseError(_))));
+            assert!(matches!(result, Err(AppError::ParseError(_))));
 
             Ok(())
         }
@@ -351,7 +351,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(Error::ParseError(_))));
+            assert!(matches!(result, Err(AppError::ParseError(_))));
 
             Ok(())
         }

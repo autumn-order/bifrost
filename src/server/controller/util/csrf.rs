@@ -7,7 +7,7 @@
 use tower_sessions::Session;
 
 use crate::server::{
-    error::{auth::AuthError, Error},
+    error::{auth::AuthError, AppError},
     model::session::auth::SessionAuthCsrf,
 };
 
@@ -25,9 +25,9 @@ use crate::server::{
 ///
 /// # Returns
 /// - `Ok(())` - CSRF state is valid (matches the session value)
-/// - `Err(Error::AuthError(AuthError::CsrfValidationFailed))` - State mismatch or not found in session
-/// - `Err(Error)` - Session retrieval error
-pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Error> {
+/// - `Err(AppError::AuthError(AuthError::CsrfValidationFailed))` - State mismatch or not found in session
+/// - `Err(AppError)` - Session retrieval error
+pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), AppError> {
     let stored_state = SessionAuthCsrf::remove(session).await?;
 
     if let Some(state) = stored_state {
@@ -36,7 +36,7 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Er
         }
     }
 
-    Err(Error::AuthError(AuthError::CsrfValidationFailed))
+    Err(AppError::AuthError(AuthError::CsrfValidationFailed))
 }
 
 #[cfg(test)]

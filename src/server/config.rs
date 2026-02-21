@@ -5,7 +5,7 @@
 //! contact information, and worker pool sizing. All required environment variables must be
 //! present or the application will fail to start with a descriptive error.
 
-use crate::server::error::{config::ConfigError, Error};
+use crate::server::error::{config::ConfigError, AppError};
 
 /// Server configuration loaded from environment variables.
 ///
@@ -90,8 +90,8 @@ impl Config {
     ///
     /// # Returns
     /// - `Ok(Config)` - Configuration successfully loaded and validated
-    /// - `Err(Error::ConfigError(ConfigError::MissingEnvVar))` - Required environment variable not set
-    /// - `Err(Error::ConfigError(ConfigError::InvalidEnvValue))` - Environment variable has invalid format (e.g., WORKERS not a number)
+    /// - `Err(AppError::ConfigError(ConfigError::MissingEnvVar))` - Required environment variable not set
+    /// - `Err(AppError::ConfigError(ConfigError::InvalidEnvValue))` - Environment variable has invalid format (e.g., WORKERS not a number)
     ///
     /// # Example
     /// ```ignore
@@ -104,7 +104,7 @@ impl Config {
     /// println!("User agent: {}", config.user_agent);
     /// // Output: "bifrost/0.1.0 (admin@example.com; +https://github.com/autumn-order/bifrost)"
     /// ```
-    pub fn from_env() -> Result<Self, Error> {
+    pub fn from_env() -> Result<Self, AppError> {
         let contact_email = std::env::var("CONTACT_EMAIL")
             .map_err(|_| ConfigError::MissingEnvVar("CONTACT_EMAIL".to_string()))?;
         let user_agent = format!(

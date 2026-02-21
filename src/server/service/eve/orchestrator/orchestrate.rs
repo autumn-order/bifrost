@@ -7,7 +7,7 @@ use entity::{
 use sea_orm::DatabaseTransaction;
 
 use super::{EveEntityOrchestrator, FactionFetchState};
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 impl EveEntityOrchestrator {
     /// Orchestrates the complete faction storage workflow.
@@ -16,11 +16,11 @@ impl EveEntityOrchestrator {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, EveFactionModel>)` - Map of stored faction models
-    /// - `Err(Error)` - Database operation failed
+    /// - `Err(AppError)` - Database operation failed
     pub(super) async fn orchestrate_faction_storage(
         &mut self,
         txn: &DatabaseTransaction,
-    ) -> Result<HashMap<i64, EveFactionModel>, Error> {
+    ) -> Result<HashMap<i64, EveFactionModel>, AppError> {
         let factions_state = std::mem::replace(&mut self.factions, FactionFetchState::NotRequested);
         let (stored_factions_record_map, factions_record_id_map) =
             self.store_factions(txn, factions_state).await?;
@@ -35,11 +35,11 @@ impl EveEntityOrchestrator {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, EveAllianceModel>)` - Map of stored alliance models
-    /// - `Err(Error)` - Database operation failed
+    /// - `Err(AppError)` - Database operation failed
     pub(super) async fn orchestrate_alliance_storage(
         &mut self,
         txn: &DatabaseTransaction,
-    ) -> Result<HashMap<i64, EveAllianceModel>, Error> {
+    ) -> Result<HashMap<i64, EveAllianceModel>, AppError> {
         let alliances_map = std::mem::take(&mut self.alliances_map);
         let (stored_alliances_record_map, alliances_record_id_map) =
             self.store_alliances(txn, alliances_map).await?;
@@ -54,11 +54,11 @@ impl EveEntityOrchestrator {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, EveCorporationModel>)` - Map of stored corporation models
-    /// - `Err(Error)` - Database operation failed
+    /// - `Err(AppError)` - Database operation failed
     pub(super) async fn orchestrate_corporation_storage(
         &mut self,
         txn: &DatabaseTransaction,
-    ) -> Result<HashMap<i64, EveCorporationModel>, Error> {
+    ) -> Result<HashMap<i64, EveCorporationModel>, AppError> {
         let corporations_map = std::mem::take(&mut self.corporations_map);
         let (stored_corporations_record_map, corporations_record_id_map) =
             self.store_corporations(txn, corporations_map).await?;
@@ -74,11 +74,11 @@ impl EveEntityOrchestrator {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, EveCharacterModel>)` - Map of stored character models
-    /// - `Err(Error)` - Database operation failed
+    /// - `Err(AppError)` - Database operation failed
     pub(super) async fn orchestrate_character_storage(
         &mut self,
         txn: &DatabaseTransaction,
-    ) -> Result<HashMap<i64, EveCharacterModel>, Error> {
+    ) -> Result<HashMap<i64, EveCharacterModel>, AppError> {
         let characters_map = std::mem::take(&mut self.characters_map);
         let (stored_characters_record_map, characters_record_id_map) =
             self.store_characters(txn, characters_map).await?;

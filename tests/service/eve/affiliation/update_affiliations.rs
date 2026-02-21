@@ -5,7 +5,7 @@
 //! transaction handling, retry logic, input validation, and error handling.
 
 use bifrost::server::{
-    error::Error, service::eve::affiliation::AffiliationService,
+    error::AppError, service::eve::affiliation::AffiliationService,
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
 use bifrost_test_utils::prelude::*;
@@ -707,7 +707,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .await;
 
     assert!(result.is_err());
-    assert!(matches!(result, Err(Error::EsiError(_))));
+    assert!(matches!(result, Err(AppError::EsiError(_))));
 
     test.assert_mocks();
 
@@ -740,7 +740,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
 
     assert!(matches!(
         result,
-        Err(Error::EsiError(eve_esi::Error::EsiError(_)))
+        Err(AppError::EsiError(eve_esi::Error::EsiError(_)))
     ));
 
     Ok(())
@@ -782,7 +782,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .update_affiliations(vec![character_id])
         .await;
 
-    assert!(matches!(result, Err(Error::DbErr(_))));
+    assert!(matches!(result, Err(AppError::DbErr(_))));
 
     Ok(())
 }

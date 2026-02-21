@@ -8,6 +8,7 @@
 use sea_orm::{ColumnTrait, IntoSimpleExpr};
 
 use crate::server::{
+    error::AppError,
     model::worker::WorkerJob,
     scheduler::{
         config::eve::character::{CACHE_DURATION, SCHEDULE_INTERVAL},
@@ -50,10 +51,8 @@ impl SchedulableEntity for CharacterInfo {
 ///
 /// # Returns
 /// - `Ok(usize)` - Number of character refresh jobs successfully scheduled (excludes duplicates)
-/// - `Err(Error)` - Database query failed or job scheduling failed
-pub async fn schedule_character_info_update(
-    state: SchedulerState,
-) -> Result<usize, crate::server::error::Error> {
+/// - `Err(AppError)` - Database query failed or job scheduling failed
+pub async fn schedule_character_info_update(state: SchedulerState) -> Result<usize, AppError> {
     let refresh_tracker = EntityRefreshTracker::new(&state, CACHE_DURATION, SCHEDULE_INTERVAL);
 
     // Find characters that need updating (returns character_ids)

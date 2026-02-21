@@ -11,7 +11,7 @@ use dioxus_logger::tracing;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
-    error::{retry::ErrorRetryStrategy, Error},
+    error::{retry::ErrorRetryStrategy, AppError},
     model::worker::{ScheduledWorkerJob, WorkerJob},
     service::eve::{
         affiliation::AffiliationService, alliance::AllianceService, character::CharacterService,
@@ -90,8 +90,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Job completed successfully, rescheduled due to downtime, or pushed back for retry
-    /// - `Err(Error)` - Job failed permanently (not retryable)
-    pub async fn handle(&self, scheduled_job: &ScheduledWorkerJob) -> Result<(), Error> {
+    /// - `Err(AppError)` - Job failed permanently (not retryable)
+    pub async fn handle(&self, scheduled_job: &ScheduledWorkerJob) -> Result<(), AppError> {
         // Check if we're within ESI downtime window (if offset is enabled)
         if self.offset_for_esi_downtime {
             let now = Utc::now();
@@ -219,8 +219,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Faction update completed (or skipped if cache valid)
-    /// - `Err(Error)` - Failed to update factions
-    pub async fn update_faction_info(&self) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to update factions
+    pub async fn update_faction_info(&self) -> Result<(), AppError> {
         tracing::debug!("Checking for daily NPC faction info update");
 
         let factions = FactionService::new(&self.db, &self.esi_client)
@@ -253,8 +253,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Alliance info updated successfully
-    /// - `Err(Error)` - Failed to fetch or persist alliance data
-    pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to fetch or persist alliance data
+    pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), AppError> {
         tracing::debug!(
             "Processing alliance info update for alliance_id: {}",
             alliance_id
@@ -287,8 +287,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Corporation info updated successfully
-    /// - `Err(Error)` - Failed to fetch or persist corporation data
-    pub async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to fetch or persist corporation data
+    pub async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), AppError> {
         tracing::debug!(
             "Processing corporation info update for corporation_id: {}",
             corporation_id
@@ -324,8 +324,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Character info updated successfully
-    /// - `Err(Error)` - Failed to fetch or persist character data
-    pub async fn update_character_info(&self, character_id: i64) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to fetch or persist character data
+    pub async fn update_character_info(&self, character_id: i64) -> Result<(), AppError> {
         tracing::debug!(
             "Processing character info update for character_id: {}",
             character_id
@@ -359,8 +359,8 @@ impl WorkerJobHandler {
     ///
     /// # Returns
     /// - `Ok(())` - Affiliations updated successfully
-    /// - `Err(Error)` - Failed to fetch or persist affiliation data
-    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+    /// - `Err(AppError)` - Failed to fetch or persist affiliation data
+    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), AppError> {
         let count = character_ids.len();
         tracing::debug!("Processing affiliations update for {} characters", count);
 

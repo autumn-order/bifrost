@@ -5,7 +5,7 @@
 //! for transient failures, caching with 304 Not Modified responses, and error
 //! handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::Error, service::eve::alliance::AllianceService};
+use bifrost::server::{error::AppError, service::eve::alliance::AllianceService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::EntityTrait;
 
@@ -382,7 +382,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(Error::EsiError(_)) => (),
+        Err(AppError::EsiError(_)) => (),
         _ => panic!("Expected Error::EsiError, got: {:?}", result),
     }
 
@@ -440,7 +440,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(Error::DbErr(_)) => (),
+        Err(AppError::DbErr(_)) => (),
         _ => panic!("Expected Error::DbErr, got: {:?}", result),
     }
 
@@ -472,7 +472,7 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(Error::DbErr(_)) => (),
+        Err(AppError::DbErr(_)) => (),
         _ => panic!("Expected Error::DbErr, got: {:?}", result),
     }
 

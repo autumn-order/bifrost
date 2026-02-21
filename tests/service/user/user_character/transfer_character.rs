@@ -4,7 +4,7 @@
 //! ownership between users, handling main character updates, user cleanup when no
 //! characters remain, and error handling for missing ownership or users.
 
-use bifrost::server::{error::Error, service::user::user_character::UserCharacterService};
+use bifrost::server::{error::AppError, service::user::user_character::UserCharacterService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::{EntityTrait, TransactionTrait};
 
@@ -313,7 +313,7 @@ async fn fails_for_unowned_character() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        Error::AuthError(err) => {
+        AppError::AuthError(err) => {
             assert_eq!(
                 format!("{:?}", err),
                 format!(

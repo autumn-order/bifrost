@@ -10,7 +10,7 @@ use tower_sessions::Session;
 use crate::{
     model::user::UserDto,
     server::{
-        error::{auth::AuthError, Error},
+        error::{auth::AuthError, AppError},
         model::{app::AppState, session::user::SessionUserId},
         service::user::UserService,
     },
@@ -30,13 +30,16 @@ use crate::{
 ///
 /// # Returns
 /// - `Ok(UserDto)` - User found, containing user ID and main character information (ID, name)
-/// - `Err(Error::AuthError(AuthError::UserNotInSession))` - No user ID present in session
-/// - `Err(Error::AuthError(AuthError::UserNotInDatabase))` - User ID exists in session but user not found in database (session is cleared)
-/// - `Err(Error)` - Database query failure or session retrieval error
-pub async fn get_user_from_session(state: &AppState, session: &Session) -> Result<UserDto, Error> {
+/// - `Err(AppError::AuthError(AuthError::UserNotInSession))` - No user ID present in session
+/// - `Err(AppError::AuthError(AuthError::UserNotInDatabase))` - User ID exists in session but user not found in database (session is cleared)
+/// - `Err(AppError)` - Database query failure or session retrieval error
+pub async fn get_user_from_session(
+    state: &AppState,
+    session: &Session,
+) -> Result<UserDto, AppError> {
     // Get user from session
     let Some(user_id) = SessionUserId::get(session).await? else {
-        return Err(Error::AuthError(AuthError::UserNotInSession));
+        return Err(AppError::AuthError(AuthError::UserNotInSession));
     };
 
     // Get user from database
@@ -48,7 +51,7 @@ pub async fn get_user_from_session(state: &AppState, session: &Session) -> Resul
             user_id
         );
 
-        return Err(Error::AuthError(AuthError::UserNotInDatabase(user_id)));
+        return Err(AppError::AuthError(AuthError::UserNotInDatabase(user_id)));
     };
 
     Ok(user)

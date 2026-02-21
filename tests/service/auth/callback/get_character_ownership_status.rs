@@ -5,7 +5,7 @@
 //! and owned characters with proper database lookups.
 
 use bifrost::server::{
-    error::Error,
+    error::AppError,
     service::auth::callback::{CallbackService, CharacterRecord},
 };
 use bifrost_test_utils::prelude::*;
@@ -158,7 +158,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let result = CallbackService::get_character_ownership_status(&test.db, character_id).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), Error::DbErr(_)));
+    assert!(matches!(result.unwrap_err(), AppError::DbErr(_)));
 
     Ok(())
 }

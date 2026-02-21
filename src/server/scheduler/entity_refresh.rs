@@ -12,7 +12,7 @@ use sea_orm::{
 };
 
 use crate::server::{
-    error::Error,
+    error::AppError,
     model::worker::WorkerJob,
     scheduler::{
         schedule::{calculate_batch_limit, create_job_schedule},
@@ -94,7 +94,7 @@ impl<'a> EntityRefreshTracker<'a> {
     ///
     /// # Returns
     /// - `Ok(Vec<i64>)` - Vector of EVE entity IDs (e.g., alliance_id, character_id) that need updates
-    /// - `Err(Error)` - Database query failed
+    /// - `Err(AppError)` - Database query failed
     ///
     /// # Example
     /// ```ignore
@@ -102,9 +102,7 @@ impl<'a> EntityRefreshTracker<'a> {
     /// let alliance_ids = tracker.find_entries_needing_update::<AllianceInfo>().await?;
     /// // Returns up to ~208 alliance IDs whose cache has expired
     /// ```
-    pub async fn find_entries_needing_update<S>(
-        &self,
-    ) -> Result<Vec<i64>, crate::server::error::Error>
+    pub async fn find_entries_needing_update<S>(&self) -> Result<Vec<i64>, AppError>
     where
         S: SchedulableEntity + Send + Sync,
         S::Entity: Send + Sync,
@@ -153,7 +151,7 @@ impl<'a> EntityRefreshTracker<'a> {
     ///
     /// # Returns
     /// - `Ok(usize)` - Number of jobs successfully scheduled (excludes duplicates)
-    /// - `Err(Error)` - Failed to schedule jobs or calculate schedule
+    /// - `Err(AppError)` - Failed to schedule jobs or calculate schedule
     ///
     /// # Example
     /// ```ignore
@@ -165,7 +163,7 @@ impl<'a> EntityRefreshTracker<'a> {
         &self,
         worker_queue: &WorkerQueue,
         jobs: Vec<WorkerJob>,
-    ) -> Result<usize, Error>
+    ) -> Result<usize, AppError>
     where
         S: SchedulableEntity + Send + Sync,
     {

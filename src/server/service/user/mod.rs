@@ -10,7 +10,7 @@ use sea_orm::DatabaseConnection;
 
 use crate::{
     model::user::UserDto,
-    server::{data::user::UserRepository, error::Error},
+    server::{data::user::UserRepository, error::AppError},
 };
 
 /// Service for managing user account operations.
@@ -46,9 +46,9 @@ impl<'a> UserService<'a> {
     /// # Returns
     /// - `Ok(Some(UserDto))` - User found with main character information
     /// - `Ok(None)` - User not found in database
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
-    /// - `Err(Error::InternalError)` - Main character record not found (FK constraint violation)
-    pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, Error> {
+    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    /// - `Err(AppError::InternalError)` - Main character record not found (FK constraint violation)
+    pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, AppError> {
         let user_repo = UserRepository::new(self.db);
 
         match user_repo.get_by_id(user_id).await? {
@@ -57,7 +57,7 @@ impl<'a> UserService<'a> {
                 let main_character = maybe_main_character.ok_or_else(|| {
                     // Would only occur if the foreign key constraint requiring
                     // main character to exist in database for the user is not properly enforced
-                    Error::InternalError(format!(
+                    AppError::InternalError(format!(
                         "Failed to find main character information for user ID {} \
                          with main character ID {}",
                         user.id, user.main_character_id

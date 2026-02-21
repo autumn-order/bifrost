@@ -26,14 +26,14 @@
 //! ## Example
 //!
 /// ```no_run
-/// use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
+/// use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
 /// use sea_orm::{DatabaseConnection, TransactionTrait};
 ///
 /// async fn update_character_affiliations(
 ///     db: &DatabaseConnection,
 ///     esi_client: &eve_esi::Client,
 ///     character_ids: Vec<i64>,
-/// ) -> Result<(), Error> {
+/// ) -> Result<(), AppError> {
 ///     let txn = db.begin().await?;
 ///
 ///     let orchestrator = EveEntityOrchestrator::builder(db, esi_client)
@@ -60,7 +60,7 @@ use eve_esi::model::{
 };
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 pub use builder::EveEntityOrchestratorBuilder;
 pub use stored::StoredEntities;
@@ -199,9 +199,9 @@ impl EveEntityOrchestrator {
     /// # Example
     ///
     /// ```no_run
-    /// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
+    /// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
     /// # use sea_orm::{DatabaseConnection, TransactionTrait};
-    /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
+    /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), AppError> {
     /// let txn = db.begin().await?;
     ///
     /// let orchestrator = EveEntityOrchestrator::builder(db, esi)
@@ -219,7 +219,7 @@ impl EveEntityOrchestrator {
     /// # Ok(())
     /// # }
     /// ```
-    pub async fn store(mut self, txn: &DatabaseTransaction) -> Result<StoredEntities, Error> {
+    pub async fn store(mut self, txn: &DatabaseTransaction) -> Result<StoredEntities, AppError> {
         let stored_factions_record_map = self.orchestrate_faction_storage(txn).await?;
         let stored_alliances_record_map = self.orchestrate_alliance_storage(txn).await?;
         let stored_corporations_record_map = self.orchestrate_corporation_storage(txn).await?;

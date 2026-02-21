@@ -6,7 +6,7 @@
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    error::Error, model::db::EveFactionModel, service::eve::orchestrator::EveEntityOrchestrator,
+    error::AppError, model::db::EveFactionModel, service::eve::orchestrator::EveEntityOrchestrator,
 };
 
 /// Service for managing EVE Online faction operations.
@@ -52,9 +52,9 @@ impl<'a> FactionService<'a> {
     ///
     /// # Returns
     /// - `Ok(Vec<EveFactionModel>)` - The created or updated faction database records (empty if 304)
-    /// - `Err(Error::EsiError)` - Failed to fetch faction data from ESI
-    /// - `Err(Error::DbErr)` - Database operation failed
-    pub async fn update(&self) -> Result<Vec<EveFactionModel>, Error> {
+    /// - `Err(AppError::EsiError)` - Failed to fetch faction data from ESI
+    /// - `Err(AppError::DbErr)` - Database operation failed
+    pub async fn update(&self) -> Result<Vec<EveFactionModel>, AppError> {
         // Build entity orchestrator with explicit faction fetch request
         // The builder's fetch_factions_if_stale() handles the conditional request logic
         let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_client)

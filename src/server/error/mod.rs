@@ -38,7 +38,7 @@ use crate::{
 /// - Worker queue errors (job validation, scheduling)
 /// - External library errors (database, ESI client, sessions, scheduler)
 #[derive(Error, Debug)]
-pub enum Error {
+pub enum AppError {
     /// Configuration error (missing or invalid environment variables).
     #[error(transparent)]
     ConfigError(#[from] ConfigError),
@@ -87,7 +87,7 @@ pub enum Error {
 /// - 400 Bad Request - For authentication failures (CSRF, invalid character selection)
 /// - 404 Not Found - For missing users or resources
 /// - 500 Internal Server Error - For all other errors (with error logging)
-impl IntoResponse for Error {
+impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
             Self::ConfigError(err) => err.into_response(),

@@ -4,7 +4,7 @@
 //! including returning existing user IDs when provided and creating
 //! new users when no user ID is specified.
 
-use bifrost::server::{error::Error, service::auth::callback::CallbackService};
+use bifrost::server::{error::AppError, service::auth::callback::CallbackService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::TransactionTrait;
 
@@ -189,7 +189,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let result = CallbackService::get_or_create_user(&txn, None, character_id).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), Error::DbErr(_)));
+    assert!(matches!(result.unwrap_err(), AppError::DbErr(_)));
 
     Ok(())
 }

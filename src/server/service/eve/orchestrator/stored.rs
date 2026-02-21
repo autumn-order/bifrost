@@ -5,7 +5,7 @@ use entity::{
     eve_corporation::Model as EveCorporationModel, eve_faction::Model as EveFactionModel,
 };
 
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 /// Database models of entities stored by [`EveEntityOrchestrator`].
 ///
@@ -111,10 +111,10 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Ok(&EveCharacterModel)` - Character database model if it was stored
-    /// - `Err(Error::InternalError)` - Character was not found after storing
-    pub fn get_character_or_err(&self, character_id: &i64) -> Result<&EveCharacterModel, Error> {
+    /// - `Err(AppError::InternalError)` - Character was not found after storing
+    pub fn get_character_or_err(&self, character_id: &i64) -> Result<&EveCharacterModel, AppError> {
         self.get_character(character_id).ok_or_else(|| {
-            Error::InternalError(format!(
+            AppError::InternalError(format!(
                 "Failed to retrieve information for character {} from database after fetching from ESI & storing.",
                 character_id
             ))
@@ -131,13 +131,13 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Ok(&EveCorporationModel)` - Corporation database model if it was stored
-    /// - `Err(Error::InternalError)` - Corporation was not found after storing
+    /// - `Err(AppError::InternalError)` - Corporation was not found after storing
     pub fn get_corporation_or_err(
         &self,
         corporation_id: &i64,
-    ) -> Result<&EveCorporationModel, Error> {
+    ) -> Result<&EveCorporationModel, AppError> {
         self.get_corporation(corporation_id).ok_or_else(|| {
-            Error::InternalError(format!(
+            AppError::InternalError(format!(
                 "Failed to retrieve information for corporation {} from database after fetching from ESI & storing.",
                 corporation_id
             ))
@@ -154,10 +154,10 @@ impl StoredEntities {
     ///
     /// # Returns
     /// - `Ok(&EveAllianceModel)` - Alliance database model if it was stored
-    /// - `Err(Error::InternalError)` - Alliance was not found after storing
-    pub fn get_alliance_or_err(&self, alliance_id: &i64) -> Result<&EveAllianceModel, Error> {
+    /// - `Err(AppError::InternalError)` - Alliance was not found after storing
+    pub fn get_alliance_or_err(&self, alliance_id: &i64) -> Result<&EveAllianceModel, AppError> {
         self.get_alliance(alliance_id).ok_or_else(|| {
-            Error::InternalError(format!(
+            AppError::InternalError(format!(
                 "Failed to retrieve information for alliance {} from database after fetching from ESI & storing.",
                 alliance_id
             ))

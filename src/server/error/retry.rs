@@ -7,7 +7,7 @@
 
 use sea_orm::DbErr;
 
-use super::Error;
+use super::AppError;
 
 /// Strategy for handling errors in a retry context.
 ///
@@ -42,7 +42,7 @@ pub enum ErrorRetryStrategy {
     Fail,
 }
 
-impl Error {
+impl AppError {
     /// Determines the appropriate retry strategy for this error.
     ///
     /// Analyzes the error type and context to decide whether the operation should be retried
@@ -73,7 +73,7 @@ impl Error {
             // ESI HTTP error responses (4xx/5xx) - categorize by status code
             //
             // In eve_esi 0.5.0+, HTTP error responses are returned as EsiError with a status field
-            Error::EsiError(eve_esi::Error::EsiError(esi_error)) => {
+            AppError::EsiError(eve_esi::Error::EsiError(esi_error)) => {
                 match esi_error.status {
                     // 429 Rate Limited - ESI rate limit exceeded
                     //
