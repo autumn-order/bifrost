@@ -8,7 +8,7 @@ use eve_esi::model::{alliance::Alliance, character::Character, corporation::Corp
 use sea_orm::DatabaseConnection;
 
 use super::{EveEntityOrchestrator, FactionFetchState};
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 /// Builder for fetching EVE Online entities from ESI with dependency resolution.
 ///
@@ -22,9 +22,9 @@ use crate::server::error::Error;
 /// # Example
 ///
 /// ```no_run
-/// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::Error};
+/// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
 /// # use sea_orm::DatabaseConnection;
-/// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), Error> {
+/// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), AppError> {
 /// // Fetch characters and their dependencies (corporations, alliances, factions)
 /// let orchestrator = EveEntityOrchestrator::builder(db, esi)
 ///     .character(123456789)
@@ -367,7 +367,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// Returns an error if:
     /// - ESI requests fail
     /// - Database queries fail
-    pub async fn build(mut self) -> Result<EveEntityOrchestrator, Error> {
+    pub async fn build(mut self) -> Result<EveEntityOrchestrator, AppError> {
         let characters_record_id_map = self.orchestrate_characters().await?;
         let corporations_record_id_map = self.orchestrate_corporations().await?;
         let alliances_record_id_map = self.orchestrate_alliances().await?;

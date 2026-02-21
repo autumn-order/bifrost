@@ -46,7 +46,7 @@ use dioxus_logger::tracing;
 use fred::prelude::*;
 
 use crate::server::{
-    error::{worker::WorkerError, Error},
+    error::{worker::WorkerError, AppError},
     model::worker::{ScheduledWorkerJob, WorkerJob},
     worker::queue::config::WorkerQueueConfig,
 };
@@ -222,11 +222,11 @@ impl WorkerQueue {
     /// # Returns
     /// - `Ok(true)` - Job was added to the queue
     /// - `Ok(false)` - Duplicate already exists in the queue
-    /// - `Err(Error::WorkerError)` - Serialization failed
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn push(&self, job: WorkerJob) -> Result<bool, Error> {
+    /// - `Err(AppError::Worker)` - Serialization failed
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn push(&self, job: WorkerJob) -> Result<bool, AppError> {
         let serialized = serde_json::to_string(&job)
-            .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
+            .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
         let score = Utc::now().timestamp_millis() as f64;
 
         // Execute Lua script atomically
@@ -259,11 +259,11 @@ impl WorkerQueue {
     /// # Returns
     /// - `Ok(true)` - Job was added to the queue
     /// - `Ok(false)` - Duplicate already exists in the queue
-    /// - `Err(Error::WorkerError)` - Serialization failed
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, Error> {
+    /// - `Err(AppError::Worker)` - Serialization failed
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, AppError> {
         let serialized = serde_json::to_string(&job)
-            .map_err(|e| Error::WorkerError(WorkerError::SerializationError(e.to_string())))?;
+            .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
         let score = time.timestamp_millis() as f64;
 
         // Execute Lua script atomically
@@ -294,9 +294,9 @@ impl WorkerQueue {
     /// # Returns
     /// - `Ok(Some(ScheduledWorkerJob))` - Job was popped from the queue with scheduled timestamp
     /// - `Ok(None)` - Queue is empty or no jobs are due yet
-    /// - `Err(Error::WorkerError)` - Deserialization failed
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn pop(&self) -> Result<Option<ScheduledWorkerJob>, Error> {
+    /// - `Err(AppError::Worker)` - Deserialization failed
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn pop(&self) -> Result<Option<ScheduledWorkerJob>, AppError> {
         // Execute Lua script to atomically pop earliest job that is due
         let now = Utc::now().timestamp_millis();
         let result: Option<Vec<Value>> = self
@@ -322,14 +322,13 @@ impl WorkerQueue {
                 let score_millis: i64 = values[1].clone().convert()?;
 
                 // Deserialize JSON back into WorkerJob
-                let job: WorkerJob = serde_json::from_str(&serialized).map_err(|e| {
-                    Error::WorkerError(WorkerError::SerializationError(e.to_string()))
-                })?;
+                let job: WorkerJob = serde_json::from_str(&serialized)
+                    .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
 
                 // Convert score (milliseconds) to DateTime<Utc>
                 let scheduled_at =
                     DateTime::from_timestamp_millis(score_millis).ok_or_else(|| {
-                        Error::WorkerError(WorkerError::SerializationError(format!(
+                        AppError::Worker(WorkerError::Serialization(format!(
                             "Invalid timestamp from Redis: {}",
                             score_millis
                         )))
@@ -347,8 +346,8 @@ impl WorkerQueue {
     ///
     /// # Returns
     /// - `Ok(usize)` - Number of jobs in the queue
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn len(&self) -> Result<usize, Error> {
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn len(&self) -> Result<usize, AppError> {
         let count: i64 = self.inner.pool.zcard(&self.inner.config.queue_name).await?;
         Ok(count as usize)
     }
@@ -358,8 +357,8 @@ impl WorkerQueue {
     /// # Returns
     /// - `Ok(true)` - Queue is empty
     /// - `Ok(false)` - Queue has jobs
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn is_empty(&self) -> Result<bool, Error> {
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn is_empty(&self) -> Result<bool, AppError> {
         Ok(self.len().await? == 0)
     }
 
@@ -370,8 +369,8 @@ impl WorkerQueue {
     ///
     /// # Returns
     /// - `Ok(u64)` - Number of stale jobs removed from the queue
-    /// - `Err(Error)` - Redis communication failed
-    pub async fn cleanup_stale_jobs(&self) -> Result<u64, Error> {
+    /// - `Err(AppError)` - Redis communication failed
+    pub async fn cleanup_stale_jobs(&self) -> Result<u64, AppError> {
         Self::cleanup_stale_jobs_internal(&self.inner.config, &self.inner.pool).await
     }
 
@@ -386,11 +385,11 @@ impl WorkerQueue {
     ///
     /// # Returns
     /// - `Ok(u64)` - Number of stale jobs removed
-    /// - `Err(Error)` - Redis operation failed
+    /// - `Err(AppError)` - Redis operation failed
     async fn cleanup_stale_jobs_internal(
         config: &WorkerQueueConfig,
         pool: &Pool,
-    ) -> Result<u64, Error> {
+    ) -> Result<u64, AppError> {
         let cutoff_timestamp = Utc::now().timestamp_millis() - config.job_ttl.as_millis() as i64;
         let cutoff_score = cutoff_timestamp as f64;
 

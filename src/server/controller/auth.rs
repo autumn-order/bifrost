@@ -17,7 +17,7 @@ use crate::{
     model::{api::ErrorDto, user::UserDto},
     server::{
         controller::util::{csrf::validate_csrf, get_user::get_user_from_session},
-        error::Error,
+        error::AppError,
         model::{
             app::AppState,
             session::{
@@ -70,7 +70,7 @@ pub struct CallbackParams {
 ///
 /// # Returns
 /// - `Ok(Redirect)` - 307 temporary redirect to EVE Online SSO login page
-/// - `Err(Error)` - Failed to generate login URL or store session data
+/// - `Err(AppError)` - Failed to generate login URL or store session data
 #[utoipa::path(
     get,
     path = "/api/auth/login",
@@ -87,7 +87,7 @@ pub async fn login(
     State(state): State<AppState>,
     session: Session,
     params: Query<LoginParams>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let login_service = LoginService::new(&state.esi_client);
     let scopes = eve_esi::ScopeBuilder::new().build();
 
@@ -117,7 +117,7 @@ pub async fn login(
 ///
 /// # Returns
 /// - `Ok(Redirect)` - 308 permanent redirect to `/auth` after successful authentication
-/// - `Err(Error)` - CSRF validation failed, token exchange failed, or database error
+/// - `Err(AppError)` - CSRF validation failed, token exchange failed, or database error
 #[utoipa::path(
     get,
     path = "/api/auth/callback",
@@ -136,7 +136,7 @@ pub async fn callback(
     State(state): State<AppState>,
     session: Session,
     params: Query<CallbackParams>,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let callback_service = CallbackService::new(&state.db, &state.esi_client);
 
     validate_csrf(&session, &params.0.state).await?;
@@ -171,7 +171,7 @@ pub async fn callback(
 ///
 /// # Returns
 /// - `Ok(Redirect)` - 307 temporary redirect to home page (`/`)
-/// - `Err(Error)` - Failed to retrieve or clear session data
+/// - `Err(AppError)` - Failed to retrieve or clear session data
 #[utoipa::path(
     get,
     path = "/api/auth/logout",
@@ -181,7 +181,7 @@ pub async fn callback(
         (status = 500, description = "Internal server error", body = ErrorDto)
     )
 )]
-pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
+pub async fn logout(session: Session) -> Result<impl IntoResponse, AppError> {
     let maybe_user_id = SessionUserId::get(&session).await?;
 
     // Only clear session if there is actually a user in session
@@ -207,7 +207,7 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
 ///
 /// # Returns
 /// - `Ok(UserDto)` - User information including ID and main character details
-/// - `Err(Error)` - User not in session, not found in database, or database error
+/// - `Err(AppError)` - User not in session, not found in database, or database error
 #[utoipa::path(
     get,
     path = "/api/auth/user",
@@ -221,7 +221,7 @@ pub async fn logout(session: Session) -> Result<impl IntoResponse, Error> {
 pub async fn get_user(
     State(state): State<AppState>,
     session: Session,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let user = get_user_from_session(&state, &session).await?;
 
     Ok((StatusCode::OK, axum::Json(user)).into_response())

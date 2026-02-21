@@ -8,7 +8,7 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::corporation::CorporationRepository, error::Error, model::db::EveCorporationModel,
+    data::eve::corporation::CorporationRepository, error::AppError, model::db::EveCorporationModel,
     service::eve::orchestrator::EveEntityOrchestrator,
 };
 
@@ -58,9 +58,9 @@ impl<'a> CorporationService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveCorporationModel)` - The created or updated corporation database record
-    /// - `Err(Error::EsiError)` - Failed to fetch corporation data from ESI after retries
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn update(&self, corporation_id: i64) -> Result<EveCorporationModel, Error> {
+    /// - `Err(AppError::Esi)` - Failed to fetch corporation data from ESI after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
+    pub async fn update(&self, corporation_id: i64) -> Result<EveCorporationModel, AppError> {
         let corporation_repo = CorporationRepository::new(self.db);
 
         // Build entity provider using one of two strategies:

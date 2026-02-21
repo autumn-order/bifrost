@@ -10,7 +10,7 @@ use tower_sessions::Session;
 use crate::{
     model::{api::ErrorDto, user::CharacterDto},
     server::{
-        controller::util::get_user::get_user_from_session, error::Error, model::app::AppState,
+        controller::util::get_user::get_user_from_session, error::AppError, model::app::AppState,
         service::user::user_character::UserCharacterService,
     },
 };
@@ -30,7 +30,7 @@ pub static USER_TAG: &str = "user";
 ///
 /// # Returns
 /// - `Ok(Vec<CharacterDto>)` - List of characters owned by the user (may be empty)
-/// - `Err(Error)` - User not in session, not found in database, or database error
+/// - `Err(AppError)` - User not in session, not found in database, or database error
 #[utoipa::path(
     get,
     path = "/api/user/characters",
@@ -44,7 +44,7 @@ pub static USER_TAG: &str = "user";
 pub async fn get_user_characters(
     State(state): State<AppState>,
     session: Session,
-) -> Result<impl IntoResponse, Error> {
+) -> Result<impl IntoResponse, AppError> {
     let user = get_user_from_session(&state, &session).await?;
 
     let character_dtos = UserCharacterService::new(&state.db)

@@ -6,7 +6,7 @@
 
 use eve_esi::model::oauth2::AuthenticationData;
 
-use crate::server::error::Error;
+use crate::server::error::AppError;
 
 /// Service for generating EVE Online SSO login URLs.
 ///
@@ -40,8 +40,8 @@ impl<'a> LoginService<'a> {
     ///
     /// # Returns
     /// - `Ok(AuthenticationData)` - Login URL and CSRF state token for callback validation
-    /// - `Err(Error::EsiError)` - ESI client OAuth2 not configured properly
-    pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, Error> {
+    /// - `Err(AppError::Esi)` - ESI client OAuth2 not configured properly
+    pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, AppError> {
         let login = self.esi_client.oauth2().login_url(scopes)?;
 
         Ok(login)
@@ -53,7 +53,7 @@ impl<'a> LoginService<'a> {
 pub mod tests {
     use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
 
-    use crate::server::{error::Error, service::auth::login::LoginService};
+    use crate::server::{error::AppError, service::auth::login::LoginService};
 
     /// Expect successful generation of login URL
     #[tokio::test]
@@ -80,7 +80,7 @@ pub mod tests {
 
         assert!(matches!(
             result,
-            Err(Error::EsiError(eve_esi::Error::OAuthError(
+            Err(AppError::Esi(eve_esi::Error::OAuthError(
                 eve_esi::OAuthError::OAuth2NotConfigured
             )))
         ));

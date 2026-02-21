@@ -25,7 +25,7 @@ use crate::server::worker::Worker;
 /// ```ignore
 /// pub async fn handler(
 ///     State(state): State<AppState>,
-/// ) -> Result<impl IntoResponse, Error> {
+/// ) -> Result<impl IntoResponse, AppError> {
 ///     // Use state.db for database queries
 ///     // Use state.esi_client for ESI API calls
 ///     // Use state.worker for background jobs

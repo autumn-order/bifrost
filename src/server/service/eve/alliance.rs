@@ -8,7 +8,7 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::alliance::AllianceRepository, error::Error, model::db::EveAllianceModel,
+    data::eve::alliance::AllianceRepository, error::AppError, model::db::EveAllianceModel,
     service::eve::orchestrator::EveEntityOrchestrator,
 };
 
@@ -58,9 +58,9 @@ impl<'a> AllianceService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveAllianceModel)` - The created or updated alliance database record
-    /// - `Err(Error::EsiError)` - Failed to fetch alliance data from ESI after retries
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn update(&self, alliance_id: i64) -> Result<EveAllianceModel, Error> {
+    /// - `Err(AppError::Esi)` - Failed to fetch alliance data from ESI after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
+    pub async fn update(&self, alliance_id: i64) -> Result<EveAllianceModel, AppError> {
         let alliance_repo = AllianceRepository::new(self.db);
 
         // Build entity provider using one of two strategies:

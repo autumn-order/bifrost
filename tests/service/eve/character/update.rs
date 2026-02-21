@@ -5,7 +5,7 @@
 //! retry logic for transient failures, caching with 304 Not Modified responses,
 //! and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::Error, service::eve::character::CharacterService};
+use bifrost::server::{error::AppError, service::eve::character::CharacterService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::EntityTrait;
 
@@ -591,7 +591,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     let result = character_service.update(character_id).await;
 
     assert!(result.is_err());
-    assert!(matches!(result, Err(Error::EsiError(_))));
+    assert!(matches!(result, Err(AppError::Esi(_))));
 
     test.assert_mocks();
 
@@ -622,7 +622,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
 
     assert!(matches!(
         result,
-        Err(Error::EsiError(eve_esi::Error::EsiError(_)))
+        Err(AppError::Esi(eve_esi::Error::EsiError(_)))
     ));
 
     Ok(())
@@ -653,7 +653,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let character_service = CharacterService::new(&test.db, &test.esi_client);
     let result = character_service.update(character_id).await;
 
-    assert!(matches!(result, Err(Error::DbErr(_))));
+    assert!(matches!(result, Err(AppError::Database(_))));
 
     Ok(())
 }
@@ -684,7 +684,7 @@ async fn fails_when_corporation_table_missing() -> Result<(), TestError> {
     let character_service = CharacterService::new(&test.db, &test.esi_client);
     let result = character_service.update(character_id).await;
 
-    assert!(matches!(result, Err(Error::DbErr(_))));
+    assert!(matches!(result, Err(AppError::Database(_))));
 
     Ok(())
 }
@@ -721,7 +721,7 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
     let character_service = CharacterService::new(&test.db, &test.esi_client);
     let result = character_service.update(character_id).await;
 
-    assert!(matches!(result, Err(Error::DbErr(_))));
+    assert!(matches!(result, Err(AppError::Database(_))));
 
     Ok(())
 }

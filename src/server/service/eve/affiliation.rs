@@ -12,7 +12,7 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
     data::eve::{character::CharacterRepository, corporation::CorporationRepository},
-    error::Error,
+    error::AppError,
     service::eve::orchestrator::{EveEntityOrchestrator, StoredEntities},
     util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
@@ -60,9 +60,9 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - All affiliations successfully updated
-    /// - `Err(Error::EsiError)` - Failed to fetch affiliation or dependency data from ESI
-    /// - `Err(Error::DbErr)` - Database operation failed
-    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), Error> {
+    /// - `Err(AppError::Esi)` - Failed to fetch affiliation or dependency data from ESI
+    /// - `Err(AppError::Database)` - Database operation failed
+    pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), AppError> {
         // Cap character_ids to ESI limit to prevent affiliation request from erroring due to exceeding limit
         let character_ids = if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
             tracing::warn!(
@@ -178,12 +178,12 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - All relationship updates completed successfully
-    /// - `Err(Error::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_affiliation_relationships(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
         stored_entities: StoredEntities,
-    ) -> Result<(), Error> {
+    ) -> Result<(), AppError> {
         Self::update_corporation_affiliations(txn, affiliations, &stored_entities).await?;
         Self::update_character_affiliations(txn, affiliations, &stored_entities).await?;
         Ok(())
@@ -201,12 +201,12 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - Corporation affiliation updates completed successfully
-    /// - `Err(Error::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_corporation_affiliations(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
         stored_entities: &StoredEntities,
-    ) -> Result<(), Error> {
+    ) -> Result<(), AppError> {
         let corporation_updates: Vec<(i64, Option<i64>)> = affiliations
             .iter()
             .map(|a| (a.corporation_id, a.alliance_id))
@@ -265,12 +265,12 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - Character affiliation updates completed successfully
-    /// - `Err(Error::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_character_affiliations(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
         stored_entities: &StoredEntities,
-    ) -> Result<(), Error> {
+    ) -> Result<(), AppError> {
         let character_db_updates: Vec<(i32, i32, Option<i32>)> = affiliations
             .iter()
             .filter_map(|a| {

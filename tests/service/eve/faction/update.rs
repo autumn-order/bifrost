@@ -4,7 +4,7 @@
 //! synchronization, including caching with 304 Not Modified responses, retry logic
 //! for transient failures, and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::Error, service::eve::faction::FactionService};
+use bifrost::server::{error::AppError, service::eve::faction::FactionService};
 use bifrost_test_utils::prelude::*;
 use sea_orm::EntityTrait;
 
@@ -205,7 +205,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
     let result = faction_service.update().await;
 
     assert!(result.is_err());
-    assert!(matches!(result, Err(Error::EsiError(_))));
+    assert!(matches!(result, Err(AppError::Esi(_))));
 
     test.assert_mocks();
 
@@ -234,7 +234,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
 
     assert!(matches!(
         update_result,
-        Err(Error::EsiError(eve_esi::Error::EsiError(_)))
+        Err(AppError::Esi(eve_esi::Error::EsiError(_)))
     ));
 
     Ok(())
@@ -259,7 +259,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let faction_service = FactionService::new(&test.db, &test.esi_client);
     let update_result = faction_service.update().await;
 
-    assert!(matches!(update_result, Err(Error::DbErr(_))));
+    assert!(matches!(update_result, Err(AppError::Database(_))));
 
     Ok(())
 }

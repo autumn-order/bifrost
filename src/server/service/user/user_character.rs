@@ -11,7 +11,7 @@ use crate::{
     model::user::{AllianceDto, CharacterDto, CorporationDto},
     server::{
         data::user::{user_character::UserCharacterRepository, UserRepository},
-        error::{auth::AuthError, Error},
+        error::{auth::AuthError, AppError},
         model::db::{CharacterOwnershipModel, UserModel},
     },
 };
@@ -50,8 +50,8 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(Vec<CharacterDto>)` - List of characters with corporation and alliance information
-    /// - `Err(Error::DbErr)` - Database operation failed after retries
-    pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, Error> {
+    /// - `Err(AppError::Database)` - Database operation failed after retries
+    pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, AppError> {
         let user_characters = UserCharacterRepository::new(self.db)
             .get_owned_characters_by_user_id(user_id)
             .await?;
@@ -102,13 +102,13 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(CharacterOwnershipModel)` - The created or updated ownership record
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn link_character(
         txn: &DatabaseTransaction,
         character_record_id: i32,
         to_user_id: i32,
         owner_hash: &str,
-    ) -> Result<CharacterOwnershipModel, Error> {
+    ) -> Result<CharacterOwnershipModel, AppError> {
         let user_character_repo = UserCharacterRepository::new(txn);
 
         let ownership = user_character_repo
@@ -133,15 +133,15 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(CharacterOwnershipModel)` - The updated ownership record
-    /// - `Err(Error::AuthError(AuthError::UserNotInDatabase))` - Previous user not found in database
-    /// - `Err(Error::AuthError(AuthError::CharacterNotOwned))` - Character has no current ownership
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Auth(AuthError::UserNotInDatabase))` - Previous user not found in database
+    /// - `Err(AppError::Auth(AuthError::CharacterNotOwned))` - Character has no current ownership
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn transfer_character(
         txn: &DatabaseTransaction,
         character_record_id: i32,
         to_user_id: i32,
         owner_hash: &str,
-    ) -> Result<CharacterOwnershipModel, Error> {
+    ) -> Result<CharacterOwnershipModel, AppError> {
         let user_repo = UserRepository::new(txn);
         let user_character_repo = UserCharacterRepository::new(txn);
 
@@ -149,14 +149,16 @@ impl<'a> UserCharacterService<'a> {
         let ownership = user_character_repo
             .get_ownership_by_character_id(character_record_id)
             .await?
-            .ok_or_else(|| Error::AuthError(AuthError::CharacterNotOwned))?;
+            .ok_or_else(|| AppError::Auth(AuthError::CharacterNotOwned))?;
 
         let from_user_id = ownership.user_id;
 
         // Retrieve user information to check if main character change is needed
         let Some((prev_user, maybe_main_character)) = user_repo.get_by_id(from_user_id).await?
         else {
-            return Err(Error::AuthError(AuthError::UserNotInDatabase(from_user_id)));
+            return Err(AppError::Auth(AuthError::UserNotInDatabase(
+                from_user_id,
+            )));
         };
 
         // Use link_character method to update ownership to provided user ID
@@ -227,13 +229,13 @@ impl<'a> UserCharacterService<'a> {
     /// # Returns
     /// - `Ok(Some(UserModel))` - The updated user record
     /// - `Ok(None)` - User was not found (should be unreachable in normal operation)
-    /// - `Err(Error::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Character is owned by a different user
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Auth(AuthError::CharacterOwnedByAnotherUser))` - Character is owned by a different user
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn set_main_character(
         txn: &DatabaseTransaction,
         user_id: i32,
         ownership: CharacterOwnershipModel,
-    ) -> Result<Option<UserModel>, Error> {
+    ) -> Result<Option<UserModel>, AppError> {
         let user_repo = UserRepository::new(txn);
 
         if ownership.user_id != user_id {

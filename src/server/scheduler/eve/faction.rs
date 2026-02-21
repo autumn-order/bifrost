@@ -5,7 +5,7 @@
 //! of NPC factions in EVE Online. Rather than querying for individual faction expiration times,
 //! the scheduler simply enqueues a single job that checks and updates all factions if needed.
 
-use crate::server::{error::Error, model::worker::WorkerJob, scheduler::SchedulerState};
+use crate::server::{error::AppError, model::worker::WorkerJob, scheduler::SchedulerState};
 
 /// Schedules a faction information update check to the worker queue.
 ///
@@ -20,8 +20,8 @@ use crate::server::{error::Error, model::worker::WorkerJob, scheduler::Scheduler
 ///
 /// # Returns
 /// - `Ok(1)` - Successfully scheduled one faction update check job
-/// - `Err(Error)` - Failed to enqueue the job to the worker queue
-pub async fn schedule_faction_info_update(state: SchedulerState) -> Result<usize, Error> {
+/// - `Err(AppError)` - Failed to enqueue the job to the worker queue
+pub async fn schedule_faction_info_update(state: SchedulerState) -> Result<usize, AppError> {
     let was_scheduled = state.queue.push(WorkerJob::UpdateFactionInfo {}).await?;
 
     let scheduled_count = if was_scheduled { 1 } else { 0 };

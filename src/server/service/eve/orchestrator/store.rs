@@ -14,7 +14,7 @@ use crate::server::{
         alliance::AllianceRepository, character::CharacterRepository,
         corporation::CorporationRepository, faction::FactionRepository,
     },
-    error::Error,
+    error::AppError,
 };
 
 impl EveEntityOrchestrator {
@@ -34,12 +34,12 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveFactionModel>` - Map of EVE faction IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE faction IDs to database record IDs
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_factions(
         &self,
         txn: &DatabaseTransaction,
         factions_state: FactionFetchState,
-    ) -> Result<(HashMap<i64, EveFactionModel>, HashMap<i64, i32>), Error> {
+    ) -> Result<(HashMap<i64, EveFactionModel>, HashMap<i64, i32>), AppError> {
         let faction_repo = FactionRepository::new(txn);
 
         let stored_factions = match factions_state {
@@ -96,12 +96,12 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveAllianceModel>` - Map of EVE alliance IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE alliance IDs to database record IDs
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_alliances(
         &self,
         txn: &DatabaseTransaction,
         alliances_map: HashMap<i64, Alliance>,
-    ) -> Result<(HashMap<i64, EveAllianceModel>, HashMap<i64, i32>), Error> {
+    ) -> Result<(HashMap<i64, EveAllianceModel>, HashMap<i64, i32>), AppError> {
         if alliances_map.is_empty() {
             return Ok((HashMap::new(), HashMap::new()));
         }
@@ -155,12 +155,12 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveCorporationModel>` - Map of EVE corporation IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE corporation IDs to database record IDs
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_corporations(
         &self,
         txn: &DatabaseTransaction,
         corporations_map: HashMap<i64, Corporation>,
-    ) -> Result<(HashMap<i64, EveCorporationModel>, HashMap<i64, i32>), Error> {
+    ) -> Result<(HashMap<i64, EveCorporationModel>, HashMap<i64, i32>), AppError> {
         if corporations_map.is_empty() {
             return Ok((HashMap::new(), HashMap::new()));
         }
@@ -229,12 +229,12 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveCharacterModel>` - Map of EVE character IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE character IDs to database record IDs
-    /// - `Err(Error::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_characters(
         &self,
         txn: &DatabaseTransaction,
         characters_map: HashMap<i64, Character>,
-    ) -> Result<(HashMap<i64, EveCharacterModel>, HashMap<i64, i32>), Error> {
+    ) -> Result<(HashMap<i64, EveCharacterModel>, HashMap<i64, i32>), AppError> {
         if characters_map.is_empty() {
             return Ok((HashMap::new(), HashMap::new()));
         }

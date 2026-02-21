@@ -14,7 +14,7 @@ use tower_sessions_redis_store::RedisStore;
 
 use crate::server::{
     config::Config,
-    error::Error,
+    error::AppError,
     scheduler::Scheduler,
     worker::{handler::WorkerJobHandler, pool::WorkerPoolConfig, Worker, WorkerQueue},
 };
@@ -31,7 +31,7 @@ use crate::server::{
 ///
 /// # Returns
 /// - `Ok(eve_esi::Client)` - Configured ESI client ready for API requests
-/// - `Err(Error)` - Failed to build the ESI client (invalid configuration)
+/// - `Err(AppError)` - Failed to build the ESI client (invalid configuration)
 ///
 /// # Example
 /// ```ignore
@@ -39,7 +39,7 @@ use crate::server::{
 /// let esi_client = build_esi_client(&config)?;
 /// // Client is ready for OAuth flows and ESI requests
 /// ```
-pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, Error> {
+pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, AppError> {
     let esi_client = eve_esi::Client::builder()
         .user_agent(&config.user_agent)
         .client_id(&config.esi_client_id)
@@ -62,7 +62,7 @@ pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, Error> {
 ///
 /// # Returns
 /// - `Ok(DatabaseConnection)` - Connected database with migrations applied
-/// - `Err(Error)` - Failed to connect to database or run migrations
+/// - `Err(AppError)` - Failed to connect to database or run migrations
 ///
 /// # Example
 /// ```ignore
@@ -70,7 +70,7 @@ pub fn build_esi_client(config: &Config) -> Result<eve_esi::Client, Error> {
 /// let db = connect_to_database(&config).await?;
 /// // Database is ready for queries
 /// ```
-pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseConnection, Error> {
+pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseConnection, AppError> {
     use migration::{Migrator, MigratorTrait};
     use sea_orm::{ConnectOptions, Database};
 
@@ -96,7 +96,7 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
 ///
 /// # Returns
 /// - `Ok(Pool)` - Connected Redis pool ready for use
-/// - `Err(Error)` - Failed to parse URL, create pool, or establish connection
+/// - `Err(AppError)` - Failed to parse URL, create pool, or establish connection
 ///
 /// # Example
 /// ```ignore
@@ -104,7 +104,7 @@ pub async fn connect_to_database(config: &Config) -> Result<sea_orm::DatabaseCon
 /// let redis_pool = connect_to_redis(&config).await?;
 /// // Pool is ready for session storage and worker queue
 /// ```
-pub async fn connect_to_redis(config: &Config) -> Result<Pool, Error> {
+pub async fn connect_to_redis(config: &Config) -> Result<Pool, AppError> {
     let config = fred::prelude::Config::from_url(&config.valkey_url)?;
     let pool = Pool::new(config, None, None, None, 6)?;
 
@@ -132,7 +132,7 @@ pub async fn connect_to_redis(config: &Config) -> Result<Pool, Error> {
 ///
 /// # Returns
 /// - `Ok(SessionManagerLayer)` - Configured session middleware ready for Axum
-/// - `Err(Error)` - Failed to create session store (unlikely with valid pool)
+/// - `Err(AppError)` - Failed to create session store (unlikely with valid pool)
 ///
 /// # Example
 /// ```ignore
@@ -142,7 +142,7 @@ pub async fn connect_to_redis(config: &Config) -> Result<Pool, Error> {
 /// ```
 pub async fn connect_to_session(
     redis_pool: Pool,
-) -> Result<SessionManagerLayer<RedisStore<Pool>>, Error> {
+) -> Result<SessionManagerLayer<RedisStore<Pool>>, AppError> {
     use time::Duration;
     use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
 
@@ -176,7 +176,7 @@ pub async fn connect_to_session(
 ///
 /// # Returns
 /// - `Ok(Worker)` - Started worker system ready to process jobs
-/// - `Err(Error)` - Failed to create or start worker pool
+/// - `Err(AppError)` - Failed to create or start worker pool
 ///
 /// # Example
 /// ```ignore
@@ -188,7 +188,7 @@ pub async fn start_workers(
     db: DatabaseConnection,
     redis_pool: Pool,
     esi_client: eve_esi::Client,
-) -> Result<Worker, Error> {
+) -> Result<Worker, AppError> {
     // Create queue first so it can be passed to the handler
     let queue = WorkerQueue::new(redis_pool.clone());
 
@@ -220,8 +220,8 @@ pub async fn start_workers(
 ///
 /// # Returns
 /// - `Ok(())` - Scheduler successfully created and background task spawned
-/// - `Err(Error)` - Failed to initialize the scheduler (occurs before spawning)
-pub async fn start_scheduler(db: DatabaseConnection, queue: WorkerQueue) -> Result<(), Error> {
+/// - `Err(AppError)` - Failed to initialize the scheduler (occurs before spawning)
+pub async fn start_scheduler(db: DatabaseConnection, queue: WorkerQueue) -> Result<(), AppError> {
     let scheduler = Scheduler::new(db, queue, true).await?;
 
     tokio::spawn(async move {

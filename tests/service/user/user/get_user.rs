@@ -5,7 +5,7 @@
 //! user IDs, multiple users, and error handling when required database tables are
 //! missing or when foreign key constraints are violated.
 
-use bifrost::server::{error::Error, service::user::UserService};
+use bifrost::server::{error::AppError, service::user::UserService};
 use bifrost_test_utils::prelude::*;
 
 /// Tests retrieving an existing user.
@@ -251,7 +251,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let user_service = UserService::new(&test.db);
     let result = user_service.get_user(user_id).await;
 
-    assert!(matches!(result, Err(Error::DbErr(_))));
+    assert!(matches!(result, Err(AppError::Database(_))));
 
     Ok(())
 }

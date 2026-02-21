@@ -10,7 +10,7 @@ use futures::stream::{self, StreamExt};
 use super::{
     super::util::effective_faction_cache_expiry, EveEntityOrchestratorBuilder, FactionFetchState,
 };
-use crate::server::{data::eve::faction::FactionRepository, error::Error};
+use crate::server::{data::eve::faction::FactionRepository, error::AppError};
 
 /// Maximum number of concurrent ESI requests to make at once.
 /// This balances throughput with respect to ESI rate limits and connection pools.
@@ -27,11 +27,11 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Character>)` - Map of character IDs to character data
-    /// - `Err(Error::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_characters(
         &self,
         character_ids: Vec<i64>,
-    ) -> Result<HashMap<i64, Character>, Error> {
+    ) -> Result<HashMap<i64, Character>, AppError> {
         let characters: Vec<(i64, Character)> = stream::iter(character_ids)
             .map(|character_id| async move {
                 let character = self
@@ -41,13 +41,13 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                     .send()
                     .await?;
 
-                Ok::<_, Error>((character_id, character.data))
+                Ok::<_, AppError>((character_id, character.data))
             })
             .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, Error>>()?;
+            .collect::<Result<Vec<_>, AppError>>()?;
 
         Ok(characters.into_iter().collect())
     }
@@ -62,11 +62,11 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Corporation>)` - Map of corporation IDs to corporation data
-    /// - `Err(Error::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_corporations(
         &self,
         corporation_ids: Vec<i64>,
-    ) -> Result<HashMap<i64, Corporation>, Error> {
+    ) -> Result<HashMap<i64, Corporation>, AppError> {
         let corporations: Vec<(i64, Corporation)> = stream::iter(corporation_ids)
             .map(|corporation_id| async move {
                 let corporation = self
@@ -76,13 +76,13 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                     .send()
                     .await?;
 
-                Ok::<_, Error>((corporation_id, corporation.data))
+                Ok::<_, AppError>((corporation_id, corporation.data))
             })
             .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, Error>>()?;
+            .collect::<Result<Vec<_>, AppError>>()?;
 
         Ok(corporations.into_iter().collect())
     }
@@ -97,11 +97,11 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Alliance>)` - Map of alliance IDs to alliance data
-    /// - `Err(Error::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_alliances(
         &self,
         alliance_ids: Vec<i64>,
-    ) -> Result<HashMap<i64, Alliance>, Error> {
+    ) -> Result<HashMap<i64, Alliance>, AppError> {
         let alliances: Vec<(i64, Alliance)> = stream::iter(alliance_ids)
             .map(|alliance_id| async move {
                 let alliance = self
@@ -111,13 +111,13 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
                     .send()
                     .await?;
 
-                Ok::<_, Error>((alliance_id, alliance.data))
+                Ok::<_, AppError>((alliance_id, alliance.data))
             })
             .buffer_unordered(MAX_CONCURRENT_ESI_REQUESTS)
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, Error>>()?;
+            .collect::<Result<Vec<_>, AppError>>()?;
 
         Ok(alliances.into_iter().collect())
     }
@@ -134,8 +134,8 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok(FactionFetchState::Fresh)` - New faction data fetched from ESI
     /// - `Ok(FactionFetchState::NotModified)` - ESI returned 304, data unchanged
     /// - `Ok(FactionFetchState::UpToDate)` - Database factions still within cache period
-    /// - `Err(Error)` - ESI request or database query failed
-    pub(super) async fn fetch_factions_if_stale(&self) -> Result<FactionFetchState, Error> {
+    /// - `Err(AppError)` - ESI request or database query failed
+    pub(super) async fn fetch_factions_if_stale(&self) -> Result<FactionFetchState, AppError> {
         let faction_repo = FactionRepository::new(self.db);
         let latest_faction = faction_repo.get_latest().await?;
 

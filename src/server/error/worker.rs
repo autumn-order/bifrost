@@ -39,7 +39,7 @@ pub enum WorkerError {
     /// It may indicate a schema mismatch or corruption in the Redis data, or an issue
     /// with the serde implementation.
     #[error("Failed to serialize/deserialize WorkerJob: {0}")]
-    SerializationError(String),
+    Serialization(String),
 
     /// Failed to schedule a task in the worker queue.
     ///

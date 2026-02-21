@@ -7,8 +7,9 @@
 
 use chrono::{DateTime, Duration, Utc};
 
-use crate::server::model::worker::WorkerJob;
-use crate::server::util::eve::get_esi_downtime_remaining;
+use crate::server::{
+    error::AppError, model::worker::WorkerJob, util::eve::get_esi_downtime_remaining,
+};
 
 /// Minimum batch size for entity updates per scheduling cycle.
 ///
@@ -115,12 +116,12 @@ pub fn calculate_batch_limit(
 ///
 /// # Returns
 /// - `Ok(Vec<(WorkerJob, DateTime<Utc>)>)` - List of jobs paired with their scheduled execution times
-/// - `Err(Error)` - Currently never returns an error (reserved for future validation)
+/// - `Err(AppError)` - Currently never returns an error (reserved for future validation)
 pub async fn create_job_schedule(
     jobs: Vec<WorkerJob>,
     schedule_interval: Duration,
     offset_for_esi_downtime: bool,
-) -> Result<Vec<(WorkerJob, DateTime<Utc>)>, crate::server::error::Error> {
+) -> Result<Vec<(WorkerJob, DateTime<Utc>)>, AppError> {
     if jobs.is_empty() {
         return Ok(vec![]);
     }
