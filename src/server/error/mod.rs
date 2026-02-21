@@ -7,7 +7,6 @@
 
 pub mod auth;
 pub mod config;
-pub mod eve;
 pub mod retry;
 pub mod worker;
 
@@ -21,7 +20,7 @@ use thiserror::Error;
 
 use crate::{
     model::api::ErrorDto,
-    server::error::{auth::AuthError, config::ConfigError, eve::EveError, worker::WorkerError},
+    server::error::{auth::AuthError, config::ConfigError, worker::WorkerError},
 };
 
 /// Main error type for the Bifrost server application.
@@ -45,9 +44,6 @@ pub enum AppError {
     /// Authentication error (session, CSRF, user/character validation).
     #[error(transparent)]
     Auth(#[from] AuthError),
-    /// EVE Online-specific error (faction lookup, ESI data issues).
-    #[error(transparent)]
-    Eve(#[from] EveError),
     /// Worker queue error (job validation, serialization, scheduling).
     #[error(transparent)]
     Worker(#[from] WorkerError),
@@ -92,7 +88,6 @@ impl IntoResponse for AppError {
         match self {
             Self::Config(err) => err.into_response(),
             Self::Auth(err) => err.into_response(),
-            Self::Eve(err) => err.into_response(),
             err => InternalServerError(err).into_response(),
         }
     }

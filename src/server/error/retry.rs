@@ -145,9 +145,6 @@ impl AppError {
 
             // Job scheduler errors - permanent failures (invalid cron, config issues)
             Self::Scheduler(_) => ErrorRetryStrategy::Fail,
-
-            // EVE-related errors - permanent failures (might resolve after ESI cache update, but rare)
-            Self::Eve(_) => ErrorRetryStrategy::Fail,
         }
     }
 }
