@@ -226,7 +226,7 @@ impl WorkerQueue {
     /// - `Err(AppError)` - Redis communication failed
     pub async fn push(&self, job: WorkerJob) -> Result<bool, AppError> {
         let serialized = serde_json::to_string(&job)
-            .map_err(|e| AppError::Worker(WorkerError::SerializationError(e.to_string())))?;
+            .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
         let score = Utc::now().timestamp_millis() as f64;
 
         // Execute Lua script atomically
@@ -263,7 +263,7 @@ impl WorkerQueue {
     /// - `Err(AppError)` - Redis communication failed
     pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, AppError> {
         let serialized = serde_json::to_string(&job)
-            .map_err(|e| AppError::Worker(WorkerError::SerializationError(e.to_string())))?;
+            .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
         let score = time.timestamp_millis() as f64;
 
         // Execute Lua script atomically
@@ -322,14 +322,13 @@ impl WorkerQueue {
                 let score_millis: i64 = values[1].clone().convert()?;
 
                 // Deserialize JSON back into WorkerJob
-                let job: WorkerJob = serde_json::from_str(&serialized).map_err(|e| {
-                    AppError::Worker(WorkerError::SerializationError(e.to_string()))
-                })?;
+                let job: WorkerJob = serde_json::from_str(&serialized)
+                    .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
 
                 // Convert score (milliseconds) to DateTime<Utc>
                 let scheduled_at =
                     DateTime::from_timestamp_millis(score_millis).ok_or_else(|| {
-                        AppError::Worker(WorkerError::SerializationError(format!(
+                        AppError::Worker(WorkerError::Serialization(format!(
                             "Invalid timestamp from Redis: {}",
                             score_millis
                         )))
