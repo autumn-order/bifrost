@@ -13,7 +13,6 @@ use crate::{
         data::user::{user_character::UserCharacterRepository, UserRepository},
         error::{auth::AuthError, Error},
         model::db::{CharacterOwnershipModel, UserModel},
-        service::retry::RetryContext,
     },
 };
 
@@ -53,51 +52,40 @@ impl<'a> UserCharacterService<'a> {
     /// - `Ok(Vec<CharacterDto>)` - List of characters with corporation and alliance information
     /// - `Err(Error::DbErr)` - Database operation failed after retries
     pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, Error> {
-        let mut ctx: RetryContext<()> = RetryContext::new();
+        let user_characters = UserCharacterRepository::new(self.db)
+            .get_owned_characters_by_user_id(user_id)
+            .await?;
 
-        let db = self.db.clone();
-
-        ctx.execute_with_retry(&format!("get characters for user ID {}", user_id), |_| {
-            let db = db.clone();
-
-            Box::pin(async move {
-                let user_characters = UserCharacterRepository::new(&db)
-                    .get_owned_characters_by_user_id(user_id)
-                    .await?;
-
-                let character_dtos: Vec<CharacterDto> = user_characters
-                    .into_iter()
-                    .map(|(character, corporation, alliance)| {
-                        let alliance_dto = if let Some(alliance) = alliance {
-                            Some(AllianceDto {
-                                id: alliance.alliance_id,
-                                name: alliance.name.clone(),
-                                updated_at: alliance.updated_at,
-                            })
-                        } else {
-                            None
-                        };
-
-                        CharacterDto {
-                            id: character.character_id,
-                            name: character.name,
-                            corporation: CorporationDto {
-                                id: corporation.corporation_id,
-                                name: corporation.name.clone(),
-                                info_updated_at: corporation.info_updated_at,
-                                affiliation_updated_at: corporation.affiliation_updated_at,
-                            },
-                            alliance: alliance_dto,
-                            info_updated_at: character.info_updated_at,
-                            affiliation_updated_at: character.affiliation_updated_at,
-                        }
+        let character_dtos: Vec<CharacterDto> = user_characters
+            .into_iter()
+            .map(|(character, corporation, alliance)| {
+                let alliance_dto = if let Some(alliance) = alliance {
+                    Some(AllianceDto {
+                        id: alliance.alliance_id,
+                        name: alliance.name.clone(),
+                        updated_at: alliance.updated_at,
                     })
-                    .collect();
+                } else {
+                    None
+                };
 
-                Ok(character_dtos)
+                CharacterDto {
+                    id: character.character_id,
+                    name: character.name,
+                    corporation: CorporationDto {
+                        id: corporation.corporation_id,
+                        name: corporation.name.clone(),
+                        info_updated_at: corporation.info_updated_at,
+                        affiliation_updated_at: corporation.affiliation_updated_at,
+                    },
+                    alliance: alliance_dto,
+                    info_updated_at: character.info_updated_at,
+                    affiliation_updated_at: character.affiliation_updated_at,
+                }
             })
-        })
-        .await
+            .collect();
+
+        Ok(character_dtos)
     }
 
     /// Links a character to a user or updates existing ownership.
