@@ -90,8 +90,8 @@ impl Config {
     ///
     /// # Returns
     /// - `Ok(Config)` - Configuration successfully loaded and validated
-    /// - `Err(AppError::ConfigError(ConfigError::MissingEnvVar))` - Required environment variable not set
-    /// - `Err(AppError::ConfigError(ConfigError::InvalidEnvValue))` - Environment variable has invalid format (e.g., WORKERS not a number)
+    /// - `Err(AppError::Config(ConfigError::MissingEnvVar))` - Required environment variable not set
+    /// - `Err(AppError::Config(ConfigError::InvalidEnvValue))` - Environment variable has invalid format (e.g., WORKERS not a number)
     ///
     /// # Example
     /// ```ignore

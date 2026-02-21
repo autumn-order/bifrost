@@ -25,7 +25,7 @@ use crate::server::{
 ///
 /// # Returns
 /// - `Ok(())` - CSRF state is valid (matches the session value)
-/// - `Err(AppError::AuthError(AuthError::CsrfValidationFailed))` - State mismatch or not found in session
+/// - `Err(AppError::Auth(AuthError::CsrfValidationFailed))` - State mismatch or not found in session
 /// - `Err(AppError)` - Session retrieval error
 pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), AppError> {
     let stored_state = SessionAuthCsrf::remove(session).await?;
@@ -36,7 +36,7 @@ pub async fn validate_csrf(session: &Session, csrf_state: &str) -> Result<(), Ap
         }
     }
 
-    Err(AppError::AuthError(AuthError::CsrfValidationFailed))
+    Err(AppError::Auth(AuthError::CsrfValidationFailed))
 }
 
 #[cfg(test)]

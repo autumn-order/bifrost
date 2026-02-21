@@ -27,7 +27,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Character>)` - Map of character IDs to character data
-    /// - `Err(AppError::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_characters(
         &self,
         character_ids: Vec<i64>,
@@ -62,7 +62,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Corporation>)` - Map of corporation IDs to corporation data
-    /// - `Err(AppError::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_corporations(
         &self,
         corporation_ids: Vec<i64>,
@@ -97,7 +97,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Returns
     /// - `Ok(HashMap<i64, Alliance>)` - Map of alliance IDs to alliance data
-    /// - `Err(AppError::EsiError)` - ESI request failed
+    /// - `Err(AppError::Esi)` - ESI request failed
     pub(super) async fn fetch_alliances(
         &self,
         alliance_ids: Vec<i64>,

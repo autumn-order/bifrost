@@ -73,7 +73,7 @@ impl AppError {
             // ESI HTTP error responses (4xx/5xx) - categorize by status code
             //
             // In eve_esi 0.5.0+, HTTP error responses are returned as EsiError with a status field
-            AppError::EsiError(eve_esi::Error::EsiError(esi_error)) => {
+            AppError::Esi(eve_esi::Error::EsiError(esi_error)) => {
                 match esi_error.status {
                     // 429 Rate Limited - ESI rate limit exceeded
                     //
@@ -100,7 +100,7 @@ impl AppError {
                 }
             }
 
-            Self::DbErr(db_err) => {
+            Self::Database(db_err) => {
                 match db_err {
                     // Connection acquisition failures - transient, connection pool may recover
                     DbErr::ConnectionAcquire(_) => ErrorRetryStrategy::Retry,
@@ -120,34 +120,34 @@ impl AppError {
             }
 
             // Session errors - transient, typically Redis connection issues
-            Self::SessionError(_) => ErrorRetryStrategy::Retry,
+            Self::Session(_) => ErrorRetryStrategy::Retry,
 
             // Redis session store errors - transient connection/command failures
-            Self::SessionRedisError(_) => ErrorRetryStrategy::Retry,
+            Self::SessionStore(_) => ErrorRetryStrategy::Retry,
 
             // Other ESI errors - permanent failures (OAuth, parsing, etc.)
-            Self::EsiError(_) => ErrorRetryStrategy::Fail,
+            Self::Esi(_) => ErrorRetryStrategy::Fail,
 
             // Configuration errors - permanent failures (missing/invalid env vars)
-            Self::ConfigError(_) => ErrorRetryStrategy::Fail,
+            Self::Config(_) => ErrorRetryStrategy::Fail,
 
             // Auth errors - permanent failures (CSRF, bad credentials, missing data)
-            Self::AuthError(_) => ErrorRetryStrategy::Fail,
+            Self::Auth(_) => ErrorRetryStrategy::Fail,
 
             // Parse errors - permanent failures (malformed data that won't change)
-            Self::ParseError(_) => ErrorRetryStrategy::Fail,
+            Self::Parse(_) => ErrorRetryStrategy::Fail,
 
             // Internal errors - permanent failures (bugs in Bifrost's code)
-            Self::InternalError(_) => ErrorRetryStrategy::Fail,
+            Self::Internal(_) => ErrorRetryStrategy::Fail,
 
             // Worker errors - permanent failures (job validation, serialization)
-            Self::WorkerError(_) => ErrorRetryStrategy::Fail,
+            Self::Worker(_) => ErrorRetryStrategy::Fail,
 
             // Job scheduler errors - permanent failures (invalid cron, config issues)
-            Self::SchedulerError(_) => ErrorRetryStrategy::Fail,
+            Self::Scheduler(_) => ErrorRetryStrategy::Fail,
 
             // EVE-related errors - permanent failures (might resolve after ESI cache update, but rare)
-            Self::EveError(_) => ErrorRetryStrategy::Fail,
+            Self::Eve(_) => ErrorRetryStrategy::Fail,
         }
     }
 }

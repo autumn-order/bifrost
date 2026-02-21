@@ -313,7 +313,7 @@ async fn fails_for_unowned_character() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        AppError::AuthError(err) => {
+        AppError::Auth(err) => {
             assert_eq!(
                 format!("{:?}", err),
                 format!(

@@ -58,8 +58,8 @@ impl<'a> CharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveCharacterModel)` - The created or updated character database record
-    /// - `Err(AppError::EsiError)` - Failed to fetch character data from ESI after retries
-    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    /// - `Err(AppError::Esi)` - Failed to fetch character data from ESI after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
     pub async fn update(&self, character_id: i64) -> Result<EveCharacterModel, AppError> {
         let character_repo = CharacterRepository::new(self.db);
 

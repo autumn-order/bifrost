@@ -41,40 +41,40 @@ use crate::{
 pub enum AppError {
     /// Configuration error (missing or invalid environment variables).
     #[error(transparent)]
-    ConfigError(#[from] ConfigError),
+    Config(#[from] ConfigError),
     /// Authentication error (session, CSRF, user/character validation).
     #[error(transparent)]
-    AuthError(#[from] AuthError),
+    Auth(#[from] AuthError),
     /// EVE Online-specific error (faction lookup, ESI data issues).
     #[error(transparent)]
-    EveError(#[from] EveError),
+    Eve(#[from] EveError),
     /// Worker queue error (job validation, serialization, scheduling).
     #[error(transparent)]
-    WorkerError(#[from] WorkerError),
+    Worker(#[from] WorkerError),
+    /// Cron scheduler error (job registration, scheduler startup).
+    #[error(transparent)]
+    Scheduler(#[from] tokio_cron_scheduler::JobSchedulerError),
     /// Parse error (failed to parse a value from string or other format).
     #[error("Failed to parse value: {0:?}")]
-    ParseError(String),
+    Parse(String),
     /// Internal error indicating a bug in Bifrost's code.
     ///
     /// This error should never occur in normal operation and indicates a programming error
     /// that needs to be reported as a GitHub issue.
     #[error("Internal error with Bifrost's code, please open a GitHub issue as this indicates a bug: {0:?}")]
-    InternalError(String),
+    Internal(String),
     /// ESI client error (API requests, OAuth, rate limiting).
     #[error(transparent)]
-    EsiError(#[from] eve_esi::Error),
+    Esi(#[from] eve_esi::Error),
     /// Database error (query failures, connection issues, constraint violations).
     #[error(transparent)]
-    DbErr(#[from] sea_orm::DbErr),
+    Database(#[from] sea_orm::DbErr),
     /// Session error (session retrieval, storage, serialization).
     #[error(transparent)]
-    SessionError(#[from] tower_sessions::session::Error),
+    Session(#[from] tower_sessions::session::Error),
     /// Redis session store error (connection, command execution).
     #[error(transparent)]
-    SessionRedisError(#[from] tower_sessions_redis_store::fred::prelude::Error),
-    /// Cron scheduler error (job registration, scheduler startup).
-    #[error(transparent)]
-    SchedulerError(#[from] tokio_cron_scheduler::JobSchedulerError),
+    SessionStore(#[from] tower_sessions_redis_store::fred::prelude::Error),
 }
 
 /// Converts application errors into HTTP responses.
@@ -90,9 +90,9 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
-            Self::ConfigError(err) => err.into_response(),
-            Self::AuthError(err) => err.into_response(),
-            Self::EveError(err) => err.into_response(),
+            Self::Config(err) => err.into_response(),
+            Self::Auth(err) => err.into_response(),
+            Self::Eve(err) => err.into_response(),
             err => InternalServerError(err).into_response(),
         }
     }

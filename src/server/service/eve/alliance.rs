@@ -58,8 +58,8 @@ impl<'a> AllianceService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveAllianceModel)` - The created or updated alliance database record
-    /// - `Err(AppError::EsiError)` - Failed to fetch alliance data from ESI after retries
-    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    /// - `Err(AppError::Esi)` - Failed to fetch alliance data from ESI after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
     pub async fn update(&self, alliance_id: i64) -> Result<EveAllianceModel, AppError> {
         let alliance_repo = AllianceRepository::new(self.db);
 

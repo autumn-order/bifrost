@@ -30,8 +30,8 @@ use crate::{
 ///
 /// # Returns
 /// - `Ok(UserDto)` - User found, containing user ID and main character information (ID, name)
-/// - `Err(AppError::AuthError(AuthError::UserNotInSession))` - No user ID present in session
-/// - `Err(AppError::AuthError(AuthError::UserNotInDatabase))` - User ID exists in session but user not found in database (session is cleared)
+/// - `Err(AppError::Auth(AuthError::UserNotInSession))` - No user ID present in session
+/// - `Err(AppError::Auth(AuthError::UserNotInDatabase))` - User ID exists in session but user not found in database (session is cleared)
 /// - `Err(AppError)` - Database query failure or session retrieval error
 pub async fn get_user_from_session(
     state: &AppState,
@@ -39,7 +39,7 @@ pub async fn get_user_from_session(
 ) -> Result<UserDto, AppError> {
     // Get user from session
     let Some(user_id) = SessionUserId::get(session).await? else {
-        return Err(AppError::AuthError(AuthError::UserNotInSession));
+        return Err(AppError::Auth(AuthError::UserNotInSession));
     };
 
     // Get user from database
@@ -51,7 +51,7 @@ pub async fn get_user_from_session(
             user_id
         );
 
-        return Err(AppError::AuthError(AuthError::UserNotInDatabase(user_id)));
+        return Err(AppError::Auth(AuthError::UserNotInDatabase(user_id)));
     };
 
     Ok(user)

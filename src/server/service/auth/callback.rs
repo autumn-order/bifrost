@@ -150,12 +150,12 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(i32)` - The user ID after successful authentication and processing
-    /// - `Err(AppError::EsiError)` - Failed to fetch or validate OAuth2 token
-    /// - `Err(AppError::ParseError)` - Failed to parse character ID from JWT claims
-    /// - `Err(AppError::DbErr)` - Database operation failed
-    /// - `Err(AppError::AuthError(AuthError::UserNotInDatabase))` - User not found during character transfer
-    /// - `Err(AppError::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Attempted to set main character owned by different user
-    /// - `Err(AppError::InternalError)` - Character persistence failed unexpectedly
+    /// - `Err(AppError::Esi)` - Failed to fetch or validate OAuth2 token
+    /// - `Err(AppError::Parse)` - Failed to parse character ID from JWT claims
+    /// - `Err(AppError::Database)` - Database operation failed
+    /// - `Err(AppError::Auth(AuthError::UserNotInDatabase))` - User not found during character transfer
+    /// - `Err(AppError::Auth(AuthError::CharacterOwnedByAnotherUser))` - Attempted to set main character owned by different user
+    /// - `Err(AppError::Internal)` - Character persistence failed unexpectedly
     pub async fn handle_callback(
         &self,
         authorization_code: &str,
@@ -297,7 +297,7 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveJwtClaims)` - Validated JWT claims containing character ID and owner hash
-    /// - `Err(AppError::EsiError)` - Failed to fetch token or validate JWT
+    /// - `Err(AppError::Esi)` - Failed to fetch token or validate JWT
     pub async fn authenticate_and_get_claims(
         esi_client: &eve_esi::Client,
         authorization_code: &str,
@@ -323,7 +323,7 @@ impl<'a> CallbackService<'a> {
     /// - `Ok(CharacterRecord::NotFound)` - Character does not exist in database
     /// - `Ok(CharacterRecord::Unowned)` - Character exists but has no owner
     /// - `Ok(CharacterRecord::Owned)` - Character exists and is owned by a user
-    /// - `Err(AppError::DbErr)` - Database query failed
+    /// - `Err(AppError::Database)` - Database query failed
     pub async fn get_character_ownership_status(
         db: &DatabaseConnection,
         character_id: i64,
@@ -352,7 +352,7 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Returns
     /// - `Ok(i32)` - The user ID (either existing or newly created)
-    /// - `Err(AppError::DbError)` - Database error when creating a new user
+    /// - `Err(AppError::Database)` - Database error when creating a new user
     pub async fn get_or_create_user(
         txn: &DatabaseTransaction,
         to_user_id: Option<i32>,

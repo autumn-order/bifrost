@@ -34,7 +34,7 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveFactionModel>` - Map of EVE faction IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE faction IDs to database record IDs
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_factions(
         &self,
         txn: &DatabaseTransaction,
@@ -96,7 +96,7 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveAllianceModel>` - Map of EVE alliance IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE alliance IDs to database record IDs
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_alliances(
         &self,
         txn: &DatabaseTransaction,
@@ -155,7 +155,7 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveCorporationModel>` - Map of EVE corporation IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE corporation IDs to database record IDs
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_corporations(
         &self,
         txn: &DatabaseTransaction,
@@ -229,7 +229,7 @@ impl EveEntityOrchestrator {
     /// - `Ok((entity_map, record_id_map))` - Tuple containing:
     ///   - `HashMap<i64, EveCharacterModel>` - Map of EVE character IDs to stored database models
     ///   - `HashMap<i64, i32>` - Map of EVE character IDs to database record IDs
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub(super) async fn store_characters(
         &self,
         txn: &DatabaseTransaction,

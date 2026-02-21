@@ -22,7 +22,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE character IDs to their database record IDs
     ///   - Vector of EVE character IDs not found in the database
-    /// - `Err(AppError::DbErr)` - Database query failed
+    /// - `Err(AppError::Database)` - Database query failed
     pub(super) async fn find_existing_characters(
         &self,
         dependency_character_ids: &[i64],
@@ -67,7 +67,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE corporation IDs to their database record IDs
     ///   - Vector of EVE corporation IDs not found in the database
-    /// - `Err(AppError::DbErr)` - Database query failed
+    /// - `Err(AppError::Database)` - Database query failed
     pub(super) async fn find_existing_corporations(
         &self,
         dependency_corporation_ids: &[i64],
@@ -112,7 +112,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE alliance IDs to their database record IDs
     ///   - Vector of EVE alliance IDs not found in the database
-    /// - `Err(AppError::DbErr)` - Database query failed
+    /// - `Err(AppError::Database)` - Database query failed
     pub(super) async fn find_existing_alliances(
         &self,
         dependency_alliance_ids: &[i64],
@@ -157,7 +157,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     /// - `Ok((HashMap<i64, i32>, Vec<i64>))` - Tuple of:
     ///   - Map of EVE faction IDs to their database record IDs
     ///   - Vector of EVE faction IDs not found in the database
-    /// - `Err(AppError::DbErr)` - Database query failed
+    /// - `Err(AppError::Database)` - Database query failed
     pub(super) async fn find_existing_factions(
         &self,
         dependency_faction_ids: &[i64],

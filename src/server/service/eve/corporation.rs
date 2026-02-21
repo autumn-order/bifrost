@@ -58,8 +58,8 @@ impl<'a> CorporationService<'a> {
     ///
     /// # Returns
     /// - `Ok(EveCorporationModel)` - The created or updated corporation database record
-    /// - `Err(AppError::EsiError)` - Failed to fetch corporation data from ESI after retries
-    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    /// - `Err(AppError::Esi)` - Failed to fetch corporation data from ESI after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
     pub async fn update(&self, corporation_id: i64) -> Result<EveCorporationModel, AppError> {
         let corporation_repo = CorporationRepository::new(self.db);
 

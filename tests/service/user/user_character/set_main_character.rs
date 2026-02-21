@@ -109,7 +109,7 @@ async fn fails_when_character_owned_by_different_user() -> Result<(), TestError>
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        AppError::AuthError(err) => {
+        AppError::Auth(err) => {
             assert_eq!(
                 format!("{:?}", err),
                 format!(
@@ -448,7 +448,7 @@ async fn returns_error_for_nonexistent_user() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        AppError::AuthError(_) => {
+        AppError::Auth(_) => {
             // Expected - ownership check happens first
         }
         _ => panic!("Expected AuthError"),
@@ -525,7 +525,7 @@ async fn prevents_cross_user_main_character_assignment() -> Result<(), TestError
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        AppError::AuthError(_) => {
+        AppError::Auth(_) => {
             // Expected error
         }
         _ => panic!("Expected AuthError"),

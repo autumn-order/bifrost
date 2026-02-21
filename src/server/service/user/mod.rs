@@ -46,8 +46,8 @@ impl<'a> UserService<'a> {
     /// # Returns
     /// - `Ok(Some(UserDto))` - User found with main character information
     /// - `Ok(None)` - User not found in database
-    /// - `Err(AppError::DbErr)` - Database operation failed after retries
-    /// - `Err(AppError::InternalError)` - Main character record not found (FK constraint violation)
+    /// - `Err(AppError::Database)` - Database operation failed after retries
+    /// - `Err(AppError::Internal)` - Main character record not found (FK constraint violation)
     pub async fn get_user(&self, user_id: i32) -> Result<Option<UserDto>, AppError> {
         let user_repo = UserRepository::new(self.db);
 
@@ -57,7 +57,7 @@ impl<'a> UserService<'a> {
                 let main_character = maybe_main_character.ok_or_else(|| {
                     // Would only occur if the foreign key constraint requiring
                     // main character to exist in database for the user is not properly enforced
-                    AppError::InternalError(format!(
+                    AppError::Internal(format!(
                         "Failed to find main character information for user ID {} \
                          with main character ID {}",
                         user.id, user.main_character_id

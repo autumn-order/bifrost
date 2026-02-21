@@ -189,7 +189,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let result = CallbackService::get_or_create_user(&txn, None, character_id).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), AppError::DbErr(_)));
+    assert!(matches!(result.unwrap_err(), AppError::Database(_)));
 
     Ok(())
 }

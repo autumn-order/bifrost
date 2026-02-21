@@ -441,7 +441,7 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let result = service.handle_callback("auth_code", None, None).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), AppError::EsiError(_)));
+    assert!(matches!(result.unwrap_err(), AppError::Esi(_)));
 
     Ok(())
 }
@@ -467,7 +467,7 @@ async fn fails_when_database_tables_missing() -> Result<(), TestError> {
     let result = service.handle_callback("auth_code", None, None).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), AppError::DbErr(_)));
+    assert!(matches!(result.unwrap_err(), AppError::Database(_)));
 
     Ok(())
 }

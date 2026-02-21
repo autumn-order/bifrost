@@ -382,7 +382,7 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(AppError::EsiError(_)) => (),
+        Err(AppError::Esi(_)) => (),
         _ => panic!("Expected Error::EsiError, got: {:?}", result),
     }
 
@@ -440,7 +440,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(AppError::DbErr(_)) => (),
+        Err(AppError::Database(_)) => (),
         _ => panic!("Expected Error::DbErr, got: {:?}", result),
     }
 
@@ -472,7 +472,7 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
 
     assert!(result.is_err());
     match result {
-        Err(AppError::DbErr(_)) => (),
+        Err(AppError::Database(_)) => (),
         _ => panic!("Expected Error::DbErr, got: {:?}", result),
     }
 

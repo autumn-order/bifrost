@@ -40,7 +40,7 @@ impl<'a> LoginService<'a> {
     ///
     /// # Returns
     /// - `Ok(AuthenticationData)` - Login URL and CSRF state token for callback validation
-    /// - `Err(AppError::EsiError)` - ESI client OAuth2 not configured properly
+    /// - `Err(AppError::Esi)` - ESI client OAuth2 not configured properly
     pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, AppError> {
         let login = self.esi_client.oauth2().login_url(scopes)?;
 
@@ -80,7 +80,7 @@ pub mod tests {
 
         assert!(matches!(
             result,
-            Err(AppError::EsiError(eve_esi::Error::OAuthError(
+            Err(AppError::Esi(eve_esi::Error::OAuthError(
                 eve_esi::OAuthError::OAuth2NotConfigured
             )))
         ));

@@ -108,7 +108,7 @@ async fn fails_when_token_endpoint_unavailable() -> Result<(), TestError> {
         CallbackService::authenticate_and_get_claims(&test.esi_client, authorization_code).await;
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), AppError::EsiError(_)));
+    assert!(matches!(result.unwrap_err(), AppError::Esi(_)));
 
     Ok(())
 }

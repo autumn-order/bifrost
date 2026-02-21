@@ -61,7 +61,7 @@ impl SessionUserId {
     /// # Returns
     /// - `Ok(Some(user_id))` - User ID found and successfully parsed
     /// - `Ok(None)` - No user ID present in session (not authenticated)
-    /// - `Err(AppError::ParseError)` - User ID present but cannot be parsed as i32
+    /// - `Err(AppError::Parse)` - User ID present but cannot be parsed as i32
     /// - `Err(AppError)` - Session retrieval failed (Redis error)
     pub async fn get(session: &Session) -> Result<Option<i32>, AppError> {
         session
@@ -69,7 +69,7 @@ impl SessionUserId {
             .await?
             .map(|SessionUserId(id_str)| {
                 id_str.parse::<i32>().map_err(|e| {
-                    AppError::ParseError(format!("Failed to parse session user id: {}", e))
+                    AppError::Parse(format!("Failed to parse session user id: {}", e))
                 })
             })
             .transpose()
@@ -302,7 +302,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(AppError::ParseError(_))));
+            assert!(matches!(result, Err(AppError::Parse(_))));
 
             Ok(())
         }
@@ -325,7 +325,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(AppError::ParseError(_))));
+            assert!(matches!(result, Err(AppError::Parse(_))));
 
             Ok(())
         }
@@ -351,7 +351,7 @@ mod tests {
             let result = SessionUserId::get(&test.session).await;
 
             assert!(result.is_err());
-            assert!(matches!(result, Err(AppError::ParseError(_))));
+            assert!(matches!(result, Err(AppError::Parse(_))));
 
             Ok(())
         }

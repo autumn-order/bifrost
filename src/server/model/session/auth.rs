@@ -60,7 +60,7 @@ impl SessionAuthCsrf {
     ///
     /// # Returns
     /// - `Ok(String)` - CSRF token found and retrieved successfully
-    /// - `Err(AppError::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
+    /// - `Err(AppError::Auth(AuthError::CsrfMissingValue))` - No CSRF token in session
     /// - `Err(AppError)` - Session retrieval failed (Redis error)
     pub async fn get(session: &Session) -> Result<String, AppError> {
         match session.get(SESSION_AUTH_CSRF_KEY).await? {
@@ -80,7 +80,7 @@ impl SessionAuthCsrf {
     ///
     /// # Returns
     /// - `Ok(Some(String))` - CSRF token found, removed, and returned
-    /// - `Err(AppError::AuthError(AuthError::CsrfMissingValue))` - No CSRF token in session
+    /// - `Err(AppError::Auth(AuthError::CsrfMissingValue))` - No CSRF token in session
     /// - `Err(AppError)` - Session operation failed (Redis error)
     pub async fn remove(session: &Session) -> Result<Option<String>, AppError> {
         match session.remove(SESSION_AUTH_CSRF_KEY).await? {
@@ -221,7 +221,7 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(
                 result,
-                Err(AppError::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::Auth(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -295,7 +295,7 @@ mod tests {
             assert!(get_result.is_err());
             assert!(matches!(
                 get_result,
-                Err(AppError::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::Auth(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -321,7 +321,7 @@ mod tests {
             assert!(second_remove.is_err());
             assert!(matches!(
                 second_remove,
-                Err(AppError::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::Auth(AuthError::CsrfMissingValue))
             ));
 
             Ok(())
@@ -343,7 +343,7 @@ mod tests {
             assert!(result.is_err());
             assert!(matches!(
                 result,
-                Err(AppError::AuthError(AuthError::CsrfMissingValue))
+                Err(AppError::Auth(AuthError::CsrfMissingValue))
             ));
 
             Ok(())

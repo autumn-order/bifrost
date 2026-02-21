@@ -60,8 +60,8 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - All affiliations successfully updated
-    /// - `Err(AppError::EsiError)` - Failed to fetch affiliation or dependency data from ESI
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Esi)` - Failed to fetch affiliation or dependency data from ESI
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), AppError> {
         // Cap character_ids to ESI limit to prevent affiliation request from erroring due to exceeding limit
         let character_ids = if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
@@ -178,7 +178,7 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - All relationship updates completed successfully
-    /// - `Err(AppError::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_affiliation_relationships(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
@@ -201,7 +201,7 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - Corporation affiliation updates completed successfully
-    /// - `Err(AppError::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_corporation_affiliations(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],
@@ -265,7 +265,7 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Returns
     /// - `Ok(())` - Character affiliation updates completed successfully
-    /// - `Err(AppError::DbErr)` - Database update operation failed
+    /// - `Err(AppError::Database)` - Database update operation failed
     async fn update_character_affiliations(
         txn: &sea_orm::DatabaseTransaction,
         affiliations: &[CharacterAffiliation],

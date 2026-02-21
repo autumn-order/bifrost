@@ -50,7 +50,7 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(Vec<CharacterDto>)` - List of characters with corporation and alliance information
-    /// - `Err(AppError::DbErr)` - Database operation failed after retries
+    /// - `Err(AppError::Database)` - Database operation failed after retries
     pub async fn get_user_characters(&self, user_id: i32) -> Result<Vec<CharacterDto>, AppError> {
         let user_characters = UserCharacterRepository::new(self.db)
             .get_owned_characters_by_user_id(user_id)
@@ -102,7 +102,7 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(CharacterOwnershipModel)` - The created or updated ownership record
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn link_character(
         txn: &DatabaseTransaction,
         character_record_id: i32,
@@ -133,9 +133,9 @@ impl<'a> UserCharacterService<'a> {
     ///
     /// # Returns
     /// - `Ok(CharacterOwnershipModel)` - The updated ownership record
-    /// - `Err(AppError::AuthError(AuthError::UserNotInDatabase))` - Previous user not found in database
-    /// - `Err(AppError::AuthError(AuthError::CharacterNotOwned))` - Character has no current ownership
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Auth(AuthError::UserNotInDatabase))` - Previous user not found in database
+    /// - `Err(AppError::Auth(AuthError::CharacterNotOwned))` - Character has no current ownership
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn transfer_character(
         txn: &DatabaseTransaction,
         character_record_id: i32,
@@ -149,14 +149,14 @@ impl<'a> UserCharacterService<'a> {
         let ownership = user_character_repo
             .get_ownership_by_character_id(character_record_id)
             .await?
-            .ok_or_else(|| AppError::AuthError(AuthError::CharacterNotOwned))?;
+            .ok_or_else(|| AppError::Auth(AuthError::CharacterNotOwned))?;
 
         let from_user_id = ownership.user_id;
 
         // Retrieve user information to check if main character change is needed
         let Some((prev_user, maybe_main_character)) = user_repo.get_by_id(from_user_id).await?
         else {
-            return Err(AppError::AuthError(AuthError::UserNotInDatabase(
+            return Err(AppError::Auth(AuthError::UserNotInDatabase(
                 from_user_id,
             )));
         };
@@ -229,8 +229,8 @@ impl<'a> UserCharacterService<'a> {
     /// # Returns
     /// - `Ok(Some(UserModel))` - The updated user record
     /// - `Ok(None)` - User was not found (should be unreachable in normal operation)
-    /// - `Err(AppError::AuthError(AuthError::CharacterOwnedByAnotherUser))` - Character is owned by a different user
-    /// - `Err(AppError::DbErr)` - Database operation failed
+    /// - `Err(AppError::Auth(AuthError::CharacterOwnedByAnotherUser))` - Character is owned by a different user
+    /// - `Err(AppError::Database)` - Database operation failed
     pub async fn set_main_character(
         txn: &DatabaseTransaction,
         user_id: i32,

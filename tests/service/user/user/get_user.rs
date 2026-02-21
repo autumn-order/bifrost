@@ -251,7 +251,7 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
     let user_service = UserService::new(&test.db);
     let result = user_service.get_user(user_id).await;
 
-    assert!(matches!(result, Err(AppError::DbErr(_))));
+    assert!(matches!(result, Err(AppError::Database(_))));
 
     Ok(())
 }
