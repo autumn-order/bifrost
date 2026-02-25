@@ -109,7 +109,7 @@ struct Endpoints {
 impl Default for Endpoints {
     fn default() -> Self {
         Self {
-            character: Arc::new(EndpointGroup::default()),
+            character: Arc::new(EndpointGroup::new("character")),
         }
     }
 }

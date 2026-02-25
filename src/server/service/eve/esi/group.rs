@@ -16,6 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use dioxus_logger::tracing;
 use tokio::sync::RwLock;
 
 use super::{
@@ -45,15 +46,25 @@ pub(super) struct CheckResult {
 /// The `recovering` flag ensures only one concurrent request attempts recovery at a time,
 /// preventing thundering herd problems when the circuit breaker reopens.
 pub struct EndpointGroup {
+    /// Name of the endpoint group for logging context
+    name: &'static str,
     /// Current health status of the endpoint group
     status: RwLock<EndpointStatus>,
     /// Atomic flag indicating whether a recovery attempt is in progress
     recovering: AtomicBool,
 }
 
-impl Default for EndpointGroup {
-    fn default() -> Self {
+impl EndpointGroup {
+    /// Creates a new endpoint group with the specified name.
+    ///
+    /// # Arguments
+    /// - `name` - Name of the endpoint group for logging context
+    ///
+    /// # Returns
+    /// New `EndpointGroup` with healthy initial state
+    pub fn new(name: &'static str) -> Self {
         Self {
+            name,
             status: RwLock::new(EndpointStatus::Healthy),
             recovering: AtomicBool::new(false),
         }
@@ -137,6 +148,10 @@ impl EndpointGroup {
 
                 // Double-check state hasn't changed
                 if matches!(*status, EndpointStatus::Offline { .. }) {
+                    tracing::info!(
+                        group = %self.name,
+                        "ESI endpoint group beginning recovery attempt after cooldown period"
+                    );
                     status.begin_recovery_attempt();
                 } else {
                     // Someone else already transitioned, release flag
@@ -169,7 +184,20 @@ impl EndpointGroup {
     pub(super) async fn handle_5xx_error(&self) {
         let mut status = self.status.write().await;
         let was_recovering = matches!(*status, EndpointStatus::Recovering { .. });
-        status.handle_5xx_error();
+        let old_state = format!("{:?}", *status);
+
+        status.handle_5xx_error(self.name);
+
+        // Log state transition if it occurred
+        let new_state = format!("{:?}", *status);
+        if old_state != new_state {
+            tracing::debug!(
+                group = %self.name,
+                old_state = %old_state,
+                new_state = %new_state,
+                "ESI endpoint group state transition after 5xx error"
+            );
+        }
 
         // If we just went Offline during recovery, clear the flag for next attempt
         if matches!(*status, EndpointStatus::Offline { .. }) && was_recovering {
@@ -209,10 +237,24 @@ impl EndpointGroup {
                 // Only acquire write lock if we actually need to reset
                 let mut status = self.status.write().await;
                 let was_recovering = matches!(*status, EndpointStatus::Recovering { .. });
+                let was_impaired = matches!(*status, EndpointStatus::Impaired { .. });
 
                 // Double-check after acquiring write lock (state may have changed)
                 if status.should_reset_to_healthy() {
                     status.reset_to_healthy();
+
+                    // Log successful recovery
+                    if was_recovering {
+                        tracing::info!(
+                            group = %self.name,
+                            "ESI endpoint group successfully recovered to healthy state"
+                        );
+                    } else if was_impaired {
+                        tracing::debug!(
+                            group = %self.name,
+                            "ESI endpoint group reset to healthy after error window expired"
+                        );
+                    }
                 }
 
                 // If we successfully recovered to Healthy, clear the recovery flag
@@ -303,11 +345,15 @@ impl EndpointStatus {
     /// The stricter threshold during recovery (3 errors) assumes each error will be
     /// retried multiple times at the HTTP client layer, allowing for approximately
     /// 9 total attempts (3 errors × ~3 attempts each) before giving up.
-    pub(super) fn handle_5xx_error(&mut self) {
+    pub(super) fn handle_5xx_error(&mut self, group_name: &str) {
         let now = Utc::now();
 
         match self {
             EndpointStatus::Healthy => {
+                tracing::debug!(
+                    group = %group_name,
+                    "ESI endpoint group transitioned from Healthy to Impaired after first 5xx error"
+                );
                 *self = EndpointStatus::Impaired {
                     first_error: now,
                     last_error: now,
@@ -324,6 +370,11 @@ impl EndpointStatus {
                 if window_elapsed.to_std().unwrap_or(Duration::ZERO) >= ENDPOINT_GROUP_ERROR_WINDOW
                 {
                     // Window expired, start new window
+                    tracing::debug!(
+                        group = %group_name,
+                        old_error_count = %error_count,
+                        "ESI endpoint group error window expired, starting new window"
+                    );
                     *self = EndpointStatus::Impaired {
                         first_error: now,
                         last_error: now,
@@ -334,6 +385,14 @@ impl EndpointStatus {
                     let new_count = *error_count + 1;
 
                     if new_count >= ENDPOINT_GROUP_ERROR_LIMIT {
+                        tracing::error!(
+                            group = %group_name,
+                            error_count = %new_count,
+                            error_limit = %ENDPOINT_GROUP_ERROR_LIMIT,
+                            window_seconds = %ENDPOINT_GROUP_ERROR_WINDOW.as_secs(),
+                            cooldown_seconds = %ENDPOINT_GROUP_RETRY_COOLDOWN.as_secs(),
+                            "ESI endpoint group circuit breaker tripped - too many 5xx errors within window; endpoint now offline"
+                        );
                         *self = EndpointStatus::Offline { last_error: now };
                     } else {
                         *self = EndpointStatus::Impaired {
@@ -349,8 +408,18 @@ impl EndpointStatus {
                 let new_count = *error_count + 1;
 
                 if new_count >= 3 {
+                    tracing::error!(
+                        group = %group_name,
+                        error_count = %new_count,
+                        "ESI endpoint group failed recovery - too many errors during recovery attempt; returning to offline state"
+                    );
                     *self = EndpointStatus::Offline { last_error: now };
                 } else {
+                    tracing::debug!(
+                        group = %group_name,
+                        error_count = %new_count,
+                        "ESI endpoint group encountered error during recovery attempt"
+                    );
                     *self = EndpointStatus::Recovering {
                         last_error: now,
                         error_count: new_count,
