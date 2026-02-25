@@ -59,6 +59,12 @@ pub enum AppError {
     /// that needs to be reported as a GitHub issue.
     #[error("Internal error with Bifrost's code, please open a GitHub issue as this indicates a bug: {0:?}")]
     Internal(String),
+    /// ESI endpoint group is offline and in cooldown period.
+    ///
+    /// This error indicates that an ESI endpoint group has experienced multiple failures
+    /// and is temporarily unavailable. The endpoint will attempt recovery after a cooldown period.
+    #[error("ESI endpoint group is offline, please try again later")]
+    EsiEndpointOffline,
     /// ESI client error (API requests, OAuth, rate limiting).
     #[error(transparent)]
     Esi(#[from] eve_esi::Error),
