@@ -88,7 +88,7 @@ where
             }
             Ok(_) => {
                 tracing::trace!("ESI request successful");
-                self.group.maybe_reset_to_healthy(check_result).await;
+                self.group.handle_success(check_result).await;
             }
             _ => {}
         }
@@ -143,12 +143,12 @@ where
             Ok(CachedResponse::Fresh(_)) => {
                 tracing::trace!("Cached ESI request returned fresh data (200 OK)");
                 // Both Fresh and NotModified are considered successful responses
-                self.group.maybe_reset_to_healthy(check_result).await;
+                self.group.handle_success(check_result).await;
             }
             Ok(CachedResponse::NotModified) => {
                 tracing::trace!("Cached ESI request returned 304 Not Modified");
                 // Both Fresh and NotModified are considered successful responses
-                self.group.maybe_reset_to_healthy(check_result).await;
+                self.group.handle_success(check_result).await;
             }
             _ => {}
         }

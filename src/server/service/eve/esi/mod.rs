@@ -65,18 +65,20 @@ use std::{sync::Arc, time::Duration};
 use character::CharacterEndpoints;
 use group::EndpointGroup;
 
-/// Number of 5xx errors within the error window required to trip the circuit breaker.
+/// Size of the sliding window for tracking recent request outcomes.
 ///
-/// When an endpoint group reaches this many errors within `ENDPOINT_GROUP_ERROR_WINDOW`,
-/// the circuit breaker trips and transitions the group to Offline state.
-const ENDPOINT_GROUP_ERROR_LIMIT: usize = 20;
+/// The circuit breaker tracks the last N requests (both successes and failures).
+/// This provides volume-independent failure detection that works equally well
+/// for low-volume and high-volume endpoints.
+const ENDPOINT_GROUP_SLIDING_WINDOW_SIZE: usize = 10;
 
-/// Time window for accumulating errors before resetting the count.
+/// Error rate threshold (as a percentage) required to trip the circuit breaker.
 ///
-/// If no errors occur for this duration while in Impaired state, the endpoint group
-/// returns to Healthy. Errors within this window from the first error accumulate
-/// towards `ENDPOINT_GROUP_ERROR_LIMIT`.
-const ENDPOINT_GROUP_ERROR_WINDOW: Duration = Duration::from_secs(300);
+/// When the error rate within the sliding window exceeds this threshold,
+/// the circuit breaker trips and transitions the group to Offline state.
+/// For example, with a window size of 20 and threshold of 80%, the circuit
+/// trips when 16 or more of the last 20 requests have failed.
+const ENDPOINT_GROUP_ERROR_RATE_THRESHOLD: f64 = 0.80;
 
 /// Cooldown period after circuit breaker trips before allowing recovery attempts.
 ///

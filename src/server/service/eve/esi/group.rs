@@ -5,13 +5,21 @@
 //! on their health status. The circuit breaker has four states:
 //!
 //! - `Healthy`: Normal operation, no recent errors
-//! - `Impaired`: Errors detected within the error window, counting towards threshold
+//! - `Impaired`: Errors detected, tracking requests in sliding window
 //! - `Recovering`: Attempting to recover from Offline state after cooldown
 //! - `Offline`: Circuit breaker tripped, requests blocked until cooldown expires
 //!
 //! The implementation uses a read-write lock for status management and an atomic
 //! flag to coordinate recovery attempts across concurrent requests.
+//!
+//! ## Sliding Window Approach
+//!
+//! The circuit breaker uses a sliding window to track the last N request outcomes
+//! (success or failure). This provides volume-independent failure detection that
+//! works equally well for low-volume and high-volume endpoints. When the error rate
+//! within the window exceeds the threshold, the circuit breaker trips.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -20,7 +28,8 @@ use dioxus_logger::tracing;
 use tokio::sync::RwLock;
 
 use super::{
-    ENDPOINT_GROUP_ERROR_LIMIT, ENDPOINT_GROUP_ERROR_WINDOW, ENDPOINT_GROUP_RETRY_COOLDOWN,
+    ENDPOINT_GROUP_ERROR_RATE_THRESHOLD, ENDPOINT_GROUP_RETRY_COOLDOWN,
+    ENDPOINT_GROUP_SLIDING_WINDOW_SIZE,
 };
 use crate::server::error::AppError;
 
@@ -77,31 +86,26 @@ impl EndpointGroup {
 ///
 /// State transitions:
 /// - `Healthy` → `Impaired`: First 5xx error occurs
-/// - `Impaired` → `Healthy`: Error window expires without reaching threshold
-/// - `Impaired` → `Offline`: Error count reaches threshold within window
+/// - `Impaired` → `Healthy`: Error rate drops below threshold (successful requests)
+/// - `Impaired` → `Offline`: Error rate exceeds threshold in sliding window
 /// - `Offline` → `Recovering`: Cooldown expires and request attempts recovery
 /// - `Recovering` → `Healthy`: Successful request during recovery
-/// - `Recovering` → `Offline`: Too many errors during recovery (stricter than Impaired)
+/// - `Recovering` → `Offline`: Error during recovery (strict fail-fast behavior)
 #[derive(Debug, Clone)]
 pub(super) enum EndpointStatus {
     /// Normal operation, no recent errors
     Healthy,
-    /// Errors detected, counting towards circuit breaker threshold
+    /// Errors detected, tracking request outcomes in sliding window
     Impaired {
-        /// Timestamp of first error in current window (used for window expiration)
+        /// Timestamp of first error (kept for observability/debugging)
+        #[allow(dead_code)]
         first_error: DateTime<Utc>,
-        /// Timestamp of most recent error (kept for observability/debugging)
-        last_error: DateTime<Utc>,
-        /// Number of errors within current window
-        error_count: usize,
+        /// Sliding window of recent request outcomes (true = success, false = error)
+        /// Most recent requests are at the back of the deque
+        recent_requests: VecDeque<bool>,
     },
     /// Attempting to recover from Offline state after cooldown
-    Recovering {
-        /// Timestamp of most recent error during recovery
-        last_error: DateTime<Utc>,
-        /// Number of errors since recovery began (stricter threshold than Impaired)
-        error_count: usize,
-    },
+    Recovering,
     /// Circuit breaker tripped, requests blocked until cooldown expires
     Offline {
         /// Timestamp when endpoint went offline (used for cooldown calculation)
@@ -205,12 +209,10 @@ impl EndpointGroup {
         }
     }
 
-    /// Reset endpoint to healthy state if conditions are met.
+    /// Record a successful request outcome and potentially reset to healthy state.
     ///
-    /// This method is called after a successful request to potentially reset the endpoint
-    /// from `Impaired` or `Recovering` back to `Healthy`. It uses the provided `CheckResult`
-    /// to optimize lock acquisition - if the endpoint was `Healthy` at check time, no locks
-    /// are acquired.
+    /// This method is called after a successful request to update the sliding window
+    /// and potentially reset the endpoint from `Impaired` or `Recovering` back to `Healthy`.
     ///
     /// # Arguments
     /// - `check_result` - The result from `check_and_begin_recovery()`, indicating state at check time
@@ -218,49 +220,17 @@ impl EndpointGroup {
     /// # Behavior
     /// - If `check_result` indicates `Healthy`: No-op, no locks acquired (fast path)
     /// - If `Recovering`: Immediately resets to `Healthy` on success
-    /// - If `Impaired`: Resets to `Healthy` only if error window has expired since first error
-    ///
-    /// # Design Note
-    /// The `check_result` parameter creates temporal coupling with `check_and_begin_recovery()`
-    /// but provides a significant performance optimization by avoiding lock acquisition when
-    /// the endpoint is healthy. The state is double-checked after acquiring locks to handle
-    /// concurrent modifications.
-    pub(super) async fn maybe_reset_to_healthy(&self, check_result: CheckResult) {
+    /// - If `Impaired`: Records success in sliding window, resets to `Healthy` if error rate drops below threshold
+    pub(super) async fn handle_success(&self, check_result: CheckResult) {
         if check_result.attempting_recovery || check_result.was_impaired {
-            // Fast path: check if reset is needed with read lock
-            let should_reset = {
-                let status = self.status.read().await;
-                status.should_reset_to_healthy()
-            };
+            let mut status = self.status.write().await;
+            let was_recovering = matches!(*status, EndpointStatus::Recovering { .. });
 
-            if should_reset {
-                // Only acquire write lock if we actually need to reset
-                let mut status = self.status.write().await;
-                let was_recovering = matches!(*status, EndpointStatus::Recovering { .. });
-                let was_impaired = matches!(*status, EndpointStatus::Impaired { .. });
+            status.handle_success(self.name);
 
-                // Double-check after acquiring write lock (state may have changed)
-                if status.should_reset_to_healthy() {
-                    status.reset_to_healthy();
-
-                    // Log successful recovery
-                    if was_recovering {
-                        tracing::info!(
-                            group = %self.name,
-                            "ESI endpoint group successfully recovered to healthy state"
-                        );
-                    } else if was_impaired {
-                        tracing::debug!(
-                            group = %self.name,
-                            "ESI endpoint group reset to healthy after error window expired"
-                        );
-                    }
-                }
-
-                // If we successfully recovered to Healthy, clear the recovery flag
-                if was_recovering && matches!(*status, EndpointStatus::Healthy) {
-                    self.recovering.store(false, Ordering::Release);
-                }
+            // If we successfully recovered to Healthy from Recovering, clear the recovery flag
+            if was_recovering && matches!(*status, EndpointStatus::Healthy) {
+                self.recovering.store(false, Ordering::Release);
             }
         }
     }
@@ -303,17 +273,11 @@ impl EndpointStatus {
     /// to atomically transition the endpoint into recovery mode.
     ///
     /// # Behavior
-    /// - If current state is `Offline`: Transitions to `Recovering` with error count reset
+    /// - If current state is `Offline`: Transitions to `Recovering`
     /// - If current state is not `Offline`: No-op (another thread may have already transitioned)
-    ///
-    /// Preserves the `last_error` timestamp from the `Offline` state to maintain
-    /// accurate error history for observability.
     pub(super) fn begin_recovery_attempt(&mut self) {
-        if let EndpointStatus::Offline { last_error } = self {
-            *self = EndpointStatus::Recovering {
-                last_error: *last_error,
-                error_count: 0,
-            };
+        if let EndpointStatus::Offline { .. } = self {
+            *self = EndpointStatus::Recovering;
         }
     }
 
@@ -325,26 +289,19 @@ impl EndpointStatus {
     /// # State-specific behavior
     ///
     /// ## Healthy
-    /// Transitions to `Impaired` with error count of 1.
+    /// Transitions to `Impaired` with a sliding window containing one error.
     ///
     /// ## Impaired
-    /// - If error window expired: Resets to `Impaired` with new window and count of 1
-    /// - If within window: Increments error count
-    ///   - If count reaches threshold: Transitions to `Offline`
-    ///   - Otherwise: Remains `Impaired` with updated count
+    /// Adds the error to the sliding window and checks if error rate exceeds threshold:
+    /// - If error rate > threshold: Transitions to `Offline`
+    /// - Otherwise: Remains `Impaired` with updated window
     ///
     /// ## Recovering
-    /// Applies stricter threshold (3 errors vs 20 for Impaired):
-    /// - If count reaches 3: Transitions to `Offline`
-    /// - Otherwise: Remains `Recovering` with updated count
+    /// Applies strict fail-fast behavior - any error immediately transitions back to `Offline`.
+    /// This prevents prolonged recovery attempts when the endpoint is still broken.
     ///
     /// ## Offline
     /// No-op, remains `Offline` until cooldown expires.
-    ///
-    /// # Design Note
-    /// The stricter threshold during recovery (3 errors) assumes each error will be
-    /// retried multiple times at the HTTP client layer, allowing for approximately
-    /// 9 total attempts (3 errors × ~3 attempts each) before giving up.
     pub(super) fn handle_5xx_error(&mut self, group_name: &str) {
         let now = Utc::now();
 
@@ -354,128 +311,133 @@ impl EndpointStatus {
                     group = %group_name,
                     "ESI endpoint group transitioned from Healthy to Impaired after first 5xx error"
                 );
+                let mut window = VecDeque::with_capacity(ENDPOINT_GROUP_SLIDING_WINDOW_SIZE);
+                window.push_back(false); // false = error
                 *self = EndpointStatus::Impaired {
                     first_error: now,
-                    last_error: now,
-                    error_count: 1,
+                    recent_requests: window,
                 };
             }
             EndpointStatus::Impaired {
-                first_error,
-                last_error: _,
-                error_count,
+                first_error: _,
+                recent_requests,
             } => {
-                let window_elapsed = now.signed_duration_since(*first_error);
+                // Add error to sliding window
+                recent_requests.push_back(false); // false = error
 
-                if window_elapsed.to_std().unwrap_or(Duration::ZERO) >= ENDPOINT_GROUP_ERROR_WINDOW
-                {
-                    // Window expired, start new window
-                    tracing::debug!(
-                        group = %group_name,
-                        old_error_count = %error_count,
-                        "ESI endpoint group error window expired, starting new window"
-                    );
-                    *self = EndpointStatus::Impaired {
-                        first_error: now,
-                        last_error: now,
-                        error_count: 1,
-                    };
-                } else {
-                    // Still within window, accumulate errors
-                    let new_count = *error_count + 1;
-
-                    if new_count >= ENDPOINT_GROUP_ERROR_LIMIT {
-                        tracing::error!(
-                            group = %group_name,
-                            error_count = %new_count,
-                            error_limit = %ENDPOINT_GROUP_ERROR_LIMIT,
-                            window_seconds = %ENDPOINT_GROUP_ERROR_WINDOW.as_secs(),
-                            cooldown_seconds = %ENDPOINT_GROUP_RETRY_COOLDOWN.as_secs(),
-                            "ESI endpoint group circuit breaker tripped - too many 5xx errors within window; endpoint now offline"
-                        );
-                        *self = EndpointStatus::Offline { last_error: now };
-                    } else {
-                        *self = EndpointStatus::Impaired {
-                            first_error: *first_error,
-                            last_error: now,
-                            error_count: new_count,
-                        };
-                    }
+                // Maintain window size
+                if recent_requests.len() > ENDPOINT_GROUP_SLIDING_WINDOW_SIZE {
+                    recent_requests.pop_front();
                 }
-            }
-            EndpointStatus::Recovering { error_count, .. } => {
-                // Stricter during recovery - only allow 3 errors (each with 2 retries = 9 attempts total)
-                let new_count = *error_count + 1;
 
-                if new_count >= 3 {
+                // Calculate error rate
+                let error_count = recent_requests.iter().filter(|&&success| !success).count();
+                let total_requests = recent_requests.len();
+                let error_rate = error_count as f64 / total_requests as f64;
+
+                if error_rate >= ENDPOINT_GROUP_ERROR_RATE_THRESHOLD {
                     tracing::error!(
                         group = %group_name,
-                        error_count = %new_count,
-                        "ESI endpoint group failed recovery - too many errors during recovery attempt; returning to offline state"
+                        error_count = %error_count,
+                        total_requests = %total_requests,
+                        error_rate = %format!("{:.1}%", error_rate * 100.0),
+                        threshold = %format!("{:.1}%", ENDPOINT_GROUP_ERROR_RATE_THRESHOLD * 100.0),
+                        cooldown_seconds = %ENDPOINT_GROUP_RETRY_COOLDOWN.as_secs(),
+                        "ESI endpoint group circuit breaker tripped - error rate exceeded threshold; endpoint now offline"
                     );
                     *self = EndpointStatus::Offline { last_error: now };
                 } else {
                     tracing::debug!(
                         group = %group_name,
-                        error_count = %new_count,
-                        "ESI endpoint group encountered error during recovery attempt"
+                        error_count = %error_count,
+                        total_requests = %total_requests,
+                        error_rate = %format!("{:.1}%", error_rate * 100.0),
+                        "ESI endpoint group recorded error in sliding window"
                     );
-                    *self = EndpointStatus::Recovering {
-                        last_error: now,
-                        error_count: new_count,
-                    };
+                    // State remains Impaired with updated window
                 }
+            }
+            EndpointStatus::Recovering { .. } => {
+                // Strict fail-fast during recovery - any error immediately returns to offline
+                tracing::error!(
+                    group = %group_name,
+                    "ESI endpoint group failed recovery - error during recovery attempt; returning to offline state"
+                );
+                *self = EndpointStatus::Offline { last_error: now };
             }
             EndpointStatus::Offline { .. } => {}
         }
     }
 
-    /// Check if the status should be reset to healthy (read-only check).
+    /// Record a successful request outcome.
     ///
-    /// Determines whether conditions are met for resetting to `Healthy` without
-    /// actually performing the state transition.
+    /// This method should be called after successful 2xx responses to update the
+    /// sliding window and potentially reset to healthy state.
     ///
-    /// # Returns
-    /// - `true` - Conditions met for reset (caller should acquire write lock and call `reset_to_healthy()`)
-    /// - `false` - Should not reset
+    /// # State-specific behavior
     ///
-    /// # Reset conditions
-    /// - `Recovering`: Always returns true (any success during recovery resets immediately)
-    /// - `Impaired`: Returns true if error window has expired since first error
-    /// - `Healthy` or `Offline`: Returns false
+    /// ## Healthy
+    /// No-op, already healthy.
     ///
-    /// # Design Note
-    /// For `Impaired` state, the error window must fully expire before resetting to `Healthy`.
-    /// This means even if requests are succeeding, the endpoint remains `Impaired` until
-    /// the window passes. This provides stability and prevents rapid state oscillation,
-    /// but means the endpoint may remain `Impaired` longer than strictly necessary.
-    fn should_reset_to_healthy(&self) -> bool {
+    /// ## Impaired
+    /// Adds success to sliding window. If error rate drops below threshold, transitions to `Healthy`.
+    ///
+    /// ## Recovering
+    /// Immediately transitions to `Healthy` on first success.
+    ///
+    /// ## Offline
+    /// No-op, must go through recovery first.
+    pub(super) fn handle_success(&mut self, group_name: &str) {
         match self {
-            EndpointStatus::Recovering { .. } => true, // Always reset on success
-            EndpointStatus::Impaired { first_error, .. } => {
-                let now = Utc::now();
-                let elapsed = now.signed_duration_since(*first_error);
-                elapsed.to_std().unwrap_or(Duration::ZERO) >= ENDPOINT_GROUP_ERROR_WINDOW
+            EndpointStatus::Healthy => {
+                // No-op, already healthy
             }
-            _ => false,
-        }
-    }
+            EndpointStatus::Impaired {
+                recent_requests, ..
+            } => {
+                // Add success to sliding window
+                recent_requests.push_back(true); // true = success
 
-    /// Actually perform the reset to healthy (mutating operation).
-    ///
-    /// Transitions the endpoint status to `Healthy` if currently in a degraded state.
-    /// This should only be called after `should_reset_to_healthy()` returns true and
-    /// a write lock has been acquired.
-    ///
-    /// # Behavior
-    /// - `Recovering` or `Impaired`: Transitions to `Healthy`
-    /// - Other states: No-op
-    fn reset_to_healthy(&mut self) {
-        match self {
-            EndpointStatus::Recovering { .. } | EndpointStatus::Impaired { .. } => {
+                // Maintain window size
+                if recent_requests.len() > ENDPOINT_GROUP_SLIDING_WINDOW_SIZE {
+                    recent_requests.pop_front();
+                }
+
+                // Calculate error rate
+                let error_count = recent_requests.iter().filter(|&&success| !success).count();
+                let total_requests = recent_requests.len();
+                let error_rate = error_count as f64 / total_requests as f64;
+
+                if error_rate < ENDPOINT_GROUP_ERROR_RATE_THRESHOLD {
+                    tracing::info!(
+                        group = %group_name,
+                        error_count = %error_count,
+                        total_requests = %total_requests,
+                        error_rate = %format!("{:.1}%", error_rate * 100.0),
+                        "ESI endpoint group recovered to healthy state - error rate below threshold"
+                    );
+                    *self = EndpointStatus::Healthy;
+                } else {
+                    tracing::debug!(
+                        group = %group_name,
+                        error_count = %error_count,
+                        total_requests = %total_requests,
+                        error_rate = %format!("{:.1}%", error_rate * 100.0),
+                        "ESI endpoint group recorded success in sliding window, but error rate still above threshold"
+                    );
+                }
+            }
+            EndpointStatus::Recovering { .. } => {
+                // Immediate success during recovery = back to healthy
+                tracing::info!(
+                    group = %group_name,
+                    "ESI endpoint group successfully recovered to healthy state"
+                );
                 *self = EndpointStatus::Healthy;
             }
-            _ => {}
+            EndpointStatus::Offline { .. } => {
+                // No-op, must go through recovery first
+            }
         }
     }
 }
