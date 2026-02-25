@@ -13,20 +13,52 @@
 //! - Requires a cooldown period before attempting recovery
 //! - Gradually recovers with stricter error tolerance
 //!
-//! # Example
+//! # Examples
+//!
+//! ## Standard Request (Fresh Data)
 //!
 //! ```ignore
 //! let esi_provider = EsiProvider::new(&esi_client);
 //!
-//! // Access character endpoints
+//! // Make a standard request expecting fresh data (200 OK)
 //! let character_info = esi_provider
 //!     .character()
 //!     .get_character_public_information(123456789)
+//!     .send()
 //!     .await?;
+//! ```
+//!
+//! ## Cached Request (Conditional)
+//!
+//! ```ignore
+//! use eve_esi::{CacheStrategy, CachedResponse};
+//!
+//! let esi_provider = EsiProvider::new(&esi_client);
+//!
+//! // Make a conditional request with If-Modified-Since
+//! let response = esi_provider
+//!     .character()
+//!     .get_character_public_information(123456789)
+//!     .send_cached(CacheStrategy::IfModifiedSince(last_updated))
+//!     .await?;
+//!
+//! match response {
+//!     CachedResponse::Fresh(esi_response) => {
+//!         // ESI returned new data (200 OK)
+//!         println!("Character data updated: {:?}", esi_response.data);
+//!     }
+//!     CachedResponse::NotModified => {
+//!         // ESI returned 304 Not Modified - data unchanged
+//!         println!("Character data has not changed");
+//!     }
+//! }
 //! ```
 
 mod character;
 mod group;
+#[macro_use]
+mod macros;
+pub(crate) mod request;
 
 use std::{sync::Arc, time::Duration};
 

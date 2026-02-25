@@ -6,10 +6,9 @@
 
 use std::sync::Arc;
 
-use eve_esi::{model::character::Character, EsiResponse};
+use eve_esi::model::character::Character;
 
-use super::group::EndpointGroup;
-use crate::server::error::AppError;
+use super::{group::EndpointGroup, macros::define_esi_endpoint};
 
 /// Handler for ESI character endpoints.
 ///
@@ -41,42 +40,19 @@ impl<'a> CharacterEndpoints<'a> {
         Self { esi_client, group }
     }
 
-    /// Retrieves public information for a character.
-    ///
-    /// Fetches public character data including name, corporation, alliance, birthday,
-    /// security status, and more from ESI.
-    ///
-    /// # Arguments
-    /// - `character_id` - EVE Online character ID
-    ///
-    /// # Returns
-    /// - `Ok(EsiResponse<Character>)` - Character data with cache headers
-    /// - `Err(AppError::EsiEndpointOffline)` - Circuit breaker is open (endpoint offline)
-    /// - `Err(AppError)` - Other errors (network, parsing, etc.)
-    pub async fn get_character_public_information(
-        &self,
-        character_id: i64,
-    ) -> Result<EsiResponse<Character>, AppError> {
-        // Check status and atomically begin recovery if needed
-        let check_result = self.group.check_and_begin_recovery().await?;
-
-        let result = self
-            .esi_client
-            .character()
-            .get_character_public_information(character_id)
-            .send()
-            .await;
-
-        match &result {
-            Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
-                self.group.handle_5xx_error().await;
-            }
-            Ok(_) => {
-                self.group.maybe_reset_to_healthy(check_result).await;
-            }
-            _ => {}
-        }
-
-        result.map_err(Into::into)
+    define_esi_endpoint! {
+        /// Retrieves public information for a character.
+        ///
+        /// Fetches public character data including name, corporation, alliance, birthday,
+        /// security status, and more from ESI.
+        ///
+        /// # Arguments
+        /// - `character_id` - EVE Online character ID
+        pub fn get_character_public_information(
+            &self,
+            character_id: i64,
+        ) -> EsiProviderRequest<Character>
+        =>
+        character, get_character_public_information[character_id]
     }
 }
