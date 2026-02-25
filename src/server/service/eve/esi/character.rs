@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use eve_esi::model::character::Character;
+use eve_esi::model::character::{Character, CharacterAffiliation};
 
 use super::{group::EndpointGroup, macros::define_esi_endpoint};
 
@@ -54,5 +54,21 @@ impl<'a> CharacterEndpoints<'a> {
         ) -> EsiProviderRequest<Character>
         =>
         character, get_character_public_information[character_id]
+    }
+
+    define_esi_endpoint! {
+        /// Retrieves character affiliations in bulk.
+        ///
+        /// Fetches affiliation data (corporation, alliance, faction) for multiple characters
+        /// at once.
+        ///
+        /// # Arguments
+        /// - `character_ids` - List of EVE Online character IDs (max 1000)
+        pub fn character_affiliation(
+            &self,
+            character_ids: Vec<i64>,
+        ) -> EsiProviderRequest<Vec<CharacterAffiliation>>
+        =>
+        character, character_affiliation[character_ids]
     }
 }

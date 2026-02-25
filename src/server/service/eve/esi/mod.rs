@@ -54,16 +54,22 @@
 //! }
 //! ```
 
+mod alliance;
 mod character;
+mod corporation;
 mod group;
 #[macro_use]
 mod macros;
 pub(crate) mod request;
+mod universe;
 
 use std::{sync::Arc, time::Duration};
 
+use alliance::AllianceEndpoints;
 use character::CharacterEndpoints;
+use corporation::CorporationEndpoints;
 use group::EndpointGroup;
+use universe::UniverseEndpoints;
 
 /// Size of the sliding window for tracking recent request outcomes.
 ///
@@ -104,14 +110,23 @@ pub struct EsiProvider<'a> {
 /// Each field represents a logical grouping of related ESI endpoints that share
 /// circuit breaker state. This allows fine-grained failure isolation.
 struct Endpoints {
-    /// Character-related endpoints (public info, portraits, etc.)
+    /// Alliance-related endpoints (public info, etc.)
+    alliance: Arc<EndpointGroup>,
+    /// Character-related endpoints (public info, etc.)
     character: Arc<EndpointGroup>,
+    /// Corporation-related endpoints (public info, etc.)
+    corporation: Arc<EndpointGroup>,
+    /// Universe-related endpoints (factions info, etc.)
+    universe: Arc<EndpointGroup>,
 }
 
 impl Default for Endpoints {
     fn default() -> Self {
         Self {
+            alliance: Arc::new(EndpointGroup::new("alliance")),
             character: Arc::new(EndpointGroup::new("character")),
+            corporation: Arc::new(EndpointGroup::new("corporation")),
+            universe: Arc::new(EndpointGroup::new("universe")),
         }
     }
 }
@@ -133,6 +148,17 @@ impl<'a> EsiProvider<'a> {
         }
     }
 
+    /// Returns a handler for alliance-related ESI endpoints.
+    ///
+    /// All alliance endpoints share the same circuit breaker state, so repeated
+    /// failures on any alliance endpoint will affect the entire group.
+    ///
+    /// # Returns
+    /// `AllianceEndpoints` handler for making alliance-related requests
+    pub fn alliance(&'a self) -> AllianceEndpoints<'a> {
+        AllianceEndpoints::new(self.esi_client, &self.endpoints.alliance)
+    }
+
     /// Returns a handler for character-related ESI endpoints.
     ///
     /// All character endpoints share the same circuit breaker state, so repeated
@@ -142,5 +168,27 @@ impl<'a> EsiProvider<'a> {
     /// `CharacterEndpoints` handler for making character-related requests
     pub fn character(&'a self) -> CharacterEndpoints<'a> {
         CharacterEndpoints::new(self.esi_client, &self.endpoints.character)
+    }
+
+    /// Returns a handler for corporation-related ESI endpoints.
+    ///
+    /// All corporation endpoints share the same circuit breaker state, so repeated
+    /// failures on any corporation endpoint will affect the entire group.
+    ///
+    /// # Returns
+    /// `CorporationEndpoints` handler for making corporation-related requests
+    pub fn corporation(&'a self) -> CorporationEndpoints<'a> {
+        CorporationEndpoints::new(self.esi_client, &self.endpoints.corporation)
+    }
+
+    /// Returns a handler for universe-related ESI endpoints.
+    ///
+    /// All universe endpoints share the same circuit breaker state, so repeated
+    /// failures on any universe endpoint will affect the entire group.
+    ///
+    /// # Returns
+    /// `UniverseEndpoints` handler for making universe-related requests
+    pub fn universe(&'a self) -> UniverseEndpoints<'a> {
+        UniverseEndpoints::new(self.esi_client, &self.endpoints.universe)
     }
 }
