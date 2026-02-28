@@ -239,19 +239,19 @@ mod pop {
 
         // Schedule job2 first (10 minutes ago - middle)
         queue
-            .schedule(job2.clone(), now - Duration::minutes(10))
+            .schedule(job2.clone(), now - Duration::minutes(10), None)
             .await
             .expect("Should schedule job2");
 
         // Schedule job3 second (5 minutes ago - newest)
         queue
-            .schedule(job3.clone(), now - Duration::minutes(5))
+            .schedule(job3.clone(), now - Duration::minutes(5), None)
             .await
             .expect("Should schedule job3");
 
         // Schedule job1 third (15 minutes ago - earliest)
         queue
-            .schedule(job1.clone(), now - Duration::minutes(15))
+            .schedule(job1.clone(), now - Duration::minutes(15), None)
             .await
             .expect("Should schedule job1");
 
@@ -362,17 +362,17 @@ mod pop {
         };
 
         queue
-            .schedule(alliance_job.clone(), now - Duration::minutes(1))
+            .schedule(alliance_job.clone(), now - Duration::minutes(1), None)
             .await
             .expect("Should schedule alliance job");
 
         queue
-            .schedule(char_job.clone(), now - Duration::minutes(3))
+            .schedule(char_job.clone(), now - Duration::minutes(3), None)
             .await
             .expect("Should schedule char job");
 
         queue
-            .schedule(corp_job.clone(), now - Duration::minutes(2))
+            .schedule(corp_job.clone(), now - Duration::minutes(2), None)
             .await
             .expect("Should schedule corp job");
 
@@ -465,7 +465,7 @@ mod pop {
         // Schedule job 10 minutes in the future
         let future_time = Utc::now() + Duration::minutes(10);
         queue
-            .schedule(job.clone(), future_time)
+            .schedule(job.clone(), future_time, None)
             .await
             .expect("Schedule should succeed");
 
@@ -498,7 +498,7 @@ mod pop {
         // Schedule job in the past (should be immediately available)
         let past_time = Utc::now() - Duration::minutes(5);
         queue
-            .schedule(job.clone(), past_time)
+            .schedule(job.clone(), past_time, None)
             .await
             .expect("Schedule should succeed");
 

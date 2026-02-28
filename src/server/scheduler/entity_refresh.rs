@@ -185,7 +185,7 @@ impl<'a> EntityRefreshTracker<'a> {
                 continue;
             }
 
-            match worker_queue.schedule(job, scheduled_at).await {
+            match worker_queue.schedule(job, scheduled_at, None).await {
                 Ok(was_scheduled) => {
                     if was_scheduled {
                         scheduled_count += 1;

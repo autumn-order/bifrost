@@ -217,7 +217,7 @@ mod len {
         let scheduled_at = chrono::Utc::now() + chrono::Duration::seconds(3600);
 
         queue
-            .schedule(job, scheduled_at)
+            .schedule(job, scheduled_at, None)
             .await
             .expect("Should schedule job");
 
