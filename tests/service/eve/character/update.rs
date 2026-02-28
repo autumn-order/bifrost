@@ -5,7 +5,10 @@
 //! retry logic for transient failures, caching with 304 Not Modified responses,
 //! and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::AppError, service::eve::character::CharacterService};
+use bifrost::server::{
+    error::AppError,
+    service::eve::{character::CharacterService, esi::EsiProvider},
+};
 use bifrost_test_utils::prelude::*;
 use sea_orm::EntityTrait;
 
@@ -35,7 +38,8 @@ async fn updates_new_character_without_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -94,7 +98,8 @@ async fn updates_new_character_with_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -160,7 +165,8 @@ async fn updates_character_with_full_hierarchy() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -228,7 +234,8 @@ async fn updates_character_with_existing_corporation() -> Result<(), TestError> 
         .await?;
     assert_eq!(corporations_before.len(), 1);
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -287,7 +294,8 @@ async fn updates_character_with_existing_faction() -> Result<(), TestError> {
     let factions_before = entity::prelude::EveFaction::find().all(&test.db).await?;
     assert_eq!(factions_before.len(), 1);
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -336,7 +344,8 @@ async fn updates_existing_character() -> Result<(), TestError> {
     // Small delay to ensure timestamp changes
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -389,7 +398,8 @@ async fn updates_character_corporation_affiliation() -> Result<(), TestError> {
         .unwrap();
     let old_corp_db_id = character_before.corporation_id;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -443,7 +453,8 @@ async fn adds_character_faction_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(character_before.faction_id.is_none());
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -497,7 +508,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -543,7 +555,8 @@ async fn retries_with_corporation_dependency() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -587,7 +600,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_err());
@@ -617,7 +631,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(matches!(
@@ -650,7 +665,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(matches!(result, Err(AppError::Database(_))));
@@ -681,7 +697,8 @@ async fn fails_when_corporation_table_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(matches!(result, Err(AppError::Database(_))));
@@ -718,7 +735,8 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(matches!(result, Err(AppError::Database(_))));
@@ -749,7 +767,8 @@ async fn rolls_back_transaction_on_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_err());
@@ -787,7 +806,8 @@ async fn updates_multiple_characters_sequentially() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
 
     // Update first character
     let result1 = character_service.update(char1_id).await;
@@ -841,7 +861,8 @@ async fn update_is_idempotent() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
 
     // Update same character three times
     let result1 = character_service.update(character_id).await;
@@ -892,7 +913,8 @@ async fn updates_timestamp_on_304_not_modified() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -940,7 +962,8 @@ async fn updates_timestamp_on_304_with_affiliations() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
     let result = character_service.update(character_id).await;
 
     assert!(result.is_ok());
@@ -990,7 +1013,8 @@ async fn handles_mixed_304_and_fresh_responses() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let character_service = CharacterService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let character_service = CharacterService::new(&test.db, &esi_provider);
 
     // First update: 304 Not Modified
     let character_before = entity::prelude::EveCharacter::find()

@@ -5,10 +5,11 @@
 //! transaction handling, retry logic, input validation, and error handling.
 
 use bifrost::server::{
-    error::AppError, service::eve::affiliation::AffiliationService,
+    error::AppError, service::eve::affiliation::AffiliationService, service::eve::esi::EsiProvider,
     util::eve::ESI_AFFILIATION_REQUEST_LIMIT,
 };
 use bifrost_test_utils::prelude::*;
+
 use sea_orm::EntityTrait;
 
 /// Tests updating affiliations with a single character.
@@ -54,7 +55,8 @@ async fn updates_single_character_affiliation() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -143,7 +145,8 @@ async fn updates_multiple_character_affiliations() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![char1_id, char2_id, char3_id])
         .await;
@@ -214,7 +217,8 @@ async fn updates_affiliations_with_existing_entities() -> Result<(), TestError> 
         .unwrap();
     let old_corp_id = character.corporation_id;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -287,7 +291,8 @@ async fn updates_corporation_alliance_affiliation() -> Result<(), TestError> {
     let old_alliance_db_id = corp_before.alliance_id;
     assert!(old_alliance_db_id.is_some());
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -349,7 +354,8 @@ async fn updates_character_corporation_affiliation() -> Result<(), TestError> {
         .unwrap();
     let old_corp_db_id = char_before.corporation_id;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -413,7 +419,8 @@ async fn updates_character_faction_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(char_before.faction_id.is_none());
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -449,7 +456,8 @@ async fn handles_empty_character_list() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service.update_affiliations(vec![]).await;
 
     assert!(result.is_ok());
@@ -503,7 +511,8 @@ async fn truncates_character_ids_exceeding_esi_limit() -> Result<(), TestError> 
 
     let test = test_builder.build().await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service.update_affiliations(character_ids).await;
 
     assert!(result.is_ok());
@@ -562,7 +571,8 @@ async fn filters_invalid_character_ids() -> Result<(), TestError> {
     let mut character_ids = invalid_char_ids.clone();
     character_ids.push(valid_char_id);
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service.update_affiliations(character_ids).await;
 
     assert!(result.is_ok());
@@ -601,7 +611,8 @@ async fn handles_all_invalid_character_ids() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(invalid_char_ids)
         .await;
@@ -659,7 +670,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -701,7 +713,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -733,7 +746,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -777,7 +791,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -807,7 +822,8 @@ async fn handles_empty_affiliation_response() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -857,7 +873,8 @@ async fn updates_affiliations_with_no_alliance() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -914,7 +931,8 @@ async fn updates_affiliations_with_no_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -980,7 +998,8 @@ async fn updates_complete_affiliation_hierarchy() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![character_id])
         .await;
@@ -1085,7 +1104,8 @@ async fn deduplicates_entity_ids_in_affiliation_data() -> Result<(), TestError> 
         .build()
         .await?;
 
-    let affiliation_service = AffiliationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let affiliation_service = AffiliationService::new(&test.db, &esi_provider);
     let result = affiliation_service
         .update_affiliations(vec![char1_id, char2_id, char3_id])
         .await;

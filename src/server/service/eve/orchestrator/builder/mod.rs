@@ -8,7 +8,7 @@ use eve_esi::model::{alliance::Alliance, character::Character, corporation::Corp
 use sea_orm::DatabaseConnection;
 
 use super::{EveEntityOrchestrator, FactionFetchState};
-use crate::server::error::AppError;
+use crate::server::{error::AppError, service::eve::esi::EsiProvider};
 
 /// Builder for fetching EVE Online entities from ESI with dependency resolution.
 ///
@@ -22,11 +22,14 @@ use crate::server::error::AppError;
 /// # Example
 ///
 /// ```no_run
-/// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
+/// # use bifrost::server::{
+/// #    service::eve::{orchestrator::EveEntityOrchestrator, esi::EsiProvider},
+/// #    error::AppError,
+/// # };
 /// # use sea_orm::DatabaseConnection;
-/// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), AppError> {
+/// # async fn example(db: &DatabaseConnection, esi_provider: &EsiProvider) -> Result<(), AppError> {
 /// // Fetch characters and their dependencies (corporations, alliances, factions)
-/// let orchestrator = EveEntityOrchestrator::builder(db, esi)
+/// let orchestrator = EveEntityOrchestrator::builder(db, esi_provider)
 ///     .character(123456789)
 ///     .characters(vec![987654321, 111222333])
 ///     .build()
@@ -36,7 +39,7 @@ use crate::server::error::AppError;
 /// ```
 pub struct EveEntityOrchestratorBuilder<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 
     // Explicitly request faction fetch (for periodic faction updates)
     requested_faction_update: bool,
@@ -67,14 +70,14 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `EveEntityOrchestratorBuilder` - New builder instance with empty request sets
-    pub(super) fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
+    pub(super) fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
         Self {
             db,
-            esi_client,
+            esi_provider,
             requested_character_ids: Default::default(),
             requested_corporation_ids: Default::default(),
             requested_alliance_ids: Default::default(),

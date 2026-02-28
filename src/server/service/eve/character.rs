@@ -8,8 +8,10 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::character::CharacterRepository, error::AppError, model::db::EveCharacterModel,
-    service::eve::orchestrator::EveEntityOrchestrator,
+    data::eve::character::CharacterRepository,
+    error::AppError,
+    model::db::EveCharacterModel,
+    service::eve::{esi::EsiProvider, orchestrator::EveEntityOrchestrator},
 };
 
 /// Service for managing EVE Online character operations.
@@ -18,7 +20,7 @@ use crate::server::{
 /// Uses orchestrators to handle dependency resolution and automatic retry logic for transient failures.
 pub struct CharacterService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> CharacterService<'a> {
@@ -28,12 +30,12 @@ impl<'a> CharacterService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `CharacterService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Updates character information by fetching from ESI and persisting to the database.
@@ -70,7 +72,7 @@ impl<'a> CharacterService<'a> {
             Some(existing_character) => {
                 // Existing character: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_character) = self
-                    .esi_client
+                    .esi_provider
                     .character()
                     .get_character_public_information(character_id)
                     .send_cached(CacheStrategy::IfModifiedSince(
@@ -86,14 +88,14 @@ impl<'a> CharacterService<'a> {
                 };
 
                 // Build orchestrator with pre-fetched data to avoid redundant ESI call
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .character_with_data(character_id, esi_character.data)
                     .build()
                     .await?
             }
             None => {
                 // New character: orchestrator will fetch from ESI during build()
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .character(character_id)
                     .build()
                     .await?

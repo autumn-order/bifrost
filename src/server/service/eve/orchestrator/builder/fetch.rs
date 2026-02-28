@@ -35,7 +35,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         let characters: Vec<(i64, Character)> = stream::iter(character_ids)
             .map(|character_id| async move {
                 let character = self
-                    .esi_client
+                    .esi_provider
                     .character()
                     .get_character_public_information(character_id)
                     .send()
@@ -70,7 +70,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         let corporations: Vec<(i64, Corporation)> = stream::iter(corporation_ids)
             .map(|corporation_id| async move {
                 let corporation = self
-                    .esi_client
+                    .esi_provider
                     .corporation()
                     .get_corporation_information(corporation_id)
                     .send()
@@ -105,7 +105,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
         let alliances: Vec<(i64, Alliance)> = stream::iter(alliance_ids)
             .map(|alliance_id| async move {
                 let alliance = self
-                    .esi_client
+                    .esi_provider
                     .alliance()
                     .get_alliance_information(alliance_id)
                     .send()
@@ -149,7 +149,7 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
 
                 // Fetch factions from ESI with If-Modified-Since since we have existing data
                 let esi_response = self
-                    .esi_client
+                    .esi_provider
                     .universe()
                     .get_factions()
                     .send_cached(CacheStrategy::IfModifiedSince(latest.updated_at.and_utc()))
@@ -165,7 +165,12 @@ impl<'a> EveEntityOrchestratorBuilder<'a> {
             }
             None => {
                 // No existing factions, fetch without If-Modified-Since
-                self.esi_client.universe().get_factions().send().await?.data
+                self.esi_provider
+                    .universe()
+                    .get_factions()
+                    .send()
+                    .await?
+                    .data
             }
         };
 

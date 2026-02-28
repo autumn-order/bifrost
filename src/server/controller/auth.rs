@@ -88,7 +88,7 @@ pub async fn login(
     session: Session,
     params: Query<LoginParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let login_service = LoginService::new(&state.esi_client);
+    let login_service = LoginService::new(&state.esi_provider);
     let scopes = eve_esi::ScopeBuilder::new().build();
 
     if let Some(true) = params.0.change_main {
@@ -137,7 +137,7 @@ pub async fn callback(
     session: Session,
     params: Query<CallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let callback_service = CallbackService::new(&state.db, &state.esi_client);
+    let callback_service = CallbackService::new(&state.db, &state.esi_provider);
 
     validate_csrf(&session, &params.0.state).await?;
 

@@ -26,7 +26,7 @@ async fn starts_with_pool() {
     let queue = setup_test_queue(&redis);
     let handler = WorkerJobHandler::new(
         test.db.clone(),
-        test.esi_client.clone(),
+        EsiProvider::new(test.esi_client.clone()),
         queue.clone(),
         false,
     );

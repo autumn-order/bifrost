@@ -4,8 +4,12 @@
 //! synchronization, including caching with 304 Not Modified responses, retry logic
 //! for transient failures, and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::AppError, service::eve::faction::FactionService};
+use bifrost::server::{
+    error::AppError,
+    service::eve::{esi::EsiProvider, faction::FactionService},
+};
 use bifrost_test_utils::prelude::*;
+
 use sea_orm::EntityTrait;
 
 /// Tests updating an empty factions table.
@@ -27,7 +31,8 @@ async fn updates_empty_faction_table() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let update_result = faction_service.update().await;
 
     assert!(update_result.is_ok());
@@ -68,7 +73,8 @@ async fn updates_factions_with_fresh_data() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -117,7 +123,8 @@ async fn updates_timestamps_on_304_not_modified() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -164,7 +171,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -201,7 +209,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_err());
@@ -229,7 +238,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let update_result = faction_service.update().await;
 
     assert!(matches!(
@@ -256,7 +266,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let update_result = faction_service.update().await;
 
     assert!(matches!(update_result, Err(AppError::Database(_))));
@@ -292,7 +303,8 @@ async fn updates_multiple_factions() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -330,7 +342,8 @@ async fn handles_empty_esi_response() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -369,7 +382,8 @@ async fn adds_new_factions_from_esi() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());
@@ -422,7 +436,8 @@ async fn updates_multiple_factions_with_fresh_data() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let faction_service = FactionService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let faction_service = FactionService::new(&test.db, &esi_provider);
     let result = faction_service.update().await;
 
     assert!(result.is_ok());

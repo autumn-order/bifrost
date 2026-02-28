@@ -14,6 +14,7 @@ use sea_orm::DatabaseConnection;
 use crate::server::{
     error::{retry::ErrorRetryStrategy, AppError},
     model::worker::{ScheduledWorkerJob, WorkerJob},
+    service::eve::esi::EsiProvider,
     util::eve::get_esi_downtime_remaining,
     worker::queue::WorkerQueue,
 };
@@ -24,7 +25,7 @@ use crate::server::{
 /// Each job type is dispatched to the appropriate service with logging and error handling.
 pub struct WorkerJobHandler {
     db: DatabaseConnection,
-    esi_client: eve_esi::Client,
+    esi_provider: EsiProvider,
     queue: WorkerQueue,
     /// If true, checks for ESI downtime and reschedules jobs if within the downtime window.
     ///
@@ -39,11 +40,12 @@ pub struct WorkerJobHandler {
 impl WorkerJobHandler {
     /// Creates a new WorkerJobHandler.
     ///
-    /// Initializes a job handler with database, ESI client connections, and worker queue.
+    /// Initializes a job handler with database, ESI provider with circuit breaker protection,
+    /// ESI client for OAuth2, and worker queue.
     ///
     /// # Arguments
     /// - `db` - Database connection for data persistence
-    /// - `esi_client` - ESI API client for fetching EVE Online data
+    /// - `esi_provider` - ESI provider with circuit breaker protection for data endpoints
     /// - `queue` - Worker queue for rescheduling jobs during downtime
     /// - `offset_for_esi_downtime` - If `true`, checks for ESI downtime and reschedules jobs.
     ///   Set to `false` for testing to prevent time-dependent failures.
@@ -52,13 +54,13 @@ impl WorkerJobHandler {
     /// New job handler instance
     pub fn new(
         db: DatabaseConnection,
-        esi_client: eve_esi::Client,
+        esi_provider: EsiProvider,
         queue: WorkerQueue,
         offset_for_esi_downtime: bool,
     ) -> Self {
         Self {
             db,
-            esi_client,
+            esi_provider,
             queue,
             offset_for_esi_downtime,
         }

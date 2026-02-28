@@ -13,7 +13,10 @@ use sea_orm::{DatabaseConnection, TransactionTrait};
 use crate::server::{
     data::eve::{character::CharacterRepository, corporation::CorporationRepository},
     error::AppError,
-    service::eve::orchestrator::{EveEntityOrchestrator, StoredEntities},
+    service::eve::{
+        esi::EsiProvider,
+        orchestrator::{EveEntityOrchestrator, StoredEntities},
+    },
     util::eve::{is_valid_character_id, ESI_AFFILIATION_REQUEST_LIMIT},
 };
 
@@ -24,7 +27,7 @@ use crate::server::{
 /// all relationships in a single transaction.
 pub struct AffiliationService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> AffiliationService<'a> {
@@ -34,12 +37,12 @@ impl<'a> AffiliationService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `AffiliationService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Updates character and corporation affiliations from ESI in bulk.
@@ -99,7 +102,7 @@ impl<'a> AffiliationService<'a> {
 
         // Fetch affiliation data from ESI
         let affiliations = self
-            .esi_client
+            .esi_provider
             .character()
             .character_affiliation(character_ids)
             .send()
@@ -146,7 +149,7 @@ impl<'a> AffiliationService<'a> {
             faction_ids.len()
         );
 
-        let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_client)
+        let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_provider)
             .ensure_characters_exist(character_ids.clone())
             .ensure_corporations_exist(corporation_ids.clone())
             .ensure_alliances_exist(alliance_ids.clone())

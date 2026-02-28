@@ -98,9 +98,10 @@ const ENDPOINT_GROUP_RETRY_COOLDOWN: Duration = Duration::from_secs(60);
 /// The `EsiProvider` organizes ESI endpoints into logical groups, each with independent
 /// circuit breaker state. This prevents issues with one category of endpoints (e.g., market)
 /// from affecting others (e.g., character).
-pub struct EsiProvider<'a> {
+#[derive(Clone)]
+pub struct EsiProvider {
     /// ESI API client for making requests
-    esi_client: &'a eve_esi::Client,
+    esi_client: eve_esi::Client,
     /// Collection of endpoint groups with circuit breaker state
     endpoints: Endpoints,
 }
@@ -109,6 +110,7 @@ pub struct EsiProvider<'a> {
 ///
 /// Each field represents a logical grouping of related ESI endpoints that share
 /// circuit breaker state. This allows fine-grained failure isolation.
+#[derive(Clone)]
 struct Endpoints {
     /// Alliance-related endpoints (public info, etc.)
     alliance: Arc<EndpointGroup>,
@@ -116,7 +118,7 @@ struct Endpoints {
     character: Arc<EndpointGroup>,
     /// Corporation-related endpoints (public info, etc.)
     corporation: Arc<EndpointGroup>,
-    /// Universe-related endpoints (factions info, etc.)
+    /// Universe-related endpoints (factions, systems, etc.)
     universe: Arc<EndpointGroup>,
 }
 
@@ -131,7 +133,7 @@ impl Default for Endpoints {
     }
 }
 
-impl<'a> EsiProvider<'a> {
+impl EsiProvider {
     /// Creates a new ESI provider with circuit breaker protection.
     ///
     /// Initializes all endpoint groups with healthy circuit breaker state.
@@ -141,7 +143,7 @@ impl<'a> EsiProvider<'a> {
     ///
     /// # Returns
     /// New `EsiProvider` instance ready to serve requests
-    pub fn new(esi_client: &'a eve_esi::Client) -> Self {
+    pub fn new(esi_client: eve_esi::Client) -> Self {
         Self {
             esi_client,
             endpoints: Endpoints::default(),
@@ -155,8 +157,8 @@ impl<'a> EsiProvider<'a> {
     ///
     /// # Returns
     /// `AllianceEndpoints` handler for making alliance-related requests
-    pub fn alliance(&'a self) -> AllianceEndpoints<'a> {
-        AllianceEndpoints::new(self.esi_client, &self.endpoints.alliance)
+    pub fn alliance(&self) -> AllianceEndpoints<'_> {
+        AllianceEndpoints::new(&self.esi_client, &self.endpoints.alliance)
     }
 
     /// Returns a handler for character-related ESI endpoints.
@@ -166,8 +168,8 @@ impl<'a> EsiProvider<'a> {
     ///
     /// # Returns
     /// `CharacterEndpoints` handler for making character-related requests
-    pub fn character(&'a self) -> CharacterEndpoints<'a> {
-        CharacterEndpoints::new(self.esi_client, &self.endpoints.character)
+    pub fn character(&self) -> CharacterEndpoints<'_> {
+        CharacterEndpoints::new(&self.esi_client, &self.endpoints.character)
     }
 
     /// Returns a handler for corporation-related ESI endpoints.
@@ -177,8 +179,8 @@ impl<'a> EsiProvider<'a> {
     ///
     /// # Returns
     /// `CorporationEndpoints` handler for making corporation-related requests
-    pub fn corporation(&'a self) -> CorporationEndpoints<'a> {
-        CorporationEndpoints::new(self.esi_client, &self.endpoints.corporation)
+    pub fn corporation(&self) -> CorporationEndpoints<'_> {
+        CorporationEndpoints::new(&self.esi_client, &self.endpoints.corporation)
     }
 
     /// Returns a handler for universe-related ESI endpoints.
@@ -188,7 +190,27 @@ impl<'a> EsiProvider<'a> {
     ///
     /// # Returns
     /// `UniverseEndpoints` handler for making universe-related requests
-    pub fn universe(&'a self) -> UniverseEndpoints<'a> {
-        UniverseEndpoints::new(self.esi_client, &self.endpoints.universe)
+    pub fn universe(&self) -> UniverseEndpoints<'_> {
+        UniverseEndpoints::new(&self.esi_client, &self.endpoints.universe)
+    }
+
+    /// Returns the underlying ESI client.
+    ///
+    /// This provides direct access to the `eve_esi::Client` for operations that don't
+    /// need circuit breaker protection, such as OAuth2 flows (login, token exchange,
+    /// token validation) which should fail fast.
+    ///
+    /// # Example
+    /// ```ignore
+    /// // OAuth2 operations
+    /// let login = esi_provider.client().oauth2().login_url(scopes)?;
+    /// let token = esi_provider.client().oauth2().get_token(code).await?;
+    /// let claims = esi_provider.client().oauth2().validate_token(token).await?;
+    /// ```
+    ///
+    /// # Returns
+    /// Reference to the underlying `eve_esi::Client`
+    pub fn client(&self) -> &eve_esi::Client {
+        &self.esi_client
     }
 }

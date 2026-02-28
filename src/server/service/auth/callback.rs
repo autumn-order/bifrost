@@ -13,7 +13,8 @@ use crate::server::{
     error::AppError,
     model::db::{CharacterOwnershipModel, EveCharacterModel},
     service::{
-        eve::orchestrator::EveEntityOrchestrator, user::user_character::UserCharacterService,
+        eve::{esi::EsiProvider, orchestrator::EveEntityOrchestrator},
+        user::user_character::UserCharacterService,
     },
 };
 
@@ -99,7 +100,7 @@ pub(super) enum CharacterAction {
 /// character lookup, ownership management, and user creation/updates.
 pub struct CallbackService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> CallbackService<'a> {
@@ -109,12 +110,12 @@ impl<'a> CallbackService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference with OAuth2 configuration
+    /// - `esi_provider` - ESI provider with circuit breaker protection (includes OAuth2 access)
     ///
     /// # Returns
     /// - `CallbackService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Handles the OAuth2 callback after EVE SSO authentication.
@@ -163,7 +164,8 @@ impl<'a> CallbackService<'a> {
         change_main: Option<bool>,
     ) -> Result<i32, AppError> {
         let claims =
-            Self::authenticate_and_get_claims(self.esi_client, &authorization_code).await?;
+            Self::authenticate_and_get_claims(self.esi_provider.client(), &authorization_code)
+                .await?;
 
         let character_record =
             Self::get_character_ownership_status(self.db, claims.character_id()?).await?;
@@ -181,7 +183,7 @@ impl<'a> CallbackService<'a> {
                 } => {
                     let character_id = claims.character_id()?;
                     let eve_entity_orchestrator =
-                        EveEntityOrchestrator::builder(self.db, self.esi_client)
+                        EveEntityOrchestrator::builder(self.db, self.esi_provider)
                             .character(character_id)
                             .build()
                             .await?;

@@ -3,11 +3,14 @@
 //! This module contains tests for worker pool job processing, concurrency control,
 //! lifecycle management, and configuration handling.
 
-use bifrost::server::worker::{
-    handler::WorkerJobHandler,
-    pool::{WorkerPool, WorkerPoolConfig},
-    queue::config::WorkerQueueConfig,
-    WorkerQueue,
+use bifrost::server::{
+    service::eve::esi::EsiProvider,
+    worker::{
+        handler::WorkerJobHandler,
+        pool::{WorkerPool, WorkerPoolConfig},
+        queue::config::WorkerQueueConfig,
+        WorkerQueue,
+    },
 };
 use bifrost_test_utils::prelude::*;
 
@@ -39,7 +42,7 @@ pub async fn create_test_pool(test: &TestContext, redis: &RedisTest) -> WorkerPo
     let queue = setup_test_queue(redis);
     let handler = WorkerJobHandler::new(
         test.db.clone(),
-        test.esi_client.clone(),
+        EsiProvider::new(test.esi_client.clone()),
         queue.clone(),
         false,
     );
@@ -57,7 +60,7 @@ pub async fn create_test_pool_with_config(
     let queue = setup_test_queue(redis);
     let handler = WorkerJobHandler::new(
         test.db.clone(),
-        test.esi_client.clone(),
+        EsiProvider::new(test.esi_client.clone()),
         queue.clone(),
         false,
     );

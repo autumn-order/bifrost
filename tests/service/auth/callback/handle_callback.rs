@@ -5,9 +5,12 @@
 //! and main character updates across various scenarios.
 
 use bifrost::server::{
-    data::user::UserRepository, error::AppError, service::auth::callback::CallbackService,
+    data::user::UserRepository,
+    error::AppError,
+    service::{auth::callback::CallbackService, eve::esi::EsiProvider},
 };
 use bifrost_test_utils::prelude::*;
+
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 /// Tests successful callback for a new character creating a new user.
@@ -34,7 +37,8 @@ async fn creates_new_user_for_new_character() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", None, None)
@@ -83,7 +87,8 @@ async fn links_new_character_to_existing_user() -> Result<(), TestError> {
         .insert_user_with_mock_character(987654321, 2, None, None)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", Some(existing_user.id), None)
@@ -120,7 +125,8 @@ async fn creates_user_for_unowned_character() -> Result<(), TestError> {
         .insert_mock_character(character_id, 1, None, None)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", None, None)
@@ -162,7 +168,8 @@ async fn links_unowned_character_to_logged_in_user() -> Result<(), TestError> {
         .insert_mock_character(character_id, 2, None, None)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", Some(existing_user.id), None)
@@ -209,7 +216,8 @@ async fn logs_in_existing_user_with_matching_hash() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", None, None)
@@ -252,7 +260,8 @@ async fn transfers_character_to_logged_in_user() -> Result<(), TestError> {
         .insert_user_with_mock_character(987654321, 2, None, None)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     // Character from user1 logs in with user2 session
     let result = service
@@ -290,7 +299,8 @@ async fn updates_owner_hash_for_same_user() -> Result<(), TestError> {
         .insert_user_with_mock_character(character_id, 1, None, None)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     // Same user logs in with new owner hash
     let result = service
@@ -345,7 +355,8 @@ async fn updates_main_character_when_flag_set() -> Result<(), TestError> {
         .exec(&test.db)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     // Login with second character and change_main=true
     let result = service
@@ -406,7 +417,8 @@ async fn does_not_update_main_character_when_flag_false() -> Result<(), TestErro
         .exec(&test.db)
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     // Login with second character and change_main=false
     let result = service
@@ -436,7 +448,8 @@ async fn does_not_update_main_character_when_flag_false() -> Result<(), TestErro
 async fn fails_when_esi_unavailable() -> Result<(), TestError> {
     let test = TestBuilder::new().with_user_tables().build().await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service.handle_callback("auth_code", None, None).await;
 
@@ -462,7 +475,8 @@ async fn fails_when_database_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service.handle_callback("auth_code", None, None).await;
 
@@ -498,7 +512,8 @@ async fn handles_character_with_alliance() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", None, None)
@@ -537,7 +552,8 @@ async fn handles_character_with_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let service = CallbackService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let service = CallbackService::new(&test.db, &esi_provider);
 
     let result = service
         .handle_callback("auth_code", None, None)
