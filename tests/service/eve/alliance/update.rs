@@ -5,8 +5,12 @@
 //! for transient failures, caching with 304 Not Modified responses, and error
 //! handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::AppError, service::eve::alliance::AllianceService};
+use bifrost::server::{
+    error::AppError,
+    service::eve::{alliance::AllianceService, esi::EsiProvider},
+};
 use bifrost_test_utils::prelude::*;
+
 use sea_orm::EntityTrait;
 
 /// Tests updating a new alliance without faction.
@@ -29,7 +33,8 @@ async fn updates_new_alliance_without_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -72,7 +77,8 @@ async fn updates_new_alliance_with_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -124,7 +130,8 @@ async fn updates_alliance_with_existing_faction() -> Result<(), TestError> {
     let factions_before = entity::prelude::EveFaction::find().all(&test.db).await?;
     assert_eq!(factions_before.len(), 1);
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -167,7 +174,8 @@ async fn updates_existing_alliance_with_fresh_data() -> Result<(), TestError> {
     // Small delay to ensure timestamp changes
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -214,7 +222,8 @@ async fn updates_alliance_faction_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(alliance_before.faction_id.is_none());
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -264,7 +273,8 @@ async fn removes_alliance_faction_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(alliance_before.faction_id.is_some());
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -302,7 +312,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -335,7 +346,8 @@ async fn updates_with_faction_dependency() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -377,7 +389,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_err());
@@ -410,7 +423,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_err());
@@ -435,7 +449,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_err());
@@ -467,7 +482,8 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_err());
@@ -502,7 +518,8 @@ async fn updates_multiple_alliances_sequentially() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
 
     let result1 = alliance_service.update(alliance_id_1).await;
     assert!(result1.is_ok());
@@ -541,7 +558,8 @@ async fn update_is_idempotent() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
 
     let result1 = alliance_service.update(alliance_id).await;
     assert!(result1.is_ok());
@@ -598,7 +616,8 @@ async fn updates_timestamp_on_304_not_modified() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -649,7 +668,8 @@ async fn updates_timestamp_on_304_with_faction() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
     let result = alliance_service.update(alliance_id).await;
 
     assert!(result.is_ok());
@@ -687,7 +707,8 @@ async fn handles_mixed_304_and_fresh_responses() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let alliance_service = AllianceService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let alliance_service = AllianceService::new(&test.db, &esi_provider);
 
     // First update: creates new alliance
     let result1 = alliance_service.update(alliance_id).await;

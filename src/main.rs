@@ -66,8 +66,10 @@ fn main() {
         let session = startup::connect_to_session(redis_pool.clone()).await?;
         let esi_client = startup::build_esi_client(&config)?;
 
+        let esi_provider = server::service::eve::esi::EsiProvider::new(esi_client);
+
         let worker =
-            startup::start_workers(&config, db.clone(), redis_pool, esi_client.clone()).await?;
+            startup::start_workers(&config, db.clone(), redis_pool, esi_provider.clone()).await?;
         startup::start_scheduler(db.clone(), worker.queue.clone()).await?;
 
         tracing::info!("Starting server");
@@ -76,7 +78,7 @@ fn main() {
         let server_routes = server::router::routes()
             .with_state(AppState {
                 db,
-                esi_client,
+                esi_provider,
                 worker,
             })
             .layer(session);

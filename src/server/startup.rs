@@ -16,6 +16,7 @@ use crate::server::{
     config::Config,
     error::AppError,
     scheduler::Scheduler,
+    service::eve::esi::EsiProvider,
     worker::{handler::WorkerJobHandler, pool::WorkerPoolConfig, Worker, WorkerQueue},
 };
 
@@ -167,12 +168,18 @@ pub async fn connect_to_session(
 /// handler with database and ESI client, and starts the worker pool to begin processing jobs
 /// from the Redis-backed queue. Workers handle background tasks like ESI data refresh for
 /// alliances, corporations, characters, and affiliations.
+/// Starts the background worker pool for processing EVE Online data update jobs.
+///
+/// Creates a worker queue, initializes the job handler with database and ESI provider,
+/// and starts the worker pool to begin processing jobs. The worker pool is configured
+/// with the number of workers specified in the application config.
 ///
 /// # Arguments
 /// - `config` - Application configuration containing worker pool size
 /// - `db` - Database connection for workers to persist data
 /// - `redis_pool` - Redis pool for the worker queue backend
-/// - `esi_client` - ESI client for workers to fetch data from EVE Online
+/// - `esi_provider` - ESI provider with circuit breaker protection for data endpoints
+/// - `esi_client` - ESI client for OAuth2 flows
 ///
 /// # Returns
 /// - `Ok(Worker)` - Started worker system ready to process jobs
@@ -180,20 +187,20 @@ pub async fn connect_to_session(
 ///
 /// # Example
 /// ```ignore
-/// let worker = start_workers(&config, db, redis_pool, esi_client).await?;
+/// let worker = start_workers(&config, db, redis_pool, esi_provider, esi_client).await?;
 /// // Workers are now processing jobs from the queue
 /// ```
 pub async fn start_workers(
     config: &Config,
     db: DatabaseConnection,
     redis_pool: Pool,
-    esi_client: eve_esi::Client,
+    esi_provider: EsiProvider,
 ) -> Result<Worker, AppError> {
     // Create queue first so it can be passed to the handler
     let queue = WorkerQueue::new(redis_pool.clone());
 
     // Create handler with queue and ESI downtime offset enabled
-    let handler = WorkerJobHandler::new(db, esi_client, queue.clone(), true);
+    let handler = WorkerJobHandler::new(db, esi_provider, queue.clone(), true);
 
     // Create worker with pool config
     let pool_config = WorkerPoolConfig::new(config.workers);

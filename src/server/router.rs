@@ -45,7 +45,7 @@ use crate::server::{controller, model::app::AppState};
 ///
 /// # Example
 /// ```ignore
-/// let app_state = AppState { db, esi_client, worker };
+/// let app_state = AppState { db, esi_provider, worker };
 /// let router = routes().with_state(app_state);
 /// // Router is now ready to serve HTTP requests
 /// ```

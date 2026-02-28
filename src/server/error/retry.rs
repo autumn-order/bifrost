@@ -100,6 +100,8 @@ impl AppError {
                 }
             }
 
+            Self::EsiEndpointOffline => ErrorRetryStrategy::Retry,
+
             Self::Database(db_err) => {
                 match db_err {
                     // Connection acquisition failures - transient, connection pool may recover

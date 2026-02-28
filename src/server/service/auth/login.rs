@@ -6,14 +6,14 @@
 
 use eve_esi::model::oauth2::AuthenticationData;
 
-use crate::server::error::AppError;
+use crate::server::{error::AppError, service::eve::esi::EsiProvider};
 
 /// Service for generating EVE Online SSO login URLs.
 ///
 /// Provides methods for initiating the OAuth2 authentication flow by generating
 /// login URLs with requested scopes and CSRF state tokens for validation.
 pub struct LoginService<'a> {
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> LoginService<'a> {
@@ -22,12 +22,12 @@ impl<'a> LoginService<'a> {
     /// Constructs a service for generating EVE SSO login URLs.
     ///
     /// # Arguments
-    /// - `esi_client` - ESI API client reference with OAuth2 configuration
+    /// - `esi_provider` - ESI provider reference (OAuth2 accessed via `.client().oauth2()`)
     ///
     /// # Returns
     /// - `LoginService` - New service instance
-    pub fn new(esi_client: &'a eve_esi::Client) -> Self {
-        Self { esi_client }
+    pub fn new(esi_provider: &'a EsiProvider) -> Self {
+        Self { esi_provider }
     }
 
     /// Generates an OAuth2 login URL for EVE Online SSO.
@@ -42,7 +42,7 @@ impl<'a> LoginService<'a> {
     /// - `Ok(AuthenticationData)` - Login URL and CSRF state token for callback validation
     /// - `Err(AppError::Esi)` - ESI client OAuth2 not configured properly
     pub fn generate_login_url(&self, scopes: Vec<String>) -> Result<AuthenticationData, AppError> {
-        let login = self.esi_client.oauth2().login_url(scopes)?;
+        let login = self.esi_provider.client().oauth2().login_url(scopes)?;
 
         Ok(login)
     }
@@ -53,14 +53,18 @@ impl<'a> LoginService<'a> {
 pub mod tests {
     use bifrost_test_utils::{constant::TEST_USER_AGENT, prelude::*};
 
-    use crate::server::{error::AppError, service::auth::login::LoginService};
+    use crate::server::{
+        error::AppError,
+        service::{auth::login::LoginService, eve::esi::EsiProvider},
+    };
 
     /// Expect successful generation of login URL
     #[tokio::test]
     async fn generates_login_url() -> Result<(), TestError> {
         let test = TestBuilder::new().build().await?;
 
-        let login_service = LoginService::new(&test.esi_client);
+        let esi_provider = EsiProvider::new(test.esi_client);
+        let login_service = LoginService::new(&esi_provider);
         let scopes = vec![];
         let result = login_service.generate_login_url(scopes);
 
@@ -74,7 +78,8 @@ pub mod tests {
     fn fails_when_oauth2_not_configured() -> Result<(), TestError> {
         let esi_client = eve_esi::Client::new(TEST_USER_AGENT).expect("Failed to build ESI client");
 
-        let login_service = LoginService::new(&esi_client);
+        let esi_provider = EsiProvider::new(esi_client);
+        let login_service = LoginService::new(&esi_provider);
         let scopes = vec![];
         let result = login_service.generate_login_url(scopes);
 

@@ -23,7 +23,7 @@ impl WorkerJobHandler {
     pub async fn update_faction_info(&self) -> Result<(), AppError> {
         tracing::debug!("Checking for daily NPC faction info update");
 
-        let factions = FactionService::new(&self.db, &self.esi_client)
+        let factions = FactionService::new(&self.db, &self.esi_provider)
             .update()
             .await
             .map_err(|e| {
@@ -60,7 +60,7 @@ impl WorkerJobHandler {
             alliance_id
         );
 
-        AllianceService::new(&self.db, &self.esi_client)
+        AllianceService::new(&self.db, &self.esi_provider)
             .update(alliance_id)
             .await
             .map_err(|e| {
@@ -94,7 +94,7 @@ impl WorkerJobHandler {
             corporation_id
         );
 
-        CorporationService::new(&self.db, &self.esi_client)
+        CorporationService::new(&self.db, &self.esi_provider)
             .update(corporation_id)
             .await
             .map_err(|e| {
@@ -131,7 +131,7 @@ impl WorkerJobHandler {
             character_id
         );
 
-        CharacterService::new(&self.db, &self.esi_client)
+        CharacterService::new(&self.db, &self.esi_provider)
             .update(character_id)
             .await
             .map_err(|e| {
@@ -177,7 +177,7 @@ impl WorkerJobHandler {
             );
         }
 
-        AffiliationService::new(&self.db, &self.esi_client)
+        AffiliationService::new(&self.db, &self.esi_provider)
             .update_affiliations(character_ids)
             .await
             .map_err(|e| {

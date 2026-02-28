@@ -8,8 +8,10 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::alliance::AllianceRepository, error::AppError, model::db::EveAllianceModel,
-    service::eve::orchestrator::EveEntityOrchestrator,
+    data::eve::alliance::AllianceRepository,
+    error::AppError,
+    model::db::EveAllianceModel,
+    service::eve::{esi::EsiProvider, orchestrator::EveEntityOrchestrator},
 };
 
 /// Service for managing EVE Online alliance operations.
@@ -18,7 +20,7 @@ use crate::server::{
 /// Uses orchestrators to handle dependency resolution and automatic retry logic for transient failures.
 pub struct AllianceService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> AllianceService<'a> {
@@ -28,12 +30,12 @@ impl<'a> AllianceService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `AllianceService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Updates alliance information by fetching from ESI and persisting to the database.
@@ -70,7 +72,7 @@ impl<'a> AllianceService<'a> {
             Some(existing_alliance) => {
                 // Existing alliance: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_alliance) = self
-                    .esi_client
+                    .esi_provider
                     .alliance()
                     .get_alliance_information(alliance_id)
                     .send_cached(CacheStrategy::IfModifiedSince(
@@ -86,14 +88,14 @@ impl<'a> AllianceService<'a> {
                 };
 
                 // Build orchestrator with pre-fetched data to avoid redundant ESI call
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .alliance_with_data(alliance_id, esi_alliance.data)
                     .build()
                     .await?
             }
             None => {
                 // New alliance: orchestrator will fetch from ESI during build()
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .alliance(alliance_id)
                     .build()
                     .await?

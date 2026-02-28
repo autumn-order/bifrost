@@ -5,8 +5,12 @@
 //! retry logic for transient failures, caching with 304 Not Modified responses,
 //! and error handling for missing tables or unavailable ESI endpoints.
 
-use bifrost::server::{error::AppError, service::eve::corporation::CorporationService};
+use bifrost::server::{
+    error::AppError,
+    service::eve::{corporation::CorporationService, esi::EsiProvider},
+};
 use bifrost_test_utils::prelude::*;
+
 use sea_orm::EntityTrait;
 
 /// Tests updating a new corporation without alliance or faction.
@@ -29,7 +33,8 @@ async fn updates_new_corporation_without_affiliations() -> Result<(), TestError>
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     println!("{:#?}", result);
@@ -78,7 +83,8 @@ async fn updates_new_corporation_with_alliance() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -129,7 +135,8 @@ async fn updates_new_corporation_with_faction() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -175,7 +182,8 @@ async fn updates_corporation_with_alliance_and_faction() -> Result<(), TestError
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -235,7 +243,8 @@ async fn updates_corporation_with_existing_alliance() -> Result<(), TestError> {
     // Pre-insert alliance
     let existing_alliance = test.eve().insert_mock_alliance(alliance_id, None).await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -285,7 +294,8 @@ async fn updates_corporation_with_existing_faction() -> Result<(), TestError> {
     // Pre-insert faction
     test.eve().insert_mock_faction(faction_id).await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -328,7 +338,8 @@ async fn updates_existing_corporation_with_fresh_data() -> Result<(), TestError>
     // Small delay to ensure timestamp changes
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -381,7 +392,8 @@ async fn updates_corporation_alliance_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(corporation_before.alliance_id.is_none());
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -431,7 +443,8 @@ async fn removes_corporation_alliance_affiliation() -> Result<(), TestError> {
         .unwrap();
     assert!(corporation_before.alliance_id.is_some());
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -469,7 +482,8 @@ async fn retries_on_esi_server_error() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -506,7 +520,8 @@ async fn updates_with_alliance_dependency() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -548,7 +563,8 @@ async fn fails_after_max_esi_retries() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_err());
@@ -581,7 +597,8 @@ async fn fails_when_esi_unavailable() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_err());
@@ -606,7 +623,8 @@ async fn fails_when_tables_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_err());
@@ -639,7 +657,8 @@ async fn fails_when_alliance_table_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_err());
@@ -674,7 +693,8 @@ async fn fails_when_faction_table_missing() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_err());
@@ -709,7 +729,8 @@ async fn updates_multiple_corporations_sequentially() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
 
     let result1 = corporation_service.update(corp1_id).await;
     assert!(result1.is_ok());
@@ -750,7 +771,8 @@ async fn update_is_idempotent() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
 
     let result1 = corporation_service.update(corporation_id).await;
     assert!(result1.is_ok());
@@ -809,7 +831,8 @@ async fn updates_timestamp_on_304_not_modified() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -861,7 +884,8 @@ async fn updates_timestamp_on_304_with_affiliations() -> Result<(), TestError> {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
     let result = corporation_service.update(corporation_id).await;
 
     assert!(result.is_ok());
@@ -900,7 +924,8 @@ async fn handles_mixed_304_and_fresh_responses() -> Result<(), TestError> {
         .build()
         .await?;
 
-    let corporation_service = CorporationService::new(&test.db, &test.esi_client);
+    let esi_provider = EsiProvider::new(test.esi_client.clone());
+    let corporation_service = CorporationService::new(&test.db, &esi_provider);
 
     // First update: creates new corporation
     let result1 = corporation_service.update(corporation_id).await;

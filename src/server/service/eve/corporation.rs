@@ -8,8 +8,10 @@ use eve_esi::{CacheStrategy, CachedResponse};
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    data::eve::corporation::CorporationRepository, error::AppError, model::db::EveCorporationModel,
-    service::eve::orchestrator::EveEntityOrchestrator,
+    data::eve::corporation::CorporationRepository,
+    error::AppError,
+    model::db::EveCorporationModel,
+    service::eve::{esi::EsiProvider, orchestrator::EveEntityOrchestrator},
 };
 
 /// Service for managing EVE Online corporation operations.
@@ -18,7 +20,7 @@ use crate::server::{
 /// Uses orchestrators to handle dependency resolution and automatic retry logic for transient failures.
 pub struct CorporationService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> CorporationService<'a> {
@@ -28,12 +30,12 @@ impl<'a> CorporationService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `CorporationService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Updates corporation information by fetching from ESI and persisting to the database.
@@ -70,7 +72,7 @@ impl<'a> CorporationService<'a> {
             Some(existing_corporation) => {
                 // Existing corporation: use if modified since request to check for changes since last update
                 let CachedResponse::Fresh(esi_corporation) = self
-                    .esi_client
+                    .esi_provider
                     .corporation()
                     .get_corporation_information(corporation_id)
                     .send_cached(CacheStrategy::IfModifiedSince(
@@ -86,14 +88,14 @@ impl<'a> CorporationService<'a> {
                 };
 
                 // Build orchestrator with pre-fetched data to avoid redundant ESI call
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .corporation_with_data(corporation_id, esi_corporation.data)
                     .build()
                     .await?
             }
             None => {
                 // New corporation: orchestrator will fetch from ESI during build()
-                EveEntityOrchestrator::builder(self.db, self.esi_client)
+                EveEntityOrchestrator::builder(self.db, self.esi_provider)
                     .corporation(corporation_id)
                     .build()
                     .await?

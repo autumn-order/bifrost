@@ -102,7 +102,7 @@ async fn multiple_dispatchers_for_high_concurrency() {
     let queue = setup_test_queue(&redis);
     let handler = WorkerJobHandler::new(
         test.db.clone(),
-        test.esi_client.clone(),
+        EsiProvider::new(test.esi_client.clone()),
         queue.clone(),
         false,
     );

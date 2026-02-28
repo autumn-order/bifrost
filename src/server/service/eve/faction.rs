@@ -6,7 +6,9 @@
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 use crate::server::{
-    error::AppError, model::db::EveFactionModel, service::eve::orchestrator::EveEntityOrchestrator,
+    error::AppError,
+    model::db::EveFactionModel,
+    service::eve::{esi::EsiProvider, orchestrator::EveEntityOrchestrator},
 };
 
 /// Service for managing EVE Online faction operations.
@@ -14,7 +16,7 @@ use crate::server::{
 /// Provides methods for fetching NPC faction data from ESI and persisting it to the database.
 pub struct FactionService<'a> {
     db: &'a DatabaseConnection,
-    esi_client: &'a eve_esi::Client,
+    esi_provider: &'a EsiProvider,
 }
 
 impl<'a> FactionService<'a> {
@@ -24,12 +26,12 @@ impl<'a> FactionService<'a> {
     ///
     /// # Arguments
     /// - `db` - Database connection reference
-    /// - `esi_client` - ESI API client reference
+    /// - `esi_provider` - ESI provider with circuit breaker protection
     ///
     /// # Returns
     /// - `FactionService` - New service instance
-    pub fn new(db: &'a DatabaseConnection, esi_client: &'a eve_esi::Client) -> Self {
-        Self { db, esi_client }
+    pub fn new(db: &'a DatabaseConnection, esi_provider: &'a EsiProvider) -> Self {
+        Self { db, esi_provider }
     }
 
     /// Updates all NPC faction information by fetching from ESI and persisting to the database.
@@ -57,7 +59,7 @@ impl<'a> FactionService<'a> {
     pub async fn update(&self) -> Result<Vec<EveFactionModel>, AppError> {
         // Build entity orchestrator with explicit faction fetch request
         // The builder's fetch_factions_if_stale() handles the conditional request logic
-        let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_client)
+        let eve_entity_orchestrator = EveEntityOrchestrator::builder(self.db, self.esi_provider)
             .with_factions()
             .build()
             .await?;

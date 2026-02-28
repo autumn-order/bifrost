@@ -7,18 +7,19 @@
 
 use sea_orm::DatabaseConnection;
 
-use crate::server::worker::Worker;
+use crate::server::{service::eve::esi::EsiProvider, worker::Worker};
 
 /// Central application state shared across HTTP handlers.
 ///
 /// `AppState` aggregates the core dependencies needed by HTTP controllers and services,
-/// including database access, ESI client for EVE Online API calls, and the worker system
-/// for background job processing. This struct is cloned for each request handler (all fields
-/// use Arc internally for cheap cloning) and injected via Axum's `State` extractor.
+/// including database access, ESI provider for EVE Online API calls with circuit breaker
+/// protection, and the worker system for background job processing. This struct is cloned
+/// for each request handler (all fields use Arc internally for cheap cloning) and injected
+/// via Axum's `State` extractor.
 ///
 /// # Fields
 /// - `db` - Database connection pool for querying and persisting data
-/// - `esi_client` - EVE Online ESI API client for fetching game data
+/// - `esi_provider` - ESI provider with circuit breaker protection for EVE Online API calls
 /// - `worker` - Worker system for dispatching and managing background jobs
 ///
 /// # Example
@@ -27,7 +28,8 @@ use crate::server::worker::Worker;
 ///     State(state): State<AppState>,
 /// ) -> Result<impl IntoResponse, AppError> {
 ///     // Use state.db for database queries
-///     // Use state.esi_client for ESI API calls
+///     // Use state.esi_provider for ESI API calls (with circuit breaker)
+///     // Use state.esi_provider.oauth2() for OAuth2 flows
 ///     // Use state.worker for background jobs
 ///     Ok(())
 /// }
@@ -37,8 +39,9 @@ pub struct AppState {
     /// Database connection pool for data persistence and queries.
     pub db: DatabaseConnection,
 
-    /// EVE Online ESI client for fetching game data and authentication.
-    pub esi_client: eve_esi::Client,
+    /// ESI provider with circuit breaker protection for EVE Online API calls.
+    /// Use `.client()` method to access the underlying client for operations like OAuth2.
+    pub esi_provider: EsiProvider,
 
     /// Worker system for dispatching background jobs to the Redis-backed queue.
     pub worker: Worker,

@@ -26,17 +26,20 @@
 //! ## Example
 //!
 /// ```no_run
-/// use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
+/// use bifrost::server::{
+///     service::eve::{orchestrator::EveEntityOrchestrator, esi::EsiProvider},
+///     error::AppError
+/// };
 /// use sea_orm::{DatabaseConnection, TransactionTrait};
 ///
 /// async fn update_character_affiliations(
 ///     db: &DatabaseConnection,
-///     esi_client: &eve_esi::Client,
+///     esi_provider: &EsiProvider,
 ///     character_ids: Vec<i64>,
 /// ) -> Result<(), AppError> {
 ///     let txn = db.begin().await?;
 ///
-///     let orchestrator = EveEntityOrchestrator::builder(db, esi_client)
+///     let orchestrator = EveEntityOrchestrator::builder(db, esi_provider)
 ///         .characters(character_ids)
 ///         .build()
 ///         .await?;
@@ -123,9 +126,9 @@ impl EveEntityOrchestrator {
     /// This is the primary way to construct an `EveEntityOrchestrator`.
     pub fn builder<'a>(
         db: &'a DatabaseConnection,
-        esi_client: &'a eve_esi::Client,
+        esi_provider: &'a crate::server::service::eve::esi::EsiProvider,
     ) -> EveEntityOrchestratorBuilder<'a> {
-        EveEntityOrchestratorBuilder::new(db, esi_client)
+        EveEntityOrchestratorBuilder::new(db, esi_provider)
     }
 }
 
@@ -199,12 +202,12 @@ impl EveEntityOrchestrator {
     /// # Example
     ///
     /// ```no_run
-    /// # use bifrost::server::{service::eve::orchestrator::EveEntityOrchestrator, error::AppError};
+    /// # use bifrost::server::{service::eve::{orchestrator::EveEntityOrchestrator, esi::EsiProvider}, error::AppError};
     /// # use sea_orm::{DatabaseConnection, TransactionTrait};
-    /// # async fn example(db: &DatabaseConnection, esi: &eve_esi::Client) -> Result<(), AppError> {
+    /// # async fn example(db: &DatabaseConnection, esi_provider: &EsiProvider) -> Result<(), AppError> {
     /// let txn = db.begin().await?;
     ///
-    /// let orchestrator = EveEntityOrchestrator::builder(db, esi)
+    /// let orchestrator = EveEntityOrchestrator::builder(db, esi_provider)
     ///     .character(123456789)
     ///     .build()
     ///     .await?;
