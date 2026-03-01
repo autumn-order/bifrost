@@ -67,8 +67,13 @@ where
     /// - `Err(AppError::Esi)` - ESI request failed
     /// - `Err(AppError)` - Other errors (network, parsing, etc.)
     pub async fn send(self) -> Result<EsiResponse<T>, AppError> {
+        let has_access_token = self.request.access_token().is_some();
+
         // Check status and atomically begin recovery if needed
-        let check_result = self.group.check_and_begin_recovery().await?;
+        let check_result = self
+            .group
+            .check_and_begin_recovery(has_access_token)
+            .await?;
 
         tracing::trace!(
             attempting_recovery = %check_result.attempting_recovery,
@@ -81,8 +86,12 @@ where
         match &result {
             Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
                 tracing::debug!("ESI request returned 429 rate limit error");
+                // Only track rate limits for public requests
+                // Authenticated requests have independent rate limits per token
                 if let Some(retry_after) = err.retry_after {
-                    self.group.handle_rate_limit(retry_after).await;
+                    if !has_access_token {
+                        self.group.handle_rate_limit(retry_after).await;
+                    }
                 }
             }
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
@@ -127,8 +136,13 @@ where
         self,
         strategy: CacheStrategy,
     ) -> Result<CachedResponse<EsiResponse<T>>, AppError> {
+        let has_access_token = self.request.access_token().is_some();
+
         // Check status and atomically begin recovery if needed
-        let check_result = self.group.check_and_begin_recovery().await?;
+        let check_result = self
+            .group
+            .check_and_begin_recovery(has_access_token)
+            .await?;
 
         tracing::trace!(
             attempting_recovery = %check_result.attempting_recovery,
@@ -141,8 +155,12 @@ where
         match &result {
             Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
                 tracing::debug!("Cached ESI request returned 429 rate limit error");
+                // Only track rate limits for public requests
+                // Authenticated requests have independent rate limits per token
                 if let Some(retry_after) = err.retry_after {
-                    self.group.handle_rate_limit(retry_after).await;
+                    if !has_access_token {
+                        self.group.handle_rate_limit(retry_after).await;
+                    }
                 }
             }
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
