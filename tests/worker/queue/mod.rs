@@ -4,6 +4,7 @@ pub mod len;
 pub mod pop;
 pub mod push;
 pub mod schedule;
+pub mod schedule_retry;
 
 use bifrost::server::worker::{queue::config::WorkerQueueConfig, WorkerQueue};
 

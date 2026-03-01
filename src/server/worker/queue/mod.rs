@@ -12,12 +12,25 @@
 //! 2. [`WorkerJobQueue::get_all_of_type`]: retrieve all worker jobs of a type, you can then extract the IDs
 //!    to prevent retrieving duplicate IDs from the database.
 //!
+//! ## Retry Metadata Storage
+//!
+//! Jobs support retry tracking with exponential backoff. To maintain proper deduplication while
+//! tracking retry attempts, retry metadata is stored separately from the job identity:
+//!
+//! - **Job Identity**: Serialized job JSON used as ZSET member (for deduplication)
+//! - **Retry Metadata**: Stored in separate Redis hash `{queue_name}:retry`
+//!
+//! This separation ensures that a fresh job and a retrying job are considered duplicates
+//! (preventing the same job from being queued multiple times), while still preserving
+//! retry attempt count and backoff information.
+//!
 //! ## TTL and Cleanup
 //!
 //! Jobs have a 1-hour TTL and are automatically cleaned up:
 //! - Passive cleanup runs every 5 minutes (background task, non-blocking)
 //! - Manual cleanup can be triggered via [`WorkerJobQueue::cleanup_stale_jobs`]
 //! - Stale jobs (older than TTL) are removed to prevent queue bloat
+//! - Orphaned retry metadata entries are also cleaned up during this process
 //!
 //! ## How this will be implemented
 //!
@@ -47,7 +60,7 @@ use fred::prelude::*;
 
 use crate::server::{
     error::{worker::WorkerError, AppError},
-    model::worker::{ScheduledWorkerJob, WorkerJob},
+    model::worker::{RetryMetadata, ScheduledWorkerJob, WorkerJob},
     worker::queue::config::WorkerQueueConfig,
 };
 
@@ -215,6 +228,7 @@ impl WorkerQueue {
     ///
     /// Uses a Lua script to atomically check for duplicates and add the job to the queue
     /// with current timestamp. Jobs with identical serialized JSON are deduplicated.
+    /// This is a convenience wrapper around `schedule` that uses the current time.
     ///
     /// # Arguments
     /// - `job` - Worker job to add to the queue
@@ -225,46 +239,34 @@ impl WorkerQueue {
     /// - `Err(AppError::Worker)` - Serialization failed
     /// - `Err(AppError)` - Redis communication failed
     pub async fn push(&self, job: WorkerJob) -> Result<bool, AppError> {
-        let serialized = serde_json::to_string(&job)
-            .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
-        let score = Utc::now().timestamp_millis() as f64;
-
-        // Execute Lua script atomically
-        // Uses ZSCORE for O(1) duplicate check, then ZADD with serialized JSON as member
-        let result: i64 = self
-            .inner
-            .pool
-            .eval(
-                PUSH_JOB_SCRIPT,
-                vec![&self.inner.config.queue_name],
-                vec![serialized, score.to_string()],
-            )
-            .await?;
-
-        // result is 1 if added, 0 if duplicate exists
-        let was_added = result == 1;
-
-        Ok(was_added)
+        self.schedule(job, Utc::now(), None).await
     }
 
     /// Schedules a job to be executed at a specific time.
     ///
     /// Uses a Lua script to atomically check for duplicates and add the job to the queue
     /// with the specified timestamp. Jobs with identical serialized JSON are deduplicated.
+    /// Retry metadata is stored separately in a Redis hash to avoid affecting deduplication.
     ///
     /// # Arguments
     /// - `job` - Worker job to add to the queue
-    /// - `time` - UTC timestamp when the job should be executed
+    /// - `scheduled_at` - UTC timestamp when the job should be executed
+    /// - `retry_metadata` - Optional retry metadata (attempt count, first failure time)
     ///
     /// # Returns
     /// - `Ok(true)` - Job was added to the queue
     /// - `Ok(false)` - Duplicate already exists in the queue
     /// - `Err(AppError::Worker)` - Serialization failed
     /// - `Err(AppError)` - Redis communication failed
-    pub async fn schedule(&self, job: WorkerJob, time: DateTime<Utc>) -> Result<bool, AppError> {
+    pub async fn schedule(
+        &self,
+        job: WorkerJob,
+        scheduled_at: DateTime<Utc>,
+        retry_metadata: Option<RetryMetadata>,
+    ) -> Result<bool, AppError> {
         let serialized = serde_json::to_string(&job)
             .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
-        let score = time.timestamp_millis() as f64;
+        let score = scheduled_at.timestamp_millis() as f64;
 
         // Execute Lua script atomically
         // Uses ZSCORE for O(1) duplicate check, then ZADD with serialized JSON as member
@@ -274,12 +276,27 @@ impl WorkerQueue {
             .eval(
                 PUSH_JOB_SCRIPT,
                 vec![&self.inner.config.queue_name],
-                vec![serialized, score.to_string()],
+                vec![serialized.clone(), score.to_string()],
             )
             .await?;
 
         // result is 1 if added, 0 if duplicate exists
         let was_added = result == 1;
+
+        // If job was added and has retry metadata, store it separately
+        if was_added {
+            if let Some(metadata) = retry_metadata {
+                let retry_hash_key = format!("{}:retry", self.inner.config.queue_name);
+                let metadata_json = serde_json::to_string(&metadata)
+                    .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
+
+                let _: () = self
+                    .inner
+                    .pool
+                    .hset(&retry_hash_key, (&serialized, metadata_json))
+                    .await?;
+            }
+        }
 
         Ok(was_added)
     }
@@ -290,6 +307,8 @@ impl WorkerQueue {
     /// (earliest timestamp) that is due for execution (score <= current time). Returns both
     /// the job and the timestamp it was originally scheduled for, allowing the worker handler
     /// to distinguish between jobs scheduled before downtime versus during downtime.
+    ///
+    /// Also retrieves and removes any associated retry metadata from the separate hash.
     ///
     /// # Returns
     /// - `Ok(Some(ScheduledWorkerJob))` - Job was popped from the queue with scheduled timestamp
@@ -334,7 +353,27 @@ impl WorkerQueue {
                         )))
                     })?;
 
-                Ok(Some(ScheduledWorkerJob::new(job, scheduled_at)))
+                // Retrieve and remove retry metadata if it exists
+                let retry_hash_key = format!("{}:retry", self.inner.config.queue_name);
+                let retry_metadata: Option<String> =
+                    self.inner.pool.hget(&retry_hash_key, &serialized).await?;
+
+                let metadata = if let Some(metadata_json) = retry_metadata {
+                    // Remove from hash now that we've retrieved it
+                    let _: () = self.inner.pool.hdel(&retry_hash_key, &serialized).await?;
+
+                    // Deserialize metadata
+                    let parsed: RetryMetadata = serde_json::from_str(&metadata_json)
+                        .map_err(|e| AppError::Worker(WorkerError::Serialization(e.to_string())))?;
+                    Some(parsed)
+                } else {
+                    None
+                };
+
+                Ok(Some(match metadata {
+                    Some(m) => ScheduledWorkerJob::with_retry(job, scheduled_at, m),
+                    None => ScheduledWorkerJob::new(job, scheduled_at),
+                }))
             }
         }
     }
@@ -365,7 +404,8 @@ impl WorkerQueue {
     /// Removes all jobs older than the configured TTL from the queue.
     ///
     /// This method is called automatically by the background cleanup task at regular
-    /// intervals, but can also be called manually for immediate cleanup.
+    /// intervals, but can also be called manually for immediate cleanup. Also cleans
+    /// up orphaned retry metadata from the hash.
     ///
     /// # Returns
     /// - `Ok(u64)` - Number of stale jobs removed from the queue
@@ -377,6 +417,7 @@ impl WorkerQueue {
     /// Internal implementation of cleanup that can be called from the background task.
     ///
     /// Performs the actual cleanup logic using Redis Lua script to remove stale jobs.
+    /// Also removes orphaned retry metadata for jobs that no longer exist in the queue.
     /// This is separated from the public method to allow both manual and automatic cleanup.
     ///
     /// # Arguments
@@ -403,6 +444,32 @@ impl WorkerQueue {
 
         if removed > 0 {
             tracing::info!("Cleaned up {} stale jobs from worker queue", removed);
+        }
+
+        // Clean up orphaned retry metadata
+        // Get all retry metadata keys
+        let retry_hash_key = format!("{}:retry", config.queue_name);
+        let all_retry_keys: Vec<String> = pool.hkeys(&retry_hash_key).await?;
+
+        if !all_retry_keys.is_empty() {
+            // Check which jobs still exist in the queue
+            let mut orphaned_keys = Vec::new();
+            for key in all_retry_keys {
+                let exists: Option<f64> = pool.zscore(&config.queue_name, &key).await?;
+                if exists.is_none() {
+                    orphaned_keys.push(key);
+                }
+            }
+
+            // Remove orphaned metadata
+            if !orphaned_keys.is_empty() {
+                let orphaned_count = orphaned_keys.len();
+                let _: () = pool.hdel(&retry_hash_key, orphaned_keys).await?;
+                tracing::info!(
+                    "Cleaned up {} orphaned retry metadata entries from worker queue",
+                    orphaned_count
+                );
+            }
         }
 
         Ok(removed as u64)

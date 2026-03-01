@@ -9,6 +9,40 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+/// Metadata tracking retry attempts for a worker job.
+///
+/// This tracks how many times a job has been retried and when it first
+/// failed, allowing for exponential backoff calculation and preventing
+/// infinite retry loops.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RetryMetadata {
+    /// Number of times this job has been retried (0 = first attempt)
+    pub attempt_count: u32,
+    /// UTC timestamp when the job first failed and entered retry loop
+    pub first_failed_at: DateTime<Utc>,
+}
+
+impl RetryMetadata {
+    /// Creates new retry metadata for a job's first retry attempt.
+    pub fn new() -> Self {
+        Self {
+            attempt_count: 0,
+            first_failed_at: Utc::now(),
+        }
+    }
+
+    /// Increments the attempt count for the next retry.
+    pub fn increment(&mut self) {
+        self.attempt_count += 1;
+    }
+}
+
+impl Default for RetryMetadata {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Worker job with scheduled execution timestamp.
 ///
 /// Wraps a `WorkerJob` with the timestamp it was scheduled for execution. This allows
@@ -20,6 +54,9 @@ pub struct ScheduledWorkerJob {
     pub job: WorkerJob,
     /// The UTC timestamp when this job was scheduled for execution.
     pub scheduled_at: DateTime<Utc>,
+    /// Retry metadata tracking attempt count and first failure time.
+    /// None indicates this is the first attempt (not a retry).
+    pub retry_metadata: Option<RetryMetadata>,
 }
 
 impl ScheduledWorkerJob {
@@ -32,7 +69,24 @@ impl ScheduledWorkerJob {
     /// # Returns
     /// - `ScheduledWorkerJob` - New scheduled job instance
     pub fn new(job: WorkerJob, scheduled_at: DateTime<Utc>) -> Self {
-        Self { job, scheduled_at }
+        Self {
+            job,
+            scheduled_at,
+            retry_metadata: None,
+        }
+    }
+
+    /// Creates a scheduled worker job with retry metadata.
+    pub fn with_retry(
+        job: WorkerJob,
+        scheduled_at: DateTime<Utc>,
+        retry_metadata: RetryMetadata,
+    ) -> Self {
+        Self {
+            job,
+            scheduled_at,
+            retry_metadata: Some(retry_metadata),
+        }
     }
 }
 

@@ -37,7 +37,7 @@ mod cleanup_stale_jobs {
         };
 
         let was_added = queue
-            .schedule(job.clone(), stale_time)
+            .schedule(job.clone(), stale_time, None)
             .await
             .expect("Failed to schedule job");
         assert!(was_added, "Job should be added");
@@ -72,7 +72,7 @@ mod cleanup_stale_jobs {
         };
 
         queue
-            .schedule(job.clone(), fresh_time)
+            .schedule(job.clone(), fresh_time, None)
             .await
             .expect("Failed to schedule job");
 
@@ -102,7 +102,7 @@ mod cleanup_stale_jobs {
                 character_id: i * 1000,
             };
             queue
-                .schedule(job, stale_time)
+                .schedule(job, stale_time, None)
                 .await
                 .expect("Failed to schedule stale job");
         }
@@ -114,7 +114,7 @@ mod cleanup_stale_jobs {
                 alliance_id: i * 99000000,
             };
             queue
-                .schedule(job, fresh_time)
+                .schedule(job, fresh_time, None)
                 .await
                 .expect("Failed to schedule fresh job");
         }
@@ -171,7 +171,7 @@ mod cleanup_stale_jobs {
         };
 
         queue
-            .schedule(job, boundary_time)
+            .schedule(job, boundary_time, None)
             .await
             .expect("Failed to schedule job");
 
@@ -214,7 +214,7 @@ mod cleanup_stale_jobs {
 
         for job in jobs {
             queue
-                .schedule(job, stale_time)
+                .schedule(job, stale_time, None)
                 .await
                 .expect("Failed to schedule job");
         }
@@ -245,7 +245,7 @@ mod cleanup_stale_jobs {
         };
 
         queue
-            .schedule(job.clone(), recent_time)
+            .schedule(job.clone(), recent_time, None)
             .await
             .expect("Failed to schedule job");
 
@@ -423,7 +423,7 @@ mod cleanup_task_lifecycle {
                 character_id: i * 1000,
             };
             queue
-                .schedule(job, stale_time)
+                .schedule(job, stale_time, None)
                 .await
                 .expect("Failed to schedule stale job");
         }
@@ -464,7 +464,7 @@ mod cleanup_task_lifecycle {
                 character_id: i * 1000,
             };
             queue
-                .schedule(job, stale_time)
+                .schedule(job, stale_time, None)
                 .await
                 .expect("Failed to schedule job");
         }

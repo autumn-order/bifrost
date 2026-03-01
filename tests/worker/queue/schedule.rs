@@ -33,7 +33,7 @@ mod schedule {
         };
         let schedule_time = Utc::now() + Duration::minutes(5);
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(result.is_ok(), "Schedule should succeed");
         assert_eq!(result.unwrap(), true, "Job should be added");
 
@@ -58,12 +58,12 @@ mod schedule {
         let schedule_time_2 = Utc::now() + Duration::minutes(10);
 
         // Schedule first time
-        let result1 = queue.schedule(job.clone(), schedule_time_1).await;
+        let result1 = queue.schedule(job.clone(), schedule_time_1, None).await;
         assert!(result1.is_ok(), "First schedule should succeed");
         assert_eq!(result1.unwrap(), true, "First job should be added");
 
         // Schedule duplicate at different time
-        let result2 = queue.schedule(job.clone(), schedule_time_2).await;
+        let result2 = queue.schedule(job.clone(), schedule_time_2, None).await;
         assert!(
             result2.is_ok(),
             "Duplicate schedule should succeed (but not add)"
@@ -89,7 +89,7 @@ mod schedule {
         };
         let schedule_time = Utc::now() + Duration::minutes(15);
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(result.is_ok(), "Schedule should succeed");
         assert_eq!(result.unwrap(), true, "Job should be added");
 
@@ -114,12 +114,12 @@ mod schedule {
         let schedule_time_2 = Utc::now() + Duration::minutes(10);
 
         // Schedule first time
-        let result1 = queue.schedule(job.clone(), schedule_time_1).await;
+        let result1 = queue.schedule(job.clone(), schedule_time_1, None).await;
         assert!(result1.is_ok(), "First schedule should succeed");
         assert_eq!(result1.unwrap(), true, "First job should be added");
 
         // Schedule duplicate
-        let result2 = queue.schedule(job.clone(), schedule_time_2).await;
+        let result2 = queue.schedule(job.clone(), schedule_time_2, None).await;
         assert!(
             result2.is_ok(),
             "Duplicate schedule should succeed (but not add)"
@@ -145,7 +145,7 @@ mod schedule {
         };
         let schedule_time = Utc::now() + Duration::minutes(20);
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(result.is_ok(), "Schedule should succeed");
         assert_eq!(result.unwrap(), true, "Job should be added");
 
@@ -170,12 +170,12 @@ mod schedule {
         let schedule_time_2 = Utc::now() + Duration::minutes(10);
 
         // Schedule first time
-        let result1 = queue.schedule(job.clone(), schedule_time_1).await;
+        let result1 = queue.schedule(job.clone(), schedule_time_1, None).await;
         assert!(result1.is_ok(), "First schedule should succeed");
         assert_eq!(result1.unwrap(), true, "First job should be added");
 
         // Schedule duplicate
-        let result2 = queue.schedule(job.clone(), schedule_time_2).await;
+        let result2 = queue.schedule(job.clone(), schedule_time_2, None).await;
         assert!(
             result2.is_ok(),
             "Duplicate schedule should succeed (but not add)"
@@ -200,7 +200,7 @@ mod schedule {
         let job = WorkerJob::UpdateAffiliations { character_ids };
         let schedule_time = Utc::now() + Duration::minutes(10);
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(result.is_ok(), "Schedule should succeed");
         assert_eq!(result.unwrap(), true, "Job should be added");
 
@@ -226,13 +226,13 @@ mod schedule {
         let schedule_time_2 = Utc::now() + Duration::minutes(10);
 
         // Schedule first time
-        let result1 = queue.schedule(job.clone(), schedule_time_1).await;
+        let result1 = queue.schedule(job.clone(), schedule_time_1, None).await;
         assert!(result1.is_ok(), "First schedule should succeed");
         assert_eq!(result1.unwrap(), true, "First job should be added");
 
         // Schedule duplicate with same IDs
         let job2 = WorkerJob::UpdateAffiliations { character_ids };
-        let result2 = queue.schedule(job2, schedule_time_2).await;
+        let result2 = queue.schedule(job2, schedule_time_2, None).await;
         assert!(
             result2.is_ok(),
             "Duplicate schedule should succeed (but not add)"
@@ -266,12 +266,12 @@ mod schedule {
         let schedule_time_2 = Utc::now() + Duration::minutes(10);
 
         // Schedule first job
-        let result1 = queue.schedule(job1, schedule_time_1).await;
+        let result1 = queue.schedule(job1, schedule_time_1, None).await;
         assert!(result1.is_ok(), "First schedule should succeed");
         assert_eq!(result1.unwrap(), true, "First job should be added");
 
         // Schedule second job with different IDs
-        let result2 = queue.schedule(job2, schedule_time_2).await;
+        let result2 = queue.schedule(job2, schedule_time_2, None).await;
         assert!(result2.is_ok(), "Second schedule should succeed");
         assert_eq!(
             result2.unwrap(),
@@ -298,7 +298,7 @@ mod schedule {
         let job = WorkerJob::UpdateAffiliations { character_ids };
         let schedule_time = Utc::now() + Duration::minutes(5);
 
-        let result = queue.schedule(job, schedule_time).await;
+        let result = queue.schedule(job, schedule_time, None).await;
         assert!(result.is_ok(), "Schedule with max size should succeed");
         assert_eq!(result.unwrap(), true, "Job should be added");
 
@@ -331,10 +331,10 @@ mod schedule {
 
         let schedule_time = Utc::now() + Duration::minutes(5);
 
-        let result1 = queue.schedule(job1, schedule_time).await;
-        let result2 = queue.schedule(job2, schedule_time).await;
-        let result3 = queue.schedule(job3, schedule_time).await;
-        let result4 = queue.schedule(job4, schedule_time).await;
+        let result1 = queue.schedule(job1, schedule_time, None).await;
+        let result2 = queue.schedule(job2, schedule_time, None).await;
+        let result3 = queue.schedule(job3, schedule_time, None).await;
+        let result4 = queue.schedule(job4, schedule_time, None).await;
 
         assert!(
             result1.is_ok() && result1.unwrap(),
@@ -379,9 +379,9 @@ mod schedule {
 
         let schedule_time = Utc::now() + Duration::minutes(5);
 
-        let result1 = queue.schedule(job1, schedule_time).await;
-        let result2 = queue.schedule(job2, schedule_time).await;
-        let result3 = queue.schedule(job3, schedule_time).await;
+        let result1 = queue.schedule(job1, schedule_time, None).await;
+        let result2 = queue.schedule(job2, schedule_time, None).await;
+        let result3 = queue.schedule(job3, schedule_time, None).await;
 
         assert!(
             result1.is_ok() && result1.unwrap(),
@@ -414,7 +414,7 @@ mod schedule {
         for i in 1..=10 {
             let job = WorkerJob::UpdateCharacterInfo { character_id: i };
             let schedule_time = Utc::now() + Duration::minutes(i * 5);
-            let result = queue.schedule(job, schedule_time).await;
+            let result = queue.schedule(job, schedule_time, None).await;
             assert!(
                 result.is_ok() && result.unwrap(),
                 "Job {} should be added",
@@ -442,7 +442,7 @@ mod schedule {
         let schedule_time = Utc::now() + Duration::minutes(30);
         let expected_timestamp = schedule_time.timestamp_millis();
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(result.is_ok() && result.unwrap(), "Job should be added");
 
         // Verify job was stored with the correct timestamp
@@ -480,7 +480,7 @@ mod schedule {
         // Schedule in the past (e.g., for handling overflowed jobs from previous window)
         let schedule_time = Utc::now() - Duration::minutes(5);
 
-        let result = queue.schedule(job.clone(), schedule_time).await;
+        let result = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(
             result.is_ok() && result.unwrap(),
             "Job should be added even if scheduled in the past"
@@ -510,7 +510,7 @@ mod schedule {
 
         // Try to schedule the same job
         let schedule_time = Utc::now() + Duration::minutes(10);
-        let result2 = queue.schedule(job.clone(), schedule_time).await;
+        let result2 = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(
             result2.is_ok() && !result2.unwrap(),
             "Schedule should detect duplicate from push"
@@ -536,7 +536,7 @@ mod schedule {
 
         // Schedule job first
         let schedule_time = Utc::now() + Duration::minutes(10);
-        let result1 = queue.schedule(job.clone(), schedule_time).await;
+        let result1 = queue.schedule(job.clone(), schedule_time, None).await;
         assert!(
             result1.is_ok() && result1.unwrap(),
             "Schedule should succeed"
