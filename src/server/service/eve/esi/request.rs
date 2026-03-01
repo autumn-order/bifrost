@@ -84,22 +84,8 @@ where
         let result = self.request.send().await;
 
         match &result {
-            Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
-                tracing::debug!("ESI request returned 429 rate limit error");
-                // Only track rate limits for public requests
-                // Authenticated requests have independent rate limits per token
-                if let Some(retry_after) = err.retry_after {
-                    if !has_access_token {
-                        self.group.handle_rate_limit(retry_after).await;
-                    }
-                }
-            }
-            Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
-                tracing::debug!(
-                    status = %err.status,
-                    "ESI request returned 5xx error, updating circuit breaker state"
-                );
-                self.group.handle_5xx_error().await;
+            Err(eve_esi::Error::EsiError(err)) => {
+                self.group.handle_esi_error(err, has_access_token).await;
             }
             Ok(_) => {
                 tracing::trace!("ESI request successful");
@@ -153,22 +139,8 @@ where
         let result = self.request.send_cached(strategy).await;
 
         match &result {
-            Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
-                tracing::debug!("Cached ESI request returned 429 rate limit error");
-                // Only track rate limits for public requests
-                // Authenticated requests have independent rate limits per token
-                if let Some(retry_after) = err.retry_after {
-                    if !has_access_token {
-                        self.group.handle_rate_limit(retry_after).await;
-                    }
-                }
-            }
-            Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
-                tracing::debug!(
-                    status = %err.status,
-                    "Cached ESI request returned 5xx error, updating circuit breaker state"
-                );
-                self.group.handle_5xx_error().await;
+            Err(eve_esi::Error::EsiError(err)) => {
+                self.group.handle_esi_error(err, has_access_token).await;
             }
             Ok(CachedResponse::Fresh(_)) => {
                 tracing::trace!("Cached ESI request returned fresh data (200 OK)");

@@ -61,6 +61,7 @@ use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use dioxus_logger::tracing;
+use eve_esi::EsiError;
 use tokio::sync::RwLock;
 
 use super::{
@@ -346,6 +347,36 @@ impl EndpointGroup {
             if was_recovering && matches!(*status, EndpointStatus::Healthy) {
                 self.recovering.store(false, Ordering::Release);
             }
+        }
+    }
+
+    /// Handle EsiErrors with status 5xx & 429 returned from an EsiRequest.
+    ///
+    /// This method centralizes error handling logic for ESI requests, updating
+    /// the endpoint group's circuit breaker state appropriately.
+    ///
+    /// # Arguments
+    /// - `error` - An EsiError containing status code & rate limit info if applicable
+    /// - `has_access_token` - Bool representing whether this was an authenticated ESI request
+    ///
+    /// # Behavior
+    /// - **429 (Rate Limited)**: Only tracks rate limits for public requests.
+    ///   Authenticated requests have independent rate limits per token.
+    /// - **5xx errors**: Updates circuit breaker state, may transition to Impaired or Offline.
+    pub(super) async fn handle_esi_error(&self, error: &EsiError, has_access_token: bool) {
+        if error.status == 429 {
+            tracing::debug!("ESI request returned 429 rate limit error");
+            if let Some(retry_after) = error.retry_after {
+                if !has_access_token {
+                    self.handle_rate_limit(retry_after).await;
+                }
+            }
+        } else if matches!(error.status, 500..=599) {
+            tracing::debug!(
+                status = %error.status,
+                "ESI request returned 5xx error, updating circuit breaker state"
+            );
+            self.handle_5xx_error().await;
         }
     }
 }
