@@ -1,23 +1,40 @@
-//! ESI endpoint group circuit breaker implementation.
+//! ESI endpoint group circuit breaker and rate limit tracking.
 //!
-//! This module implements a circuit breaker pattern for ESI endpoint groups,
-//! tracking error rates and automatically disabling/re-enabling endpoints based
-//! on their health status. The circuit breaker has four states:
+//! This module implements a unified state machine for ESI endpoint groups that handles
+//! both circuit breaking (5xx error tracking) and rate limiting (429 responses).
 //!
-//! - `Healthy`: Normal operation, no recent errors
+//! ## State Machine
+//!
+//! The endpoint group can be in one of five states:
+//!
+//! - `Healthy`: Normal operation, no recent errors, not rate limited
 //! - `Impaired`: Errors detected, tracking requests in sliding window
 //! - `Recovering`: Attempting to recover from Offline state after cooldown
 //! - `Offline`: Circuit breaker tripped, requests blocked until cooldown expires
+//! - `RateLimited`: Hit ESI rate limit (429), requests blocked until retry_after expires
 //!
-//! The implementation uses a read-write lock for status management and an atomic
-//! flag to coordinate recovery attempts across concurrent requests.
-//!
-//! ## Sliding Window Approach
+//! ## Circuit Breaker (5xx Error Tracking)
 //!
 //! The circuit breaker uses a sliding window to track the last N request outcomes
 //! (success or failure). This provides volume-independent failure detection that
 //! works equally well for low-volume and high-volume endpoints. When the error rate
-//! within the window exceeds the threshold, the circuit breaker trips.
+//! within the window exceeds the threshold, the circuit breaker trips to Offline state.
+//!
+//! ## Rate Limit Tracking (429 Response Handling)
+//!
+//! When ESI returns a 429 (Too Many Requests) response with a `retry_after` duration,
+//! the endpoint immediately transitions to `RateLimited` state regardless of its current
+//! circuit breaker state. Subsequent requests are rejected early without making ESI
+//! requests, preventing wasted API calls.
+//!
+//! Rate limits expire automatically after the specified duration. On the first successful
+//! request after expiration, the endpoint transitions to `Healthy` state.
+//!
+//! ## Concurrency
+//!
+//! The implementation uses a single read-write lock for status management and an atomic
+//! flag to coordinate recovery attempts across concurrent requests, ensuring thread-safe
+//! operation with minimal lock contention.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -82,15 +99,20 @@ impl EndpointGroup {
 
 /// Health status of an ESI endpoint group.
 ///
-/// Represents the current state in the circuit breaker state machine:
+/// Represents the current state in the circuit breaker and rate limit state machine:
 ///
 /// State transitions:
 /// - `Healthy` → `Impaired`: First 5xx error occurs
+/// - `Healthy` → `RateLimited`: 429 rate limit response
 /// - `Impaired` → `Healthy`: Error rate drops below threshold (successful requests)
 /// - `Impaired` → `Offline`: Error rate exceeds threshold in sliding window
+/// - `Impaired` → `RateLimited`: 429 rate limit response
 /// - `Offline` → `Recovering`: Cooldown expires and request attempts recovery
+/// - `Offline` → `RateLimited`: 429 rate limit response
 /// - `Recovering` → `Healthy`: Successful request during recovery
 /// - `Recovering` → `Offline`: Error during recovery (strict fail-fast behavior)
+/// - `Recovering` → `RateLimited`: 429 rate limit response
+/// - `RateLimited` → `Healthy`: Rate limit expires and request succeeds
 #[derive(Debug, Clone)]
 pub(super) enum EndpointStatus {
     /// Normal operation, no recent errors
@@ -110,6 +132,11 @@ pub(super) enum EndpointStatus {
     Offline {
         /// Timestamp when endpoint went offline (used for cooldown calculation)
         last_error: DateTime<Utc>,
+    },
+    /// Rate limited, requests blocked until retry_after expires
+    RateLimited {
+        /// Timestamp when rate limit expires
+        until: DateTime<Utc>,
     },
 }
 
@@ -131,6 +158,8 @@ impl EndpointGroup {
     /// - If `Healthy` or `Impaired`: Returns immediately with current state
     /// - If `Offline` and cooldown not expired: Returns error
     /// - If `Offline` and cooldown expired: Atomically transitions to `Recovering` (only first caller succeeds)
+    /// - If `RateLimited` and not expired: Returns error
+    /// - If `RateLimited` and expired: Transitions to `Healthy`
     pub(super) async fn check_and_begin_recovery(&self) -> Result<CheckResult, AppError> {
         // Fast path: read lock to check status
         let (attempting_recovery, is_impaired) = {
@@ -150,11 +179,14 @@ impl EndpointGroup {
                 // We won the race - transition to Recovering
                 let mut status = self.status.write().await;
 
-                // Double-check state hasn't changed
-                if matches!(*status, EndpointStatus::Offline { .. }) {
+                // Double-check state hasn't changed - handle both Offline and RateLimited
+                if matches!(
+                    *status,
+                    EndpointStatus::Offline { .. } | EndpointStatus::RateLimited { .. }
+                ) {
                     tracing::info!(
                         group = %self.name,
-                        "ESI endpoint group beginning recovery attempt after cooldown period"
+                        "ESI endpoint group beginning recovery attempt after cooldown/rate limit period"
                     );
                     status.begin_recovery_attempt();
                 } else {
@@ -169,6 +201,28 @@ impl EndpointGroup {
             attempting_recovery,
             was_impaired: is_impaired,
         })
+    }
+
+    /// Records a rate limit for this endpoint group.
+    ///
+    /// This method is called when a 429 (Too Many Requests) response is received.
+    /// The rate limit is stored as an absolute timestamp based on the retry_after duration.
+    /// Transitions the endpoint to `RateLimited` state regardless of current circuit breaker state.
+    ///
+    /// # Arguments
+    /// - `retry_after` - Duration until the rate limit expires
+    pub(super) async fn handle_rate_limit(&self, retry_after: Duration) {
+        let until = Utc::now() + chrono::Duration::from_std(retry_after).unwrap();
+
+        let mut status = self.status.write().await;
+        *status = EndpointStatus::RateLimited { until };
+
+        tracing::warn!(
+            group = self.name,
+            retry_after_secs = retry_after.as_secs(),
+            until = %until,
+            "Endpoint group rate limited"
+        );
     }
 
     /// Handle a 5xx error response from ESI.
@@ -252,6 +306,18 @@ impl EndpointStatus {
     /// by `begin_recovery_attempt()` after this check passes.
     pub(super) fn check_recovery_eligibility(&self) -> Result<bool, AppError> {
         match self {
+            EndpointStatus::RateLimited { until } => {
+                let now = Utc::now();
+                if now < *until {
+                    let remaining = (*until - now).to_std().unwrap_or(Duration::from_secs(0));
+                    Err(AppError::EsiRateLimited {
+                        retry_after: Some(remaining),
+                    })
+                } else {
+                    // Rate limit has expired, allow request and signal transition to Healthy
+                    Ok(true)
+                }
+            }
             EndpointStatus::Offline { last_error } => {
                 let now = Utc::now();
                 let elapsed = now.signed_duration_since(*last_error);
@@ -276,8 +342,15 @@ impl EndpointStatus {
     /// - If current state is `Offline`: Transitions to `Recovering`
     /// - If current state is not `Offline`: No-op (another thread may have already transitioned)
     pub(super) fn begin_recovery_attempt(&mut self) {
-        if let EndpointStatus::Offline { .. } = self {
-            *self = EndpointStatus::Recovering;
+        match self {
+            EndpointStatus::Offline { .. } => {
+                *self = EndpointStatus::Recovering;
+            }
+            EndpointStatus::RateLimited { .. } => {
+                // Rate limit has expired, transition back to Healthy
+                *self = EndpointStatus::Healthy;
+            }
+            _ => {}
         }
     }
 
@@ -366,6 +439,10 @@ impl EndpointStatus {
                 *self = EndpointStatus::Offline { last_error: now };
             }
             EndpointStatus::Offline { .. } => {}
+            EndpointStatus::RateLimited { .. } => {
+                // If we somehow get a 5xx error while rate limited, stay rate limited
+                // The rate limit takes precedence
+            }
         }
     }
 
@@ -435,8 +512,14 @@ impl EndpointStatus {
                 );
                 *self = EndpointStatus::Healthy;
             }
-            EndpointStatus::Offline { .. } => {
-                // No-op, must go through recovery first
+            EndpointStatus::Offline { .. } => {}
+            EndpointStatus::RateLimited { .. } => {
+                // Rate limit has expired and request succeeded, transition to Healthy
+                tracing::info!(
+                    group = %group_name,
+                    "ESI endpoint group rate limit expired, transitioning to Healthy"
+                );
+                *self = EndpointStatus::Healthy;
             }
         }
     }

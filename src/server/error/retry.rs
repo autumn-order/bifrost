@@ -102,6 +102,9 @@ impl AppError {
 
             Self::EsiEndpointOffline => ErrorRetryStrategy::Retry,
 
+            // ESI endpoint group is rate limited - retry after the specified duration
+            Self::EsiRateLimited { retry_after } => ErrorRetryStrategy::RateLimited(*retry_after),
+
             Self::Database(db_err) => {
                 match db_err {
                     // Connection acquisition failures - transient, connection pool may recover

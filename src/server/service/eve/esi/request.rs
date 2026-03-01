@@ -79,6 +79,12 @@ where
         let result = self.request.send().await;
 
         match &result {
+            Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
+                tracing::debug!("ESI request returned 429 rate limit error");
+                if let Some(retry_after) = err.retry_after {
+                    self.group.handle_rate_limit(retry_after).await;
+                }
+            }
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
                 tracing::debug!(
                     status = %err.status,
@@ -133,6 +139,12 @@ where
         let result = self.request.send_cached(strategy).await;
 
         match &result {
+            Err(eve_esi::Error::EsiError(err)) if err.status == 429 => {
+                tracing::debug!("Cached ESI request returned 429 rate limit error");
+                if let Some(retry_after) = err.retry_after {
+                    self.group.handle_rate_limit(retry_after).await;
+                }
+            }
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
                 tracing::debug!(
                     status = %err.status,

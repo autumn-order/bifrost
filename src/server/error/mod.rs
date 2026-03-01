@@ -10,6 +10,8 @@ pub mod config;
 pub mod retry;
 pub mod worker;
 
+use std::time::Duration;
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -65,6 +67,15 @@ pub enum AppError {
     /// and is temporarily unavailable. The endpoint will attempt recovery after a cooldown period.
     #[error("ESI endpoint group is offline, please try again later")]
     EsiEndpointOffline,
+    /// ESI endpoint group is rate limited.
+    ///
+    /// This error indicates that an ESI endpoint group has hit its rate limit (429 response).
+    /// Requests should be retried after the specified duration.
+    #[error("ESI endpoint group is rate limited")]
+    EsiRateLimited {
+        /// Duration to wait before retrying
+        retry_after: Option<Duration>,
+    },
     /// ESI client error (API requests, OAuth, rate limiting).
     #[error(transparent)]
     Esi(#[from] eve_esi::Error),
