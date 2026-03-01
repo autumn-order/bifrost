@@ -2,8 +2,8 @@
 //!
 //! This module provides a high-level interface to EVE Online's ESI API with automatic
 //! circuit breaker protection for endpoint groups. It organizes ESI endpoints into logical
-//! groups (e.g., character, corporation, market) where each group shares circuit breaker
-//! state to prevent cascading failures.
+//! groups (e.g., alliance, character, corporation, universe) where each group shares circuit
+//! breaker state to prevent cascading failures.
 //!
 //! # Circuit Breaker Pattern
 //!
@@ -54,22 +54,17 @@
 //! }
 //! ```
 
-mod alliance;
-mod character;
-mod corporation;
+mod endpoints;
 mod group;
-#[macro_use]
-mod macros;
-pub(crate) mod request;
-mod universe;
+mod request;
 
 use std::{sync::Arc, time::Duration};
 
-use alliance::AllianceEndpoints;
-use character::CharacterEndpoints;
-use corporation::CorporationEndpoints;
+use endpoints::{
+    alliance::AllianceEndpoints, character::CharacterEndpoints, corporation::CorporationEndpoints,
+    universe::UniverseEndpoints,
+};
 use group::EndpointGroup;
-use universe::UniverseEndpoints;
 
 /// Size of the sliding window for tracking recent request outcomes.
 ///
@@ -96,7 +91,7 @@ const ENDPOINT_GROUP_RETRY_COOLDOWN: Duration = Duration::from_secs(60);
 /// Main provider for ESI (EVE Swagger Interface) endpoints with circuit breaker protection.
 ///
 /// The `EsiProvider` organizes ESI endpoints into logical groups, each with independent
-/// circuit breaker state. This prevents issues with one category of endpoints (e.g., market)
+/// circuit breaker state. This prevents issues with one category of endpoints (e.g., universe)
 /// from affecting others (e.g., character).
 #[derive(Clone)]
 pub struct EsiProvider {

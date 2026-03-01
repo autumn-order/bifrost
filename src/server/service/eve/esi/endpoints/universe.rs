@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use eve_esi::model::universe::Faction;
 
-use super::group::EndpointGroup;
+use super::{group::EndpointGroup, macros::define_esi_endpoint};
 
 /// Handler for ESI universe endpoints.
 ///
