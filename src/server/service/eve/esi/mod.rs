@@ -57,6 +57,7 @@
 mod endpoints;
 mod group;
 mod request;
+mod status;
 
 use std::{sync::Arc, time::Duration};
 
