@@ -9,7 +9,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Redirect},
 };
-use dioxus_logger::tracing;
+use log;
 use serde::Deserialize;
 use tower_sessions::Session;
 
@@ -149,7 +149,7 @@ pub async fn callback(
         .await?;
 
     if maybe_user_id.is_none() {
-        tracing::trace!(
+        log::trace!(
             "Inserting user ID {} into session after successful callback",
             user_id
         );

@@ -4,7 +4,7 @@
 //! character ownership linking, transfers between users, and main character management.
 //! All operations use transactions to ensure data consistency.
 
-use dioxus_logger::tracing;
+use log;
 use sea_orm::{DatabaseConnection, DatabaseTransaction};
 
 use crate::{
@@ -189,22 +189,22 @@ impl<'a> UserCharacterService<'a> {
                 }
                 None => {
                     if let Some(character) = maybe_main_character {
-                        tracing::info!(
-                            deleted_user_id = %prev_user.id,
-                            character_id = %character.character_id,
-                            character_name = %character.name,
-                            new_owner_id = %to_user_id,
-                            "Deleted user after transferring their only remaining character to another user"
-                        )
+                        log::info!(
+                            "deleted_user_id = {}, character_id = {}, character_name = {}, new_owner_id = {}. Deleted user after transferring their only remaining character to another user",
+                            prev_user.id,
+                            character.character_id,
+                            character.name,
+                            to_user_id
+                        );
                     } else {
                         // Only occurs if foreign-key constraint requiring user's main character to
                         // exist in database is not properly enforced.
-                        tracing::warn!(
-                            deleted_user_id = %prev_user.id,
-                            new_owner_id = %to_user_id,
-                            character_record_id = %character_record_id,
-                            "Deleted user after transferring their only remaining character to another user. Could not retrieve character information from database, likely due to FK constraint violation."
-                        )
+                        log::warn!(
+                            "deleted_user_id = {}, new_owner_id = {}, character_record_id = {}. Deleted user after transferring their only remaining character to another user. Could not retrieve character information from database, likely due to FK constraint violation.",
+                            prev_user.id,
+                            to_user_id,
+                            character_record_id
+                        );
                     }
 
                     user_repo.delete(prev_user.id).await?;
@@ -239,11 +239,11 @@ impl<'a> UserCharacterService<'a> {
         let user_repo = UserRepository::new(txn);
 
         if ownership.user_id != user_id {
-            tracing::warn!(
-                user_id = %user_id,
-                character_id = %ownership.character_id,
-                actual_owner_id = %ownership.user_id,
-                "User attempted to change main to character owned by another user"
+            log::warn!(
+                "user_id = {}, character_id = {}, actual_owner_id = {}. User attempted to change main to character owned by another user",
+                user_id,
+                ownership.character_id,
+                ownership.user_id
             );
 
             return Err(AuthError::CharacterOwnedByAnotherUser.into());

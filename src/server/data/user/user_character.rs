@@ -8,7 +8,7 @@ use crate::server::model::db::{
     CharacterOwnershipModel, EveAllianceModel, EveCharacterModel, EveCorporationModel,
 };
 use chrono::Utc;
-use dioxus_logger::tracing;
+use log;
 use migration::OnConflict;
 use sea_orm::{ActiveValue, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 
@@ -207,11 +207,11 @@ impl<'a, C: ConnectionTrait> UserCharacterRepository<'a, C> {
                                 Some((character, corporation.clone(), alliance.clone()))
                             }
                             None => {
-                                tracing::warn!(
-                                    character_id = character.id,
-                                    character_name = %character.name,
-                                    corporation_id = character.corporation_id,
-                                    "Failed to find related corporation for character in database - skipping character from results"
+                                log::warn!(
+                                    "character_id = {}, character_name = {}, corporation_id = {}. Failed to find related corporation for character in database - skipping character from results",
+                                    character.id,
+                                    character.name,
+                                    character.corporation_id
                                 );
                                 None
                             }

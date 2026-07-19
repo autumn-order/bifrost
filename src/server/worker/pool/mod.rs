@@ -11,7 +11,7 @@ pub use config::WorkerPoolConfig;
 use std::sync::Arc;
 use std::time::Duration;
 
-use dioxus_logger::tracing;
+use log;
 use tokio::sync::{Notify, RwLock, Semaphore};
 use tokio::task::JoinHandle;
 
@@ -88,11 +88,11 @@ impl WorkerPool {
         let mut handles = self.inner.dispatcher_handles.write().await;
 
         if !handles.is_empty() {
-            tracing::warn!("Worker pool is already running");
+            log::warn!("Worker pool is already running");
             return Ok(());
         }
 
-        tracing::info!(
+        log::info!(
             "Starting worker pool with {} dispatcher(s) (max {} concurrent jobs)",
             self.inner.config.dispatcher_count,
             self.inner.config.max_concurrent_jobs
@@ -107,7 +107,7 @@ impl WorkerPool {
             handles.push(handle);
         }
 
-        tracing::info!(
+        log::info!(
             "Worker pool started successfully ({} dispatcher(s) active)",
             self.inner.config.dispatcher_count
         );
@@ -133,7 +133,7 @@ impl WorkerPool {
         let shutdown = Arc::clone(&self.inner.shutdown);
 
         tokio::spawn(async move {
-            tracing::info!("Dispatcher {} started", id);
+            log::info!("Dispatcher {} started", id);
 
             loop {
                 tokio::select! {
@@ -142,7 +142,7 @@ impl WorkerPool {
                     biased;
 
                     _ = shutdown.notified() => {
-                        tracing::debug!("Dispatcher {} received shutdown signal", id);
+                        log::debug!("Dispatcher {} received shutdown signal", id);
                         break;
                     }
 
@@ -158,7 +158,7 @@ impl WorkerPool {
                 }
             }
 
-            tracing::info!("Dispatcher {} stopped", id);
+            log::info!("Dispatcher {} stopped", id);
         })
     }
 
@@ -198,7 +198,7 @@ impl WorkerPool {
                     Err(_) => {
                         // Semaphore closed (shutting down), push job back
                         let _ = queue.push(scheduled_job.job).await;
-                        tracing::debug!(
+                        log::debug!(
                             "Dispatcher {} semaphore closed, returned job to queue",
                             dispatcher_id
                         );
@@ -211,7 +211,7 @@ impl WorkerPool {
             }
             Err(e) => {
                 // Error fetching from queue, log and backoff
-                tracing::error!("Dispatcher {} queue error: {:?}", dispatcher_id, e);
+                log::error!("Dispatcher {} queue error: {:?}", dispatcher_id, e);
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
@@ -239,13 +239,13 @@ impl WorkerPool {
         match result {
             Ok(Ok(())) => {
                 // Job completed successfully
-                tracing::debug!("Job completed: {}", scheduled_job);
+                log::debug!("Job completed: {}", scheduled_job);
             }
             Ok(Err(e)) => {
-                tracing::error!("Job failed: {}, error: {:?}", scheduled_job, e);
+                log::error!("Job failed: {}, error: {:?}", scheduled_job, e);
             }
             Err(_) => {
-                tracing::error!(
+                log::error!(
                     "Job timed out after {} seconds: {}",
                     timeout.as_secs(),
                     scheduled_job
@@ -275,11 +275,11 @@ impl WorkerPool {
     pub async fn stop(&self) -> Result<(), AppError> {
         // Check if already stopped (idempotent)
         if !self.is_running().await {
-            tracing::debug!("Worker pool is already stopped");
+            log::debug!("Worker pool is already stopped");
             return Ok(());
         }
 
-        tracing::info!("Shutting down worker pool...");
+        log::info!("Shutting down worker pool...");
 
         // Close semaphore to prevent new jobs from starting
         self.inner.semaphore.close();
@@ -301,18 +301,18 @@ impl WorkerPool {
             match timeout_result {
                 Ok(Ok(())) => {
                     // Dispatcher stopped cleanly
-                    tracing::debug!("Dispatcher {} stopped cleanly", i);
+                    log::debug!("Dispatcher {} stopped cleanly", i);
                 }
                 Ok(Err(e)) => {
-                    tracing::error!("Dispatcher {} panicked: {:?}", i, e);
+                    log::error!("Dispatcher {} panicked: {:?}", i, e);
                 }
                 Err(_) => {
-                    tracing::warn!("Dispatcher {} did not stop within timeout", i);
+                    log::warn!("Dispatcher {} did not stop within timeout", i);
                 }
             }
         }
 
-        tracing::info!(
+        log::info!(
             "Worker pool shut down ({} dispatchers stopped, in-flight tasks will complete)",
             dispatcher_count
         );

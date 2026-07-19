@@ -130,7 +130,6 @@ sudo docker compose up -d --build
 
 - [BunJS](https://bun.sh/)
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Dioxus](https://dioxuslabs.com/learn/0.7/getting_started/)
 - [Docker](https://docs.docker.com/engine/install/)
 
 Install the tailwindcss dependencies with:
@@ -176,10 +175,10 @@ docker compose -f docker-compose.dev.yml up -d
 bunx @tailwindcss/cli -i ./tailwind.css -o ./assets/tailwind.css --watch
 ```
 
-3. Start the dioxus application in a separate terminal
+3. Start the application in a separate terminal
 
 ```bash
-dx serve
+cargo run dev
 ```
 
 The application can now be found at `http://localhost:8080`
@@ -224,10 +223,10 @@ sea-orm-cli migrate refresh
 
 ## Testing
 
-Run tests for the server with:
+Run tests with:
 
 ```bash
-cargo test --features server
+cargo test 
 ```
 
 For tests which include redis
@@ -256,5 +255,5 @@ Generate code coverage report with [cargo-llvm-cov](https://github.com/taiki-e/c
 - Use `redis-test` feature to include redis-related tests as well
 
 ```bash
-cargo llvm-cov --open --features server --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/"
+cargo llvm-cov --open --ignore-filename-regex "client\/|entity\/|migration\/|bifrost-test-utils\/"
 ```

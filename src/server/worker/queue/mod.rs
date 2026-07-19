@@ -55,7 +55,7 @@ use std::sync::{
 };
 
 use chrono::{DateTime, Utc};
-use dioxus_logger::tracing;
+use log;
 use fred::prelude::*;
 
 use crate::server::{
@@ -136,7 +136,7 @@ impl WorkerQueue {
         let mut handle = self.inner.cleanup_task_handle.write().await;
 
         if handle.is_some() {
-            tracing::debug!("Worker queue cleanup task is already running");
+            log::debug!("Worker queue cleanup task is already running");
             return;
         }
 
@@ -147,7 +147,7 @@ impl WorkerQueue {
         let task_handle = tokio::spawn(async move {
             let mut interval_timer = tokio::time::interval(config.cleanup_interval);
 
-            tracing::info!(
+            log::info!(
                 "Worker queue cleanup task started with interval of {:?} seconds",
                 config.cleanup_interval.as_secs()
             );
@@ -155,7 +155,7 @@ impl WorkerQueue {
             loop {
                 // Check shutdown flag before waiting
                 if shutdown_flag.load(Ordering::Relaxed) {
-                    tracing::info!("Worker queue cleanup task received shutdown signal");
+                    log::info!("Worker queue cleanup task received shutdown signal");
                     break;
                 }
 
@@ -165,18 +165,18 @@ impl WorkerQueue {
                     _ = interval_timer.tick() => {
                         // Check again after waking up
                         if shutdown_flag.load(Ordering::Relaxed) {
-                            tracing::info!("Worker queue cleanup task received shutdown signal");
+                            log::info!("Worker queue cleanup task received shutdown signal");
                             break;
                         }
 
                         if let Err(e) = Self::cleanup_stale_jobs_internal(&config, &pool).await {
-                            tracing::warn!("Failed to cleanup stale worker queue jobs: {}", e);
+                            log::warn!("Failed to cleanup stale worker queue jobs: {}", e);
                         }
                     }
                 }
             }
 
-            tracing::info!("Worker queue cleanup task stopped");
+            log::info!("Worker queue cleanup task stopped");
         });
 
         *handle = Some(task_handle);
@@ -193,19 +193,19 @@ impl WorkerQueue {
         // Wait for the task to finish
         let mut handle = self.inner.cleanup_task_handle.write().await;
         if let Some(task_handle) = handle.take() {
-            tracing::debug!("Waiting for worker queue cleanup task to stop");
+            log::debug!("Waiting for worker queue cleanup task to stop");
             match task_handle.await {
                 Ok(()) => {
-                    tracing::debug!("Worker queue cleanup task stopped cleanly");
+                    log::debug!("Worker queue cleanup task stopped cleanly");
                 }
                 Err(e) if e.is_panic() => {
-                    tracing::error!("Worker queue cleanup task panicked: {:?}", e);
+                    log::error!("Worker queue cleanup task panicked: {:?}", e);
                 }
                 Err(e) if e.is_cancelled() => {
-                    tracing::warn!("Worker queue cleanup task was cancelled");
+                    log::warn!("Worker queue cleanup task was cancelled");
                 }
                 Err(e) => {
-                    tracing::error!("Worker queue cleanup task failed: {:?}", e);
+                    log::error!("Worker queue cleanup task failed: {:?}", e);
                 }
             }
         }
@@ -443,7 +443,7 @@ impl WorkerQueue {
             .await?;
 
         if removed > 0 {
-            tracing::info!("Cleaned up {} stale jobs from worker queue", removed);
+            log::info!("Cleaned up {} stale jobs from worker queue", removed);
         }
 
         // Clean up orphaned retry metadata
@@ -465,7 +465,7 @@ impl WorkerQueue {
             if !orphaned_keys.is_empty() {
                 let orphaned_count = orphaned_keys.len();
                 let _: () = pool.hdel(&retry_hash_key, orphaned_keys).await?;
-                tracing::info!(
+                log::info!(
                     "Cleaned up {} orphaned retry metadata entries from worker queue",
                     orphaned_count
                 );

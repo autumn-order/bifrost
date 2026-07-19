@@ -15,7 +15,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use dioxus_logger::tracing;
+use log;
 use thiserror::Error;
 
 use crate::{
@@ -77,6 +77,8 @@ pub enum AppError {
     /// Redis session store error (connection, command execution).
     #[error(transparent)]
     SessionStore(#[from] tower_sessions_redis_store::fred::prelude::Error),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 }
 
 /// Converts application errors into HTTP responses.
@@ -118,7 +120,7 @@ pub struct InternalServerError<E>(pub E);
 /// A 500 Internal Server Error response with a generic error message JSON body
 impl<E: std::fmt::Display> IntoResponse for InternalServerError<E> {
     fn into_response(self) -> Response {
-        tracing::error!("{}", self.0);
+        log::error!("{}", self.0);
 
         (
             StatusCode::INTERNAL_SERVER_ERROR,

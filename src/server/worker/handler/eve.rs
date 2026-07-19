@@ -1,4 +1,4 @@
-use dioxus_logger::tracing;
+use log;
 
 use super::WorkerJobHandler;
 use crate::server::{
@@ -21,20 +21,20 @@ impl WorkerJobHandler {
     /// - `Ok(())` - Faction update completed (or skipped if cache valid)
     /// - `Err(AppError)` - Failed to update factions
     pub async fn update_faction_info(&self) -> Result<(), AppError> {
-        tracing::debug!("Checking for daily NPC faction info update");
+        log::debug!("Checking for daily NPC faction info update");
 
         let factions = FactionService::new(&self.db, &self.esi_provider)
             .update()
             .await
             .map_err(|e| {
-                tracing::error!("Failed to update NPC faction information: {:?}", e);
+                log::error!("Failed to update NPC faction information: {:?}", e);
                 e
             })?;
 
         if factions.is_empty() {
-            tracing::debug!("NPC faction information already up to date, no update needed");
+            log::debug!("NPC faction information already up to date, no update needed");
         } else {
-            tracing::debug!(
+            log::debug!(
                 "Successfully updated NPC faction information for {} factions",
                 factions.len()
             );
@@ -55,7 +55,7 @@ impl WorkerJobHandler {
     /// - `Ok(())` - Alliance info updated successfully
     /// - `Err(AppError)` - Failed to fetch or persist alliance data
     pub async fn update_alliance_info(&self, alliance_id: i64) -> Result<(), AppError> {
-        tracing::debug!(
+        log::debug!(
             "Processing alliance info update for alliance_id: {}",
             alliance_id
         );
@@ -64,7 +64,7 @@ impl WorkerJobHandler {
             .update(alliance_id)
             .await
             .map_err(|e| {
-                tracing::error!(
+                log::error!(
                     "Failed to update info for alliance {}: {:?}",
                     alliance_id,
                     e
@@ -72,7 +72,7 @@ impl WorkerJobHandler {
                 e
             })?;
 
-        tracing::debug!("Successfully updated info for alliance {}", alliance_id);
+        log::debug!("Successfully updated info for alliance {}", alliance_id);
 
         Ok(())
     }
@@ -89,7 +89,7 @@ impl WorkerJobHandler {
     /// - `Ok(())` - Corporation info updated successfully
     /// - `Err(AppError)` - Failed to fetch or persist corporation data
     pub async fn update_corporation_info(&self, corporation_id: i64) -> Result<(), AppError> {
-        tracing::debug!(
+        log::debug!(
             "Processing corporation info update for corporation_id: {}",
             corporation_id
         );
@@ -98,7 +98,7 @@ impl WorkerJobHandler {
             .update(corporation_id)
             .await
             .map_err(|e| {
-                tracing::error!(
+                log::error!(
                     "Failed to update info for corporation {}: {:?}",
                     corporation_id,
                     e
@@ -106,7 +106,7 @@ impl WorkerJobHandler {
                 e
             })?;
 
-        tracing::debug!(
+        log::debug!(
             "Successfully updated info for corporation {}",
             corporation_id
         );
@@ -126,7 +126,7 @@ impl WorkerJobHandler {
     /// - `Ok(())` - Character info updated successfully
     /// - `Err(AppError)` - Failed to fetch or persist character data
     pub async fn update_character_info(&self, character_id: i64) -> Result<(), AppError> {
-        tracing::debug!(
+        log::debug!(
             "Processing character info update for character_id: {}",
             character_id
         );
@@ -135,7 +135,7 @@ impl WorkerJobHandler {
             .update(character_id)
             .await
             .map_err(|e| {
-                tracing::error!(
+                log::error!(
                     "Failed to update info for character {}: {:?}",
                     character_id,
                     e
@@ -143,7 +143,7 @@ impl WorkerJobHandler {
                 e
             })?;
 
-        tracing::debug!("Successfully updated info for character {}", character_id);
+        log::debug!("Successfully updated info for character {}", character_id);
 
         Ok(())
     }
@@ -162,15 +162,15 @@ impl WorkerJobHandler {
     /// - `Err(AppError)` - Failed to fetch or persist affiliation data
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), AppError> {
         let count = character_ids.len();
-        tracing::debug!("Processing affiliations update for {} characters", count);
+        log::debug!("Processing affiliations update for {} characters", count);
 
         if character_ids.is_empty() {
-            tracing::debug!("No characters to update affiliations for");
+            log::debug!("No characters to update affiliations for");
             return Ok(());
         }
 
         if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
-            tracing::warn!(
+            log::warn!(
                 "Update affiliation job contains {} character IDs, exceeding ESI affiliation request limit of {}; truncating to limit",
                 character_ids.len(),
                 ESI_AFFILIATION_REQUEST_LIMIT
@@ -181,11 +181,11 @@ impl WorkerJobHandler {
             .update_affiliations(character_ids)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to update affiliations due to error: {:?}", e);
+                log::error!("Failed to update affiliations due to error: {:?}", e);
                 e
             })?;
 
-        tracing::debug!("Successfully updated affiliations for {} characters", count);
+        log::debug!("Successfully updated affiliations for {} characters", count);
 
         Ok(())
     }

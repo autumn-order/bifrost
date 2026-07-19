@@ -6,7 +6,7 @@
 //! workers, and initializing the job scheduler. Each function handles a specific aspect of
 //! server initialization with proper error handling.
 
-use dioxus_logger::tracing;
+use log;
 use fred::prelude::*;
 use sea_orm::DatabaseConnection;
 use tower_sessions::SessionManagerLayer;
@@ -233,10 +233,10 @@ pub async fn start_scheduler(db: DatabaseConnection, queue: WorkerQueue) -> Resu
 
     tokio::spawn(async move {
         if let Err(e) = scheduler.start().await {
-            tracing::error!("Scheduler error: {:?}", e);
+            log::error!("Scheduler error: {:?}", e);
         }
 
-        tracing::info!("Job scheduler started");
+        log::info!("Job scheduler started");
     });
 
     Ok(())

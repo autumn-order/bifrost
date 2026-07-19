@@ -6,7 +6,7 @@
 //! scheduled refresh system by specifying their update timestamp and ID columns.
 
 use chrono::{Duration, Utc};
-use dioxus_logger::tracing;
+use log;
 use sea_orm::{
     ColumnTrait, EntityTrait, IntoSimpleExpr, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };
@@ -181,7 +181,7 @@ impl<'a> EntityRefreshTracker<'a> {
             let ttl_seconds = (self.schedule_interval * 2).num_seconds();
 
             if ttl_seconds <= 0 {
-                tracing::warn!("Invalid TTL calculated for job, skipping");
+                log::warn!("Invalid TTL calculated for job, skipping");
                 continue;
             }
 

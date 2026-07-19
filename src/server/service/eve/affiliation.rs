@@ -6,7 +6,7 @@
 
 use std::collections::HashSet;
 
-use dioxus_logger::tracing;
+use log;
 use eve_esi::model::character::CharacterAffiliation;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
@@ -68,7 +68,7 @@ impl<'a> AffiliationService<'a> {
     pub async fn update_affiliations(&self, character_ids: Vec<i64>) -> Result<(), AppError> {
         // Cap character_ids to ESI limit to prevent affiliation request from erroring due to exceeding limit
         let character_ids = if character_ids.len() > ESI_AFFILIATION_REQUEST_LIMIT {
-            tracing::warn!(
+            log::warn!(
                 "Received {} character IDs for affiliation update, exceeding ESI limit of {}; truncating to limit",
                 character_ids.len(),
                 ESI_AFFILIATION_REQUEST_LIMIT
@@ -87,9 +87,9 @@ impl<'a> AffiliationService<'a> {
             .filter(|&id| {
                 let valid = is_valid_character_id(id);
                 if !valid {
-                    tracing::warn!(
-                        character_id = id,
-                        "Encountered invalid character ID while updating affiliations; skipping character"
+                    log::warn!(
+                        "character_id = {}. Encountered invalid character ID while updating affiliations; skipping character",
+                        id
                     );
                 }
                 valid
@@ -141,7 +141,7 @@ impl<'a> AffiliationService<'a> {
 
         // Build entity provider with all entities needed for affiliations
         // Using ensure_*_exist methods to only fetch entities missing from database
-        tracing::debug!(
+        log::debug!(
             "Ensuring {} characters, {} corporations, {} alliances, {} factions exist",
             character_ids.len(),
             corporation_ids.len(),
@@ -221,9 +221,9 @@ impl<'a> AffiliationService<'a> {
             .into_iter()
             .filter_map(|(corp_id, alliance_id)| {
                 let Some(corp_record_id) = stored_entities.get_corporation_record_id(&corp_id) else {
-                    tracing::warn!(
-                        corporation_id = corp_id,
-                        "Corporation ID not found in database; skipping corporation affiliation update"
+                    log::warn!(
+                        "corporation_id = {}. Corporation ID not found in database; skipping corporation affiliation update",
+                        corp_id
                     );
                     return None;
                 };
@@ -231,10 +231,10 @@ impl<'a> AffiliationService<'a> {
                 let alliance_db_id = match alliance_id {
                     Some(alliance_id) => {
                         let Some(db_id) = stored_entities.get_alliance_record_id(&alliance_id) else {
-                            tracing::warn!(
-                                corporation_id = corp_id,
-                                alliance_id = alliance_id,
-                                "Alliance ID not found in database; skipping corporation affiliation update"
+                            log::warn!(
+                                "corporation_id = {}, alliance_id = {}. Alliance ID not found in database; skipping corporation affiliation update",
+                                corp_id,
+                                alliance_id
                             );
                             return None;
                         };
@@ -278,18 +278,18 @@ impl<'a> AffiliationService<'a> {
             .iter()
             .filter_map(|a| {
                 let Some(char_db_id) = stored_entities.get_character_record_id(&a.character_id) else {
-                    tracing::warn!(
-                        character_id = a.character_id,
-                        "Character ID not found in database; skipping character affiliation update"
+                    log::warn!(
+                        "character_id = {}. Character ID not found in database; skipping character affiliation update",
+                        a.character_id
                     );
                     return None;
                 };
 
                 let Some(corp_db_id) = stored_entities.get_corporation_record_id(&a.corporation_id) else {
-                    tracing::warn!(
-                        character_id = a.character_id,
-                        corporation_id = a.corporation_id,
-                        "Corporation ID not found in database; skipping character affiliation update"
+                    log::warn!(
+                        "character_id = {}, corporation_id = {}. Corporation ID not found in database; skipping character affiliation update",
+                        a.character_id,
+                        a.corporation_id
                     );
                     return None;
                 };
@@ -297,10 +297,10 @@ impl<'a> AffiliationService<'a> {
                 let faction_db_id = a.faction_id.and_then(|faction_id| {
                     let db_id = stored_entities.get_faction_record_id(&faction_id);
                     if db_id.is_none() {
-                        tracing::warn!(
-                            character_id = a.character_id,
-                            faction_id = faction_id,
-                            "Faction ID not found in database; setting character's faction to None"
+                        log::warn!(
+                            "character_id = {}, faction_id = {}. Faction ID not found in database; setting character's faction to None",
+                            a.character_id,
+                            faction_id
                         );
                     }
                     db_id
