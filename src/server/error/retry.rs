@@ -127,26 +127,8 @@ impl AppError {
             // Redis session store errors - transient connection/command failures
             Self::SessionStore(_) => ErrorRetryStrategy::Retry,
 
-            // Other ESI errors - permanent failures (OAuth, parsing, etc.)
-            Self::Esi(_) => ErrorRetryStrategy::Fail,
-
-            // Configuration errors - permanent failures (missing/invalid env vars)
-            Self::Config(_) => ErrorRetryStrategy::Fail,
-
-            // Auth errors - permanent failures (CSRF, bad credentials, missing data)
-            Self::Auth(_) => ErrorRetryStrategy::Fail,
-
-            // Parse errors - permanent failures (malformed data that won't change)
-            Self::Parse(_) => ErrorRetryStrategy::Fail,
-
-            // Internal errors - permanent failures (bugs in Bifrost's code)
-            Self::Internal(_) => ErrorRetryStrategy::Fail,
-
-            // Worker errors - permanent failures (job validation, serialization)
-            Self::Worker(_) => ErrorRetryStrategy::Fail,
-
-            // Job scheduler errors - permanent failures (invalid cron, config issues)
-            Self::Scheduler(_) => ErrorRetryStrategy::Fail,
+            // All other errors not explicitly handled will be fail by default
+            _ => ErrorRetryStrategy::Fail,
         }
     }
 }

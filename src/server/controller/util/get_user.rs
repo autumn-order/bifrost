@@ -4,7 +4,7 @@
 //! and database. It handles session validation, user lookup, and automatic session cleanup
 //! when users are not found in the database.
 
-use dioxus_logger::tracing;
+use log;
 use tower_sessions::Session;
 
 use crate::{
@@ -46,7 +46,7 @@ pub async fn get_user_from_session(
     let Some(user) = UserService::new(&state.db).get_user(user_id).await? else {
         session.clear().await;
 
-        tracing::debug!(
+        log::debug!(
             "Session cleared for user ID {} with active session but was not found in database",
             user_id
         );

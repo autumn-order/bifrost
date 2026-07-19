@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use dioxus_logger::tracing;
+use log;
 use entity::{
     eve_alliance::Model as EveAllianceModel, eve_character::Model as EveCharacterModel,
     eve_corporation::Model as EveCorporationModel, eve_faction::Model as EveFactionModel,
@@ -113,10 +113,10 @@ impl EveEntityOrchestrator {
                 match self.factions_record_id_map.get(&faction_id) {
                     Some(id) => Some(*id),
                     None => {
-                        tracing::warn!(
-                            faction_id = %faction_id,
-                            alliance_id = %alliance_id,
-                            "Failed to find faction record ID in database; alliance will have no related faction"
+                        log::warn!(
+                            "faction_id = {}, alliance_id = {}. Failed to find faction record ID in database; alliance will have no related faction",
+                            faction_id,
+                            alliance_id
                         );
                         None
                     }
@@ -172,10 +172,10 @@ impl EveEntityOrchestrator {
                 match self.factions_record_id_map.get(&faction_id) {
                     Some(id) => Some(*id),
                     None => {
-                        tracing::warn!(
-                            faction_id = %faction_id,
-                            corporation_id = %corporation_id,
-                            "Failed to find faction record ID in database; corporation will have no related faction"
+                        log::warn!(
+                            "faction_id = {}, corporation_id = {}. Failed to find faction record ID in database; corporation will have no related faction",
+                            faction_id,
+                            corporation_id
                         );
                         None
                     }
@@ -186,10 +186,10 @@ impl EveEntityOrchestrator {
                 match self.alliances_record_id_map.get(&alliance_id) {
                     Some(id) => Some(*id),
                     None => {
-                        tracing::warn!(
-                            alliance_id = %alliance_id,
-                            corporation_id = %corporation_id,
-                            "Failed to find alliance record ID in database; corporation will have no related alliance"
+                        log::warn!(
+                            "alliance_id = {}, corporation_id = {}. Failed to find alliance record ID in database; corporation will have no related alliance",
+                            alliance_id,
+                            corporation_id
                         );
                         None
                     }
@@ -246,10 +246,10 @@ impl EveEntityOrchestrator {
                 match self.factions_record_id_map.get(&faction_id) {
                     Some(id) => Some(*id),
                     None => {
-                        tracing::warn!(
-                            faction_id = %faction_id,
-                            character_id = %character_id,
-                            "Failed to find faction record ID in database; character will have no related faction"
+                        log::warn!(
+                            "faction_id = {}, character_id = {}. Failed to find faction record ID in database; character will have no related faction",
+                            faction_id,
+                            character_id
                         );
                         None
                     }
@@ -260,10 +260,10 @@ impl EveEntityOrchestrator {
                 match self.corporations_record_id_map.get(&character.corporation_id) {
                     Some(id) => *id,
                     None => {
-                        tracing::error!(
-                            corporation_id = %character.corporation_id,
-                            character_id = %character_id,
-                            "Failed to find corporation record ID in database; skipping saving character to database due to missing corporation"
+                        log::error!(
+                            "corporation_id = {}, character_id = {}. Failed to find corporation record ID in database; skipping saving character to database due to missing corporation",
+                            character.corporation_id,
+                            character_id
                         );
 
                         return None; // Skip this character

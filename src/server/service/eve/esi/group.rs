@@ -24,7 +24,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use dioxus_logger::tracing;
+use log;
 use tokio::sync::RwLock;
 
 use super::{
@@ -152,10 +152,7 @@ impl EndpointGroup {
 
                 // Double-check state hasn't changed
                 if matches!(*status, EndpointStatus::Offline { .. }) {
-                    tracing::info!(
-                        group = %self.name,
-                        "ESI endpoint group beginning recovery attempt after cooldown period"
-                    );
+                    log::info!("group = {}. ESI endpoint group beginning recovery attempt after cooldown period", self.name);
                     status.begin_recovery_attempt();
                 } else {
                     // Someone else already transitioned, release flag
@@ -195,11 +192,11 @@ impl EndpointGroup {
         // Log state transition if it occurred
         let new_state = format!("{:?}", *status);
         if old_state != new_state {
-            tracing::debug!(
-                group = %self.name,
-                old_state = %old_state,
-                new_state = %new_state,
-                "ESI endpoint group state transition after 5xx error"
+            log::debug!(
+                "group = {}, old_state = {}, new_state = {}. ESI endpoint group state transition after 5xx error",
+                self.name,
+                old_state,
+                new_state
             );
         }
 
@@ -307,9 +304,9 @@ impl EndpointStatus {
 
         match self {
             EndpointStatus::Healthy => {
-                tracing::debug!(
-                    group = %group_name,
-                    "ESI endpoint group transitioned from Healthy to Impaired after first 5xx error"
+                log::debug!(
+                    "group = {}. ESI endpoint group transitioned from Healthy to Impaired after first 5xx error",
+                    group_name
                 );
                 let mut window = VecDeque::with_capacity(ENDPOINT_GROUP_SLIDING_WINDOW_SIZE);
                 window.push_back(false); // false = error
@@ -336,32 +333,32 @@ impl EndpointStatus {
                 let error_rate = error_count as f64 / total_requests as f64;
 
                 if error_rate >= ENDPOINT_GROUP_ERROR_RATE_THRESHOLD {
-                    tracing::error!(
-                        group = %group_name,
-                        error_count = %error_count,
-                        total_requests = %total_requests,
-                        error_rate = %format!("{:.1}%", error_rate * 100.0),
-                        threshold = %format!("{:.1}%", ENDPOINT_GROUP_ERROR_RATE_THRESHOLD * 100.0),
-                        cooldown_seconds = %ENDPOINT_GROUP_RETRY_COOLDOWN.as_secs(),
-                        "ESI endpoint group circuit breaker tripped - error rate exceeded threshold; endpoint now offline"
+                    log::error!(
+                        "group = {}, error_count = {}, total_requests = {}, error_rate = {}, threshold = {}, cooldown_seconds = {}. ESI endpoint group circuit breaker tripped - error rate exceeded threshold; endpoint now offline",
+                        group_name,
+                        error_count,
+                        total_requests,
+                        format!("{:.1}%", error_rate * 100.0),
+                        format!("{:.1}%", ENDPOINT_GROUP_ERROR_RATE_THRESHOLD * 100.0),
+                        ENDPOINT_GROUP_RETRY_COOLDOWN.as_secs()
                     );
                     *self = EndpointStatus::Offline { last_error: now };
                 } else {
-                    tracing::debug!(
-                        group = %group_name,
-                        error_count = %error_count,
-                        total_requests = %total_requests,
-                        error_rate = %format!("{:.1}%", error_rate * 100.0),
-                        "ESI endpoint group recorded error in sliding window"
+                    log::debug!(
+                        "group = {}, error_count = {}, total_requests = {}, error_rate = {}. ESI endpoint group recorded error in sliding window",
+                        group_name,
+                        error_count,
+                        total_requests,
+                        format!("{:.1}%", error_rate * 100.0)
                     );
                     // State remains Impaired with updated window
                 }
             }
             EndpointStatus::Recovering { .. } => {
                 // Strict fail-fast during recovery - any error immediately returns to offline
-                tracing::error!(
-                    group = %group_name,
-                    "ESI endpoint group failed recovery - error during recovery attempt; returning to offline state"
+                log::error!(
+                    "group = {}. ESI endpoint group failed recovery - error during recovery attempt; returning to offline state",
+                    group_name
                 );
                 *self = EndpointStatus::Offline { last_error: now };
             }
@@ -409,30 +406,27 @@ impl EndpointStatus {
                 let error_rate = error_count as f64 / total_requests as f64;
 
                 if error_rate < ENDPOINT_GROUP_ERROR_RATE_THRESHOLD {
-                    tracing::info!(
-                        group = %group_name,
-                        error_count = %error_count,
-                        total_requests = %total_requests,
-                        error_rate = %format!("{:.1}%", error_rate * 100.0),
-                        "ESI endpoint group recovered to healthy state - error rate below threshold"
+                    log::info!(
+                        "group = {}, error_count = {}, total_requests = {}, error_rate = {}. ESI endpoint group recovered to healthy state - error rate below threshold",
+                        group_name,
+                        error_count,
+                        total_requests,
+                        format!("{:.1}%", error_rate * 100.0)
                     );
                     *self = EndpointStatus::Healthy;
                 } else {
-                    tracing::debug!(
-                        group = %group_name,
-                        error_count = %error_count,
-                        total_requests = %total_requests,
-                        error_rate = %format!("{:.1}%", error_rate * 100.0),
-                        "ESI endpoint group recorded success in sliding window, but error rate still above threshold"
+                    log::debug!(
+                        "group = {}, error_count = {}, total_requests = {}, error_rate = {}. ESI endpoint group recorded success in sliding window, but error rate still above threshold",
+                        group_name,
+                        error_count,
+                        total_requests,
+                        format!("{:.1}%", error_rate * 100.0)
                     );
                 }
             }
             EndpointStatus::Recovering { .. } => {
                 // Immediate success during recovery = back to healthy
-                tracing::info!(
-                    group = %group_name,
-                    "ESI endpoint group successfully recovered to healthy state"
-                );
+                log::info!("group = {}. ESI endpoint group successfully recovered to healthy state", group_name);
                 *self = EndpointStatus::Healthy;
             }
             EndpointStatus::Offline { .. } => {

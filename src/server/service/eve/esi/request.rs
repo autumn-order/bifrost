@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use dioxus_logger::tracing;
+use log;
 use eve_esi::{CacheStrategy, CachedResponse, EsiResponse};
 
 use super::group::EndpointGroup;
@@ -70,24 +70,21 @@ where
         // Check status and atomically begin recovery if needed
         let check_result = self.group.check_and_begin_recovery().await?;
 
-        tracing::trace!(
-            attempting_recovery = %check_result.attempting_recovery,
-            was_impaired = %check_result.was_impaired,
-            "Executing ESI request"
+        log::trace!(
+            "attempting_recovery = {}, was_impaired = {}. Executing ESI request",
+            check_result.attempting_recovery,
+            check_result.was_impaired
         );
 
         let result = self.request.send().await;
 
         match &result {
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
-                tracing::debug!(
-                    status = %err.status,
-                    "ESI request returned 5xx error, updating circuit breaker state"
-                );
+                log::debug!("status = {}. ESI request returned 5xx error, updating circuit breaker state", err.status);
                 self.group.handle_5xx_error().await;
             }
             Ok(_) => {
-                tracing::trace!("ESI request successful");
+                log::trace!("ESI request successful");
                 self.group.handle_success(check_result).await;
             }
             _ => {}
@@ -124,29 +121,26 @@ where
         // Check status and atomically begin recovery if needed
         let check_result = self.group.check_and_begin_recovery().await?;
 
-        tracing::trace!(
-            attempting_recovery = %check_result.attempting_recovery,
-            was_impaired = %check_result.was_impaired,
-            "Executing cached ESI request"
+        log::trace!(
+            "attempting_recovery = {}, was_impaired = {}. Executing cached ESI request",
+            check_result.attempting_recovery,
+            check_result.was_impaired
         );
 
         let result = self.request.send_cached(strategy).await;
 
         match &result {
             Err(eve_esi::Error::EsiError(err)) if matches!(err.status, 500..=599) => {
-                tracing::debug!(
-                    status = %err.status,
-                    "Cached ESI request returned 5xx error, updating circuit breaker state"
-                );
+                log::debug!("status = {}. Cached ESI request returned 5xx error, updating circuit breaker state", err.status);
                 self.group.handle_5xx_error().await;
             }
             Ok(CachedResponse::Fresh(_)) => {
-                tracing::trace!("Cached ESI request returned fresh data (200 OK)");
+                log::trace!("Cached ESI request returned fresh data (200 OK)");
                 // Both Fresh and NotModified are considered successful responses
                 self.group.handle_success(check_result).await;
             }
             Ok(CachedResponse::NotModified) => {
-                tracing::trace!("Cached ESI request returned 304 Not Modified");
+                log::trace!("Cached ESI request returned 304 Not Modified");
                 // Both Fresh and NotModified are considered successful responses
                 self.group.handle_success(check_result).await;
             }

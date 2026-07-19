@@ -125,7 +125,7 @@ mod eve;
 use std::time::Duration;
 
 use chrono::Utc;
-use dioxus_logger::tracing;
+use log;
 use sea_orm::DatabaseConnection;
 
 use crate::server::{
@@ -242,7 +242,7 @@ impl WorkerJobHandler {
         // Check if job has exceeded retry limit
         if let Some(metadata) = &scheduled_job.retry_metadata {
             if metadata.attempt_count >= MAX_RETRY_ATTEMPTS {
-                tracing::error!(
+                log::error!(
                     "Job exceeded maximum retry attempts ({}) after {} total time. Failing permanently: {}. \
                     First failed at: {}",
                     MAX_RETRY_ATTEMPTS,
@@ -298,7 +298,7 @@ impl WorkerJobHandler {
                 Ok(())
             }
             ErrorRetryStrategy::Fail => {
-                tracing::error!(
+                log::error!(
                     "Job failed permanently (not retryable): {}. Error: {:?}",
                     scheduled_job.job,
                     e
@@ -368,7 +368,7 @@ impl WorkerJobHandler {
             )
         };
 
-        tracing::warn!("{}", log_message);
+        log::warn!("{}", log_message);
 
         // Increment retry count for next attempt
         metadata.increment();
@@ -408,7 +408,7 @@ impl WorkerJobHandler {
         let downtime_start = now - downtime_remaining;
 
         if scheduled_job.scheduled_at < downtime_start {
-            tracing::debug!(
+            log::debug!(
                 "Job scheduled at {} (before downtime window) pulled during ESI downtime. \
                 Rescheduling to run after downtime ends (in {} minutes): {}\n\
                 This behavior is expected when the application restarts during ESI downtime.",
@@ -417,7 +417,7 @@ impl WorkerJobHandler {
                 scheduled_job.job
             );
         } else {
-            tracing::warn!(
+            log::warn!(
                 "Job scheduled at {} (during downtime window starting at {}) is being processed during ESI downtime. \
                 Rescheduling to run after downtime ends (in {} minutes): {}\n\
                 This may indicate a scheduler bug. Please open a GitHub issue if this behavior continues.",

@@ -10,7 +10,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use dioxus_logger::tracing;
+use log;
 use thiserror::Error;
 
 use crate::{model::api::ErrorDto, server::error::InternalServerError};
@@ -114,21 +114,17 @@ impl IntoResponse for AuthError {
     fn into_response(self) -> Response {
         match self {
             Self::UserNotInSession => {
-                tracing::debug!("{}", Self::UserNotInSession);
+                log::debug!("{}", Self::UserNotInSession);
 
                 Self::user_not_found()
             }
             Self::UserNotInDatabase(user_id) => {
-                tracing::debug!(
-                    user_id = %user_id,
-                    "{}",
-                    self
-                );
+                log::debug!("user_id = {}. {}", user_id, self);
 
                 Self::user_not_found()
             }
             Self::CsrfValidationFailed => {
-                tracing::debug!("{}", Self::CsrfMissingValue);
+                log::debug!("{}", Self::CsrfMissingValue);
 
                 (
                     StatusCode::BAD_REQUEST,
@@ -139,7 +135,7 @@ impl IntoResponse for AuthError {
                     .into_response()
             }
             Self::CharacterOwnedByAnotherUser => {
-                tracing::debug!("{}", self);
+                log::debug!("{}", self);
 
                 (
                     StatusCode::BAD_REQUEST,
@@ -150,7 +146,7 @@ impl IntoResponse for AuthError {
                     .into_response()
             }
             Self::CharacterNotOwned => {
-                tracing::debug!("{}", self);
+                log::debug!("{}", self);
 
                 (
                     StatusCode::BAD_REQUEST,

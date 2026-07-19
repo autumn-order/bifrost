@@ -8,7 +8,7 @@
 use std::future::Future;
 use std::sync::Arc;
 
-use dioxus_logger::tracing;
+use log;
 use sea_orm::DatabaseConnection;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
@@ -209,8 +209,8 @@ impl Scheduler {
 
                 Box::pin(async move {
                     match function(state).await {
-                        Ok(count) => tracing::debug!("Scheduled {} {} update(s)", count, name),
-                        Err(e) => tracing::error!("Error scheduling {} update: {:?}", name, e),
+                        Ok(count) => log::debug!("Scheduled {} {} update(s)", count, name),
+                        Err(e) => log::error!("Error scheduling {} update: {:?}", name, e),
                     }
                 })
             })?)
